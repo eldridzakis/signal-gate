@@ -14,7 +14,7 @@ Automated Machine Learning (AutoML) and automated feature engineering engines ex
 
 Selecting features that maximize performance metrics on a training split introduces **selection bias (The Winner's Curse)**:
 1. **Spurious Features Pass as Genuine:** Random noise features will inevitably achieve high sample metric scores purely by chance.
-2. **Optimistic Overestimation:** Genuine features exhibit inflated scores on training data compared to test and production data ($\text{Bias} = \text{Metric}_{\text{train}} - \text{Metric}_{\text{unseen}} > 0$).
+2. **Optimistic Overestimation:** Genuine features exhibit inflated scores on training data compared to test and production data: $`\text{Bias} = \text{Metric}_{\text{train}} - \text{Metric}_{\text{unseen}} > 0`$.
 3. **Compounded by Large Search Budgets:** As the search space ($M$) expands (e.g., adding external datasets like OpenStreetMap), the noise floor and overestimation bias increase systematically.
 
 **Sampling Toolbox** provides an information-theoretic framework to:
