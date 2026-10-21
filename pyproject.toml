@@ -3,7 +3,7 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "sampling-toolbox"
+name = "feature-noise-gate"
 version = "1.0.0"
 description = "Quantifying the Winner's Curse, estimating noise thresholds, and de-biasing automated feature engineering"
 readme = "README.md"
@@ -14,6 +14,7 @@ authors = [
 ]
 keywords = [
     "feature-selection",
+    "feature-noise-gate",
     "automl",
     "information-gain",
     "multiple-testing",
@@ -51,4 +52,4 @@ dev = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["sampling_toolbox*"]
+include = ["feature_noise_gate*", "sampling_toolbox*"]

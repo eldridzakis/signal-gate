@@ -3,7 +3,8 @@
 import unittest
 import numpy as np
 import pandas as pd
-from sampling_toolbox.metrics import entropy, rig, rig_all_columns, fast_contingency_matrix
+from feature_noise_gate.metrics import entropy, rig, rig_all_columns, fast_contingency_matrix
+import sampling_toolbox
 
 
 class TestMetrics(unittest.TestCase):
@@ -47,6 +48,13 @@ class TestMetrics(unittest.TestCase):
         rigs = rig_all_columns(df, target='target')
         self.assertEqual(len(rigs), 2)
         self.assertAlmostEqual(rigs[0], 1.0, places=5)
+
+
+    def test_backward_compatibility(self):
+        self.assertTrue(hasattr(sampling_toolbox, 'rig'))
+        self.assertTrue(hasattr(sampling_toolbox, 'PermutationObject'))
+        self.assertTrue(hasattr(sampling_toolbox, 'FeatureNoiseThreshold'))
+        self.assertTrue(hasattr(sampling_toolbox, 'FeatureDebiaser'))
 
 
 if __name__ == '__main__':

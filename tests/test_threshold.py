@@ -1,7 +1,7 @@
 """Unit tests for analytical noise thresholds."""
 
 import unittest
-from sampling_toolbox.threshold import FeatureNoiseThreshold, estimate_noise_threshold, binary_entropy
+from feature_noise_gate.threshold import FeatureNoiseThreshold, estimate_noise_threshold, binary_entropy
 
 
 class TestThreshold(unittest.TestCase):

@@ -2,8 +2,8 @@
 
 import unittest
 import numpy as np
-from sampling_toolbox.permutation import PermutationObject
-from sampling_toolbox.threshold import FeatureNoiseThreshold
+from feature_noise_gate.permutation import PermutationObject
+from feature_noise_gate.threshold import FeatureNoiseThreshold
 
 
 class TestPermutation(unittest.TestCase):

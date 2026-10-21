@@ -1,6 +1,6 @@
-"""Backward-compatibility module forwarding to the sampling_toolbox package."""
+"""Backward-compatibility module forwarding to feature_noise_gate."""
 
-from sampling_toolbox import (
+from feature_noise_gate import (
     entropy,
     rig,
     rig_all_columns,

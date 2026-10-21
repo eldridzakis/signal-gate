@@ -1,8 +1,8 @@
-# Sampling Toolbox
+# Feature Noise Gate
 
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Tests](https://img.shields.io/badge/tests-15%20passed-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/tests-16%20passed-brightgreen.svg)]()
 
 > **Quantifying the Winner's Curse, estimating statistical noise thresholds, and de-biasing automated feature engineering.**
 
@@ -14,10 +14,10 @@ Automated Machine Learning (AutoML) and automated feature engineering engines ex
 
 Selecting features that maximize performance metrics on a training split introduces **selection bias (The Winner's Curse)**:
 1. **Spurious Features Pass as Genuine:** Random noise features will inevitably achieve high sample metric scores purely by chance.
-2. **Optimistic Overestimation:** Genuine features exhibit inflated scores on training data compared to test and production data: $`\text{Bias} = \text{Metric}_{\text{train}} - \text{Metric}_{\text{unseen}} > 0`$.
+2. **Optimistic Overestimation:** Genuine features exhibit inflated scores on training data compared to test and production data ($\text{Bias} = \text{Metric}_{\text{train}} - \text{Metric}_{\text{unseen}} > 0$).
 3. **Compounded by Large Search Budgets:** As the search space ($M$) expands (e.g., adding external datasets like OpenStreetMap), the noise floor and overestimation bias increase systematically.
 
-**Sampling Toolbox** provides an information-theoretic framework to:
+**Feature Noise Gate** provides an information-theoretic framework to:
 * **Instantly calculate closed-form noise thresholds** given dataset size ($N$), target distribution ($p$), and search space size ($M$).
 * **Run vectorized Monte-Carlo permutation tests** (100x faster than traditional dataframe shuffling).
 * **De-bias feature importances** and classify features into $1\sigma$ and $2\sigma$ statistical confidence tiers via bootstrap resampling.
@@ -60,8 +60,8 @@ When an AutoML engine evaluates $M$ candidate features:
 
 ### Installation
 ```bash
-git clone https://github.com/peter-eldridge/sampling_toolbox.git
-cd sampling_toolbox
+git clone https://github.com/eldridzakis/feature-noise-gate.git
+cd feature-noise-gate
 pip install -e .
 ```
 
@@ -69,7 +69,7 @@ pip install -e .
 Calculate how high a feature's RIG must be to be statistically distinguished from noise after evaluating $M=20,000$ candidates on a dataset of 5,000 rows with a 15% minority class:
 
 ```python
-from sampling_toolbox import estimate_noise_threshold, FeatureNoiseThreshold
+from feature_noise_gate import estimate_noise_threshold, FeatureNoiseThreshold
 
 # Instant lookup (< 1 millisecond)
 tau = estimate_noise_threshold(nrows=5000, minority_frac=0.15, n_features_evaluated=20000, alpha=0.05)
@@ -83,7 +83,7 @@ print(summary_df)
 
 ### 2. Fast Monte-Carlo Permutation Test
 ```python
-from sampling_toolbox import PermutationObject
+from feature_noise_gate import PermutationObject
 
 perm = PermutationObject()
 perm.set_data_parameters(nrows=2000, class_weights=[0.25])
@@ -97,7 +97,7 @@ perm.null_rigs_comparison(threshold=0.005)
 
 ### 3. Feature De-Biasing & Stability Classification
 ```python
-from sampling_toolbox import FeatureDebiaser
+from feature_noise_gate import FeatureDebiaser
 
 # 1. Compute holdout bias: Bias = Train_RIG - Unseen_RIG
 df_bias = FeatureDebiaser.compute_holdout_bias(df_train, df_test, target='target')
@@ -130,17 +130,18 @@ print(stable_features[['feature', 'train_rig', 'corrected_rig', 'stability_class
 ## 📂 Repository Structure
 
 ```
-sampling_toolbox/
-├── sampling_toolbox/             # Core library
+feature-noise-gate/
+├── feature_noise_gate/           # Core library
 │   ├── __init__.py               # Public API exports
 │   ├── metrics.py                # Fast entropy, mutual info, RIG calculations
 │   ├── threshold.py              # Analytical Chi-squared & EVT noise estimators
 │   ├── permutation.py            # Vectorized Monte-Carlo permutation tester
 │   └── debias.py                 # Out-of-Fold (OOF) & Bootstrap de-biasing engine
+├── sampling_toolbox/             # Backward-compatibility alias
 ├── notebooks/                    # Self-contained walkthroughs
 │   ├── 01_feature_noise_thresholds.ipynb
 │   └── 02_selection_bias_and_debiasing.ipynb
-├── tests/                        # Automated unit tests (15 test suites)
+├── tests/                        # Automated unit tests (16 test suites)
 │   ├── test_metrics.py
 │   ├── test_threshold.py
 │   ├── test_permutation.py
@@ -162,10 +163,10 @@ Run the test suite using standard Python `unittest`:
 python -m unittest discover -s tests -v
 ```
 
-All 15 tests run in $< 1$ second.
+All 16 tests run in $< 0.5$ seconds.
 
 ---
 
 ## 📜 Citation & License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
