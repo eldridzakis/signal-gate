@@ -52,7 +52,7 @@ When an AutoML engine evaluates $M$ candidate features:
 
 * **Extreme Value Theory (EVT) Expected Maximum:**
   $$\mathbb{E}[\max_{1 \le i \le M} \chi^2_1] \approx 2 \ln M - \ln \ln M - \ln \pi + 2\gamma \quad (\gamma \approx 0.5772)$$
-  $$\tau_{\text{EVT}}(N, p, M) \approx \frac{2 \ln M - \ln \ln M - 0.012}{2 N \ln(2) \cdot H(p)}$$
+  $$\tau_{\text{EVT}}(N, p, M) \approx \frac{2 \ln M - \ln \ln M - \ln \pi + 2\gamma}{2 N \ln(2) \cdot H(p)} \approx \frac{2 \ln M - \ln \ln M + 0.010}{2 N \ln(2) \cdot H(p)}$$
 
 ---
 
