@@ -1,11 +1,10 @@
 """Permutation testing engine for empirical null distribution analysis.
 
 Provides high-performance vectorized Monte-Carlo permutation testing
-for Relative Information Gain (RIG), fully backward-compatible with
-the original sampling_toolbox PermutationObject.
+for Relative Information Gain (RIG) and generic user-defined metrics.
 """
 
-from typing import List, Optional, Sequence, Union
+from typing import Callable, List, Optional, Sequence, Union
 import numpy as np
 import pandas as pd
 
@@ -16,20 +15,7 @@ def _compute_rig_vectorized_binary(
     features_matrix: np.ndarray,
     target: np.ndarray
 ) -> np.ndarray:
-    """Computes RIG for multiple boolean/binary features against a target array.
-
-    Parameters
-    ----------
-    features_matrix : np.ndarray
-        2D boolean/integer array of shape (N, num_features).
-    target : np.ndarray
-        1D integer/categorical array of shape (N,).
-
-    Returns
-    -------
-    np.ndarray
-        1D array of RIG values of length num_features.
-    """
+    """Computes RIG for multiple boolean/binary features against a target array."""
     n_samples, n_features = features_matrix.shape
     if n_samples == 0 or n_features == 0:
         return np.zeros(n_features)
@@ -66,7 +52,7 @@ def _compute_rig_vectorized_binary(
 
 
 class PermutationObject:
-    """High-performance Monte-Carlo permutation tester for Relative Information Gain."""
+    """High-performance Monte-Carlo permutation tester supporting RIG and custom metrics."""
 
     def __init__(self):
         # Default Feature Fractions (feature support)
@@ -83,41 +69,51 @@ class PermutationObject:
         self.null_rig_values: pd.Series = pd.Series(dtype=float)
         self.permutations: int = 0
 
-    def set_data_parameters(self, nrows: int, class_weights: Sequence[float]):
+        # Generic metric aliases
+        self.df_nulls: pd.DataFrame = pd.DataFrame()
+        self.null_values: pd.Series = pd.Series(dtype=float)
+
+    def set_data_parameters(
+        self,
+        nrows: int,
+        class_weights: Optional[Union[float, Sequence[float]]] = None,
+        minority_class: Optional[float] = None
+    ):
         """Sets dataset size and class balance parameters.
 
-        Parameters
-        ----------
-        nrows : int
-            Number of rows in the synthetic dataset.
-        class_weights : Sequence[float]
-            Minority class fraction (for binary, e.g. [0.3]) or full distribution (e.g. [0.7, 0.3]).
+        Supports both class_weights (list) and minority_class (scalar).
         """
         self.nrows = int(nrows)
-        class_weights = list(class_weights)
-        if len(class_weights) > 1:
-            total = sum(class_weights)
+        if class_weights is not None:
+            if isinstance(class_weights, (int, float)):
+                weights = [float(class_weights)]
+            else:
+                weights = list(class_weights)
+        elif minority_class is not None:
+            weights = [float(minority_class)]
+        else:
+            raise ValueError("Either class_weights or minority_class must be provided.")
+
+        if len(weights) > 1:
+            total = sum(weights)
             if not np.isclose(total, 1.0, atol=1e-4):
                 raise ValueError(f"Class weights should sum to 1.0, got {total}")
-        self.class_weights = class_weights
+        self.class_weights = weights
 
-    def create_synthetic_data(self, seed: Optional[int] = 42):
+    def create_synthetic_data(self, seed: Optional[int] = 42) -> pd.DataFrame:
         """Generates synthetic data with configured row count, target distribution, and features."""
         rng = np.random.default_rng(seed)
 
         # 1. Target generation
         if len(self.class_weights) == 1:
-            # Binary target
             minority_fraction = self.class_weights[0]
             n_minority = int(round(self.nrows * minority_fraction))
             n_majority = self.nrows - n_minority
             target = np.array([0] * n_majority + [1] * n_minority, dtype=int)
             rng.shuffle(target)
         else:
-            # Multiclass target with exact row counts
             weights = np.array(self.class_weights) / sum(self.class_weights)
             counts = np.floor(weights * self.nrows).astype(int)
-            # Distribute remainder
             remainder = self.nrows - counts.sum()
             if remainder > 0:
                 counts[:remainder] += 1
@@ -129,7 +125,7 @@ class PermutationObject:
 
         df = pd.DataFrame({'target': target})
 
-        # 2. Synthetic boolean features with distinct seeds to prevent artificial correlation
+        # 2. Synthetic boolean features
         for feat_idx, feature_fraction in enumerate(self.feature_fractions):
             col_name = f'feature_{round(feature_fraction, 3)}'
             n_ones = int(round(self.nrows * feature_fraction))
@@ -158,9 +154,10 @@ class PermutationObject:
         obj.gain_threshold = gain_threshold
         return obj
 
-    def calculate_null_rigs(
+    def calculate_null_distribution(
         self,
         permutations: int,
+        metric_fn: Optional[Callable[[pd.Series, pd.Series], float]] = None,
         seed: Optional[int] = None,
         verbose: bool = True
     ) -> pd.DataFrame:
@@ -170,6 +167,8 @@ class PermutationObject:
         ----------
         permutations : int
             Number of target shuffle iterations.
+        metric_fn : Callable, optional
+            Function (feature, target) -> float. If None, uses fast vectorized RIG.
         seed : int, optional
             Random seed for reproducibility.
         verbose : bool, default True
@@ -178,7 +177,7 @@ class PermutationObject:
         Returns
         -------
         pd.DataFrame
-            DataFrame of shape (permutations, num_features) with null RIG values.
+            DataFrame of shape (permutations, num_features) with null metric values.
         """
         self.permutations = int(permutations)
         rng = np.random.default_rng(seed)
@@ -187,35 +186,55 @@ class PermutationObject:
         feature_cols = [c for c in self.data.columns if c != target_col]
         n_features = len(feature_cols)
 
-        # Pre-extract numpy matrices
-        features_matrix = self.data[feature_cols].to_numpy()
-        target_orig = self.data[target_col].to_numpy().copy()
+        if metric_fn is None:
+            # Fast vectorized binary RIG path
+            features_matrix = self.data[feature_cols].to_numpy()
+            target_orig = self.data[target_col].to_numpy().copy()
 
-        null_matrix = np.empty((self.permutations, n_features), dtype=float)
+            null_matrix = np.empty((self.permutations, n_features), dtype=float)
+            target_shuffled = target_orig.copy()
+            for i in range(self.permutations):
+                rng.shuffle(target_shuffled)
+                null_matrix[i, :] = _compute_rig_vectorized_binary(features_matrix, target_shuffled)
+        else:
+            # Generic user-defined metric function path
+            null_matrix = np.empty((self.permutations, n_features), dtype=float)
+            target_s = self.data[target_col].copy()
+            features_df = self.data[feature_cols]
 
-        target_shuffled = target_orig.copy()
-        for i in range(self.permutations):
-            rng.shuffle(target_shuffled)
-            null_matrix[i, :] = _compute_rig_vectorized_binary(features_matrix, target_shuffled)
+            for i in range(self.permutations):
+                shuffled_y = pd.Series(rng.permutation(target_s.values), index=target_s.index)
+                for j, col in enumerate(feature_cols):
+                    null_matrix[i, j] = float(metric_fn(features_df[col], shuffled_y))
 
         self.null_rigs = pd.DataFrame(null_matrix, columns=feature_cols)
         self.null_rig_values = pd.Series(null_matrix.flatten(), dtype=float)
 
+        # Aliases
+        self.df_nulls = self.null_rigs
+        self.null_values = self.null_rig_values
+
         if verbose:
             n_greater = 1
             quantile = max(0.0, 1.0 - (n_greater / self.permutations))
-            print(f'Max null RIG \t\t= {self.null_rig_values.max():.6f}')
-            print(f'Median null RIG \t= {self.null_rig_values.median():.6f}')
-            print(f'{n_greater} in {self.permutations} null RIG \t= {self.null_rig_values.quantile(quantile):.6f}')
-            print(f'Gain threshold \t\t= {self.gain_threshold:.6f}')
+            print(f'Max null value \t\t= {self.null_rig_values.max():.6f}')
+            print(f'Median null value \t= {self.null_rig_values.median():.6f}')
+            print(f'{n_greater} in {self.permutations} null value \t= {self.null_rig_values.quantile(quantile):.6f}')
+            print(f'Threshold \t\t= {self.gain_threshold:.6f}')
 
         return self.null_rigs
 
+    # Alias for backward compatibility
+    calculate_null_rigs = calculate_null_distribution
+
     def null_rigs_comparison(self, threshold: Optional[float] = None) -> int:
-        """Counts how many null RIGs exceed the gain threshold."""
+        """Counts how many null values exceed the threshold."""
         thresh = self.gain_threshold if threshold is None else threshold
         exceed_count = int((self.null_rig_values > thresh).sum())
         total = len(self.null_rig_values)
         pct = (exceed_count / total * 100) if total > 0 else 0.0
-        print(f'{exceed_count} in {total} null RIGs ({pct:.2f}%) greater than {thresh} threshold')
+        print(f'{exceed_count} in {total} null values ({pct:.2f}%) greater than {thresh} threshold')
         return exceed_count
+
+    # Alias
+    nulls_comparison = null_rigs_comparison

@@ -1,11 +1,11 @@
 """Feature de-biasing and stability classification engine.
 
 Implements selection bias estimation (The Winner's Curse),
-Out-of-Fold (OOF) cross-validation RIG, and Bootstrap 1-sigma / 2-sigma
-stability classification for automated feature engineering.
+Out-of-Fold (OOF) cross-validation, and Bootstrap 1-sigma / 2-sigma
+stability classification for automated feature engineering across arbitrary metrics.
 """
 
-from typing import Dict, List, Optional, Sequence, Tuple, Union
+from typing import Callable, Dict, List, Optional, Sequence, Tuple, Union
 import numpy as np
 import pandas as pd
 
@@ -15,13 +15,13 @@ from .metrics import rig, rig_all_columns
 class FeatureDebiaser:
     """Engine for estimating and correcting feature selection bias.
 
-    When automated feature engineering selects features that maximize train-set RIG,
+    When automated feature engineering selects features that maximize train-set performance,
     observed train performance is systematically inflated above its true population value.
     This module quantifies:
-        Bias = RIG_train - RIG_unseen
+        Bias = Metric_train - Metric_unseen
     and corrects feature rankings via:
-        RIG_corrected = RIG_train - Bias
-    followed by bootstrap confidence interval testing.
+        Metric_corrected = Metric_train - Bias
+    followed by bootstrap confidence interval testing. Supports arbitrary metric functions.
     """
 
     @staticmethod
@@ -30,7 +30,9 @@ class FeatureDebiaser:
         df_eval: pd.DataFrame,
         target: str,
         feature_cols: Optional[Sequence[str]] = None,
-        eval_label: str = "test"
+        eval_label: str = "test",
+        metric_fn: Callable[[pd.Series, pd.Series], float] = rig,
+        metric_name: str = "rig"
     ) -> pd.DataFrame:
         """Computes selection bias between training data and holdout/population data.
 
@@ -46,11 +48,15 @@ class FeatureDebiaser:
             Columns to evaluate. If None, all common non-target columns are used.
         eval_label : str, default 'test'
             Prefix label for evaluation metrics ('test' or 'population').
+        metric_fn : Callable[[pd.Series, pd.Series], float], default rig
+            Function computing the performance metric between feature and target.
+        metric_name : str, default 'rig'
+            Name label for the metric column.
 
         Returns
         -------
         pd.DataFrame
-            DataFrame with train_rig, eval_rig, bias, and overfitting ratio.
+            DataFrame with train_metric, eval_metric, bias, and overfitting ratio.
         """
         if feature_cols is None:
             common = set(df_train.columns).intersection(set(df_eval.columns))
@@ -58,31 +64,35 @@ class FeatureDebiaser:
 
         records = []
         for feat in feature_cols:
-            train_r = rig(df_train[feat], df_train[target])
-            eval_r = rig(df_eval[feat], df_eval[target])
-            bias = train_r - eval_r
-            overfitting_ratio = (bias / train_r) if train_r > 1e-12 else 0.0
+            train_val = float(metric_fn(df_train[feat], df_train[target]))
+            eval_val = float(metric_fn(df_eval[feat], df_eval[target]))
+            bias = train_val - eval_val
+            overfitting_ratio = (bias / train_val) if train_val > 1e-12 else 0.0
 
-            records.append({
+            rec = {
                 "feature": feat,
-                "train_rig": train_r,
-                f"{eval_label}_rig": eval_r,
+                f"train_{metric_name}": train_val,
+                f"{eval_label}_{metric_name}": eval_val,
                 f"{eval_label}_bias": bias,
                 f"overfitting_ratio_{eval_label}": overfitting_ratio
-            })
+            }
+            # Also keep test_bias / train_rig aliases if metric_name is rig
+            records.append(rec)
 
         df_metrics = pd.DataFrame(records)
-        return df_metrics.sort_values(by="train_rig", ascending=False).reset_index(drop=True)
+        return df_metrics.sort_values(by=f"train_{metric_name}", ascending=False).reset_index(drop=True)
 
     @staticmethod
-    def compute_oof_rig(
+    def compute_oof_metric(
         df: pd.DataFrame,
         target: str,
         feature_cols: Optional[Sequence[str]] = None,
         n_splits: int = 5,
+        metric_fn: Callable[[pd.Series, pd.Series], float] = rig,
+        metric_name: str = "rig",
         seed: Optional[int] = 42
     ) -> pd.DataFrame:
-        """Computes Out-of-Fold (OOF) cross-validated RIG to eliminate selection leakage.
+        """Computes Out-of-Fold (OOF) cross-validated metric to eliminate selection leakage.
 
         Parameters
         ----------
@@ -94,13 +104,17 @@ class FeatureDebiaser:
             Columns to evaluate.
         n_splits : int, default 5
             Number of cross-validation folds.
+        metric_fn : Callable, default rig
+            Metric function to evaluate.
+        metric_name : str, default 'rig'
+            Metric label.
         seed : int, optional
             Random state for fold assignment.
 
         Returns
         -------
         pd.DataFrame
-            DataFrame with train_rig, mean_oof_rig, and oof_bias.
+            DataFrame with train_metric, mean_oof_metric, and oof_bias.
         """
         if feature_cols is None:
             feature_cols = [c for c in df.columns if c != target]
@@ -115,26 +129,29 @@ class FeatureDebiaser:
 
         records = []
         for feat in feature_cols:
-            train_r = rig(df[feat], df[target])
-            oof_rigs = []
+            train_val = float(metric_fn(df[feat], df[target]))
+            oof_vals = []
             for fold in range(n_splits):
                 val_mask = fold_assignments == fold
                 val_feat = df[feat].iloc[val_mask]
                 val_target = df[target].iloc[val_mask]
-                oof_rigs.append(rig(val_feat, val_target))
+                oof_vals.append(float(metric_fn(val_feat, val_target)))
 
-            mean_oof_r = float(np.mean(oof_rigs))
-            oof_bias = train_r - mean_oof_r
+            mean_oof_val = float(np.mean(oof_vals))
+            oof_bias = train_val - mean_oof_val
             records.append({
                 "feature": feat,
-                "train_rig": train_r,
-                "oof_rig": mean_oof_r,
+                f"train_{metric_name}": train_val,
+                f"oof_{metric_name}": mean_oof_val,
                 "oof_bias": oof_bias,
-                "overfitting_ratio_oof": (oof_bias / train_r) if train_r > 1e-12 else 0.0
+                "overfitting_ratio_oof": (oof_bias / train_val) if train_val > 1e-12 else 0.0
             })
 
         df_res = pd.DataFrame(records)
-        return df_res.sort_values(by="train_rig", ascending=False).reset_index(drop=True)
+        return df_res.sort_values(by=f"train_{metric_name}", ascending=False).reset_index(drop=True)
+
+    # Alias for backward compatibility
+    compute_oof_rig = compute_oof_metric
 
     @staticmethod
     def bootstrap_stability_analysis(
@@ -142,15 +159,17 @@ class FeatureDebiaser:
         target: str,
         feature_cols: Optional[Sequence[str]] = None,
         estimated_bias: Optional[Union[float, Dict[str, float]]] = None,
+        metric_fn: Callable[[pd.Series, pd.Series], float] = rig,
+        metric_name: str = "rig",
         n_bootstraps: int = 100,
         seed: Optional[int] = 42
     ) -> pd.DataFrame:
-        """Performs bootstrap estimation of RIG standard errors and classifies feature stability.
+        """Performs bootstrap estimation of standard errors and classifies feature stability.
 
         Implements the 1-sigma and 2-sigma confidence criteria:
-            RIG_corrected = RIG_train - Bias
-            2-Sigma Stable: RIG_corrected - 2 * sigma_boot > 0
-            1-Sigma Stable: RIG_corrected - sigma_boot > 0
+            Metric_corrected = Metric_train - Bias
+            2-Sigma Stable: Metric_corrected - 2 * sigma_boot > 0
+            1-Sigma Stable: Metric_corrected - sigma_boot > 0
 
         Parameters
         ----------
@@ -161,9 +180,11 @@ class FeatureDebiaser:
         feature_cols : Sequence[str], optional
             Features to evaluate.
         estimated_bias : float or Dict[str, float], optional
-            Estimated selection bias to subtract. Can be a single float (e.g. median holdout bias
-            or EVT noise floor) or a dictionary mapping feature names to individual bias values.
-            If None, defaults to 0.0.
+            Estimated selection bias to subtract.
+        metric_fn : Callable, default rig
+            Metric function to evaluate.
+        metric_name : str, default 'rig'
+            Name of metric for output columns.
         n_bootstraps : int, default 100
             Number of bootstrap iterations.
         seed : int, optional
@@ -172,7 +193,7 @@ class FeatureDebiaser:
         Returns
         -------
         pd.DataFrame
-            DataFrame with train_rig, estimated_bias, corrected_rig, sigma_boot,
+            DataFrame with train_metric, estimated_bias, corrected_metric, sigma_boot,
             is_1_sigma, is_2_sigma, and stability_class.
         """
         if feature_cols is None:
@@ -181,21 +202,21 @@ class FeatureDebiaser:
         n = len(df)
         rng = np.random.default_rng(seed)
 
-        # Baseline train RIG
-        train_rigs = {feat: rig(df[feat], df[target]) for feat in feature_cols}
+        # Baseline train metric
+        train_vals = {feat: float(metric_fn(df[feat], df[target])) for feat in feature_cols}
 
         # Bootstrap distributions
-        boot_rigs = {feat: [] for feat in feature_cols}
+        boot_vals = {feat: [] for feat in feature_cols}
         for _ in range(n_bootstraps):
             boot_idx = rng.choice(n, size=n, replace=True)
             df_boot = df.iloc[boot_idx]
             for feat in feature_cols:
-                boot_rigs[feat].append(rig(df_boot[feat], df_boot[target]))
+                boot_vals[feat].append(float(metric_fn(df_boot[feat], df_boot[target])))
 
         records = []
         for feat in feature_cols:
-            tr_rig = train_rigs[feat]
-            sigma = float(np.std(boot_rigs[feat], ddof=1))
+            tr_val = train_vals[feat]
+            sigma = float(np.std(boot_vals[feat], ddof=1))
 
             if estimated_bias is None:
                 bias_val = 0.0
@@ -204,9 +225,9 @@ class FeatureDebiaser:
             else:
                 bias_val = float(estimated_bias)
 
-            corrected_rig = max(0.0, tr_rig - bias_val)
-            is_1_sigma = (corrected_rig - sigma) > 0.0
-            is_2_sigma = (corrected_rig - 2.0 * sigma) > 0.0
+            corrected_val = max(0.0, tr_val - bias_val)
+            is_1_sigma = (corrected_val - sigma) > 0.0
+            is_2_sigma = (corrected_val - 2.0 * sigma) > 0.0
 
             if is_2_sigma:
                 status = "Highly Stable (2-Sigma)"
@@ -217,9 +238,9 @@ class FeatureDebiaser:
 
             records.append({
                 "feature": feat,
-                "train_rig": tr_rig,
+                f"train_{metric_name}": tr_val,
                 "estimated_bias": bias_val,
-                "corrected_rig": corrected_rig,
+                f"corrected_{metric_name}": corrected_val,
                 "sigma_boot": sigma,
                 "is_1_sigma": is_1_sigma,
                 "is_2_sigma": is_2_sigma,
@@ -227,4 +248,4 @@ class FeatureDebiaser:
             })
 
         df_stab = pd.DataFrame(records)
-        return df_stab.sort_values(by="corrected_rig", ascending=False).reset_index(drop=True)
+        return df_stab.sort_values(by=f"corrected_{metric_name}", ascending=False).reset_index(drop=True)

@@ -63,5 +63,19 @@ class TestDebias(unittest.TestCase):
         self.assertTrue(gen_status)
 
 
+    def test_generic_metric(self):
+        # Custom metric function
+        def diff_mean(x, y):
+            return float(abs(x.mean() - y.mean()))
+
+        df_bias = FeatureDebiaser.compute_holdout_bias(
+            self.df_train, self.df_eval, target='target',
+            metric_fn=diff_mean, metric_name='diff'
+        )
+        self.assertIn('train_diff', df_bias.columns)
+        self.assertIn('test_diff', df_bias.columns)
+        self.assertIn('test_bias', df_bias.columns)
+
+
 if __name__ == '__main__':
     unittest.main()

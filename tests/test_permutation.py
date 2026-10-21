@@ -44,5 +44,19 @@ class TestPermutation(unittest.TestCase):
         self.assertAlmostEqual(emp_mean, theo_mean, delta=theo_mean * 0.15)
 
 
+    def test_generic_metric_and_aliases(self):
+        po = PermutationObject()
+        po.set_data_parameters(nrows=200, minority_class=0.3)
+        po.create_synthetic_data(seed=42)
+
+        def simple_corr(x, y):
+            return float(np.corrcoef(x, y)[0, 1])
+
+        null_df = po.calculate_null_distribution(permutations=20, metric_fn=simple_corr, verbose=False)
+        self.assertEqual(len(null_df), 20)
+        self.assertTrue(hasattr(po, 'df_nulls'))
+        self.assertTrue(hasattr(po, 'null_values'))
+
+
 if __name__ == '__main__':
     unittest.main()
