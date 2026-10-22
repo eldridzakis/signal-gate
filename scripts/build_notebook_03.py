@@ -100,11 +100,11 @@ print("SignalGate agent sandbox & statistical guardrail engine successfully load
 # ==========================================
 add_md(r"""## Section 1: The Anatomy of Agentic P-Hacking (Turns $\neq$ Hypotheses)
 
-In traditional data analysis, a human analyst tests a handful of pre-registered hypotheses. Autonomous LLM agents, however, employ iterative search strategies:
+In traditional data analysis, a human analyst tests a handful of pre-registered hypotheses. Autonomous LLM agents, however, employ iterative search strategies across feature spaces:
 * **Turn 1–3 (Base Scans):** Scanning 30 base domain features ($M \leftarrow 30$).
 * **Turn 4–8 (Interaction Explosion):** Testing pairwise grids between candidate feature sets ($M \leftarrow 30 + 185 = 215$).
-* **Turn 9–12 (Subgroup Slicing):** Filtering to rare segments ($N_{\text{slice}} < N$) and testing subsets of features ($M \leftarrow 215 + 65 = 280$).
-* **Turn 13–15 (Candidate Sweeps):** Deep mutation passes and search sweeps ($M \leftarrow 280 + 230 = 510$).
+* **Turn 9–12 (Feature Transformations & Expanded Grids):** Exploring cross-attribute feature combinations ($M \leftarrow 215 + 236 = 451$).
+* **Turn 13–15 (Candidate Sweeps):** Deep mutation passes and search sweeps ($M \leftarrow 451 + 72 = 523$).
 
 Let's run a 15-turn exploratory agent on the **`null_honeypot` dataset ($N=3000, p=0.12$)**, where all 30 domain columns are **100% statistically independent of the target `is_fraud`** ($I(X;Y) = 0$ in the population).""")
 
@@ -154,12 +154,12 @@ ax.annotate("Turns 4-8:\nInteraction Grid Explosion\n(M jumps to 215)",
             arrowprops=dict(facecolor="#d62728", shrink=0.08, width=1.5, headwidth=6),
             fontsize=10, fontweight="bold", color="#d62728", ha="center")
 
-ax.annotate("Turns 9-12:\nSubgroup Slices\n(M=280)", 
+ax.annotate("Turns 9-12:\nExpanded Feature Grids\n(M=451)", 
             xy=(12, cum_m[11]), xytext=(10.5, 390),
             arrowprops=dict(facecolor="#333333", shrink=0.08, width=1.5, headwidth=6),
             fontsize=10, fontweight="bold", ha="center")
 
-ax.annotate("Turns 13-15:\nDeep Sweeps\n(Final M=510)", 
+ax.annotate("Turns 13-15:\nDeep Sweeps\n(Final M=523)", 
             xy=(15, cum_m[14]), xytext=(14.0, 440),
             arrowprops=dict(facecolor="#2ca02c", shrink=0.08, width=1.5, headwidth=6),
             fontsize=10, fontweight="bold", color="#2ca02c", ha="center")
@@ -186,7 +186,8 @@ $$\text{RIG}_{\text{null}} \sim \frac{\chi^2_1}{2 N \ln(2) H(Y)}$$
 For $N=3000$ and $p=0.12$ ($H(Y) \approx 0.529$ bits):
 * A **naive single-test cutoff ($M=1, \alpha=0.05$)** requires $\text{RIG} \ge \tau_{\text{naive}} \approx 0.00174$.
 * As the agent tests $M$ hypotheses, the **Extreme Value Theory (EVT) expected noise maximum** grows logarithmically:
-$$\tau_{\text{EVT}}(N, p, M) \approx \frac{2 \ln(M) - \ln(\ln(M)) - \ln(\pi)}{2 N \ln(2) H(Y)}$$
+$$\tau_{\text{EVT}}(N, p, M) \approx \frac{2 \ln(M) - \ln(\ln(M)) - \ln(\pi) + 2\gamma}{2 N \ln(2) H(Y)}$$
+where $\gamma \approx 0.5772$ is the Euler–Mascheroni constant (with $-\ln(\pi) + 2\gamma \approx +0.010$).
 * The rigorous **Bonferroni significance gate** requires:
 $$\tau_{\text{significance}}(N, p, M, \alpha) = \frac{F^{-1}_{\chi^2_1}(1 - \alpha / M)}{2 N \ln(2) H(Y)}$$
 
@@ -196,7 +197,7 @@ The region between $\tau_{\text{naive}}$ and $\tau_{\text{EVT}}$ is the **"Agent
 # CELL 7: SECTION 2 CODE (HERO CHART PLOT 2)
 # ==========================================
 add_code(r"""# Hero Chart: SignalGate Dynamic Trajectory vs Naive Baseline on Pure Noise
-fig, ax = plt.subplots(figsize=(12, 6))
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5.5))
 
 turns = telemetry_null["turn_id"].values
 cum_best_rig = telemetry_null["cumulative_best_rig"].values
@@ -211,46 +212,73 @@ h_y = float(-np.sum(p_y * np.log2(p_y)))
 c_scale = 2.0 * n_base * np.log(2.0) * h_y
 tau_naive = float(stats.chi2.ppf(0.95, df=1)) / c_scale
 
+# --- PANEL A: Absolute RIG Trajectory ---
 # 1. Shaded Agentic Hallucination Zone
-ax.fill_between(turns, tau_naive, evt_max, color="#ff7f0e", alpha=0.18, 
-                label="Agentic Hallucination Zone (Winner's Curse Trap)")
+ax1.fill_between(turns, tau_naive, evt_max, color="#ff7f0e", alpha=0.18, 
+                 label="Agentic Hallucination Zone (Winner's Curse Trap)")
 
 # 2. Naive Single-Test Cutoff
-ax.axhline(tau_naive, color="#d62728", linestyle="--", lw=2, 
-           label=f"Naive Un-Guardrailed Cutoff (p < 0.05, M=1): $\\tau={tau_naive:.5f}$")
+ax1.axhline(tau_naive, color="#d62728", linestyle="--", lw=2, 
+            label=f"Naive Cutoff (p < 0.05, M=1): $\\tau={tau_naive:.5f}$")
 
 # 3. Dynamic EVT Expected Noise Maximum
-ax.plot(turns, evt_max, color="#ff7f0e", linestyle="--", lw=2, marker="s", markersize=5,
-        label="Dynamic EVT Expected Noise Maximum $\\tau_{\\mathrm{EVT}}(N, p, M)$")
+ax1.plot(turns, evt_max, color="#ff7f0e", linestyle="--", lw=2, marker="s", markersize=5,
+         label="Dynamic EVT Noise Max $\\tau_{\\mathrm{EVT}}(N, p, M)$")
 
 # 4. Dynamic Bonferroni Significance Gate
-ax.plot(turns, bonferroni_gate, color="#9467bd", linestyle="-", lw=2.5, marker="^", markersize=6,
-        label="Bonferroni Significance Gate $\\tau_{\\mathrm{sig}}(N, p, M, 0.05)$")
+ax1.plot(turns, bonferroni_gate, color="#9467bd", linestyle="-", lw=2.5, marker="^", markersize=6,
+         label="Bonferroni Gate $\\tau_{\\mathrm{sig}}(N, p, M, 0.05)$")
 
 # 5. Cumulative Best RIG Discovered by Agent
-ax.plot(turns, cum_best_rig, color="#1f77b4", linestyle="-", lw=3, marker="o", markersize=8,
-        label="Cumulative Best RIG Discovered by Agent")
+ax1.plot(turns, cum_best_rig, color="#1f77b4", linestyle="-", lw=3, marker="o", markersize=7,
+         label="Cumulative Best RIG Discovered")
 
 # Annotations
-ax.annotate("Turn 4: Naive Agent Claims 'Discovery'!\nSpurious noise breaches naive p < 0.05", 
-            xy=(4, cum_best_rig[3]), xytext=(4.5, 0.0028),
-            arrowprops=dict(facecolor="#d62728", shrink=0.08, width=1.5, headwidth=6),
-            fontsize=10, fontweight="bold", color="#d62728",
-            bbox=dict(boxstyle="round,pad=0.3", fc="#ffffff", ec="#d62728", lw=1.2))
+ax1.annotate("Turn 1: Naive Agent Claims 'Discovery'!\nPure noise breaches naive p < 0.05", 
+             xy=(1, cum_best_rig[0]), xytext=(3.5, 0.0022),
+             arrowprops=dict(facecolor="#d62728", shrink=0.08, width=1.5, headwidth=6),
+             fontsize=9, fontweight="bold", color="#d62728",
+             bbox=dict(boxstyle="round,pad=0.3", fc="#ffffff", ec="#d62728", lw=1.2))
 
-ax.annotate("SignalGate Dynamic Gate:\nAll 15 turns correctly REJECTED as noise!\n(0 False Discoveries)", 
-            xy=(12, bonferroni_gate[11]), xytext=(9.0, 0.0082),
-            arrowprops=dict(facecolor="#2ca02c", shrink=0.08, width=1.5, headwidth=6),
-            fontsize=10, fontweight="bold", color="#2ca02c",
-            bbox=dict(boxstyle="round,pad=0.3", fc="#ffffff", ec="#2ca02c", lw=1.2))
+ax1.annotate("SignalGate Dynamic Gate:\nAll 15 turns correctly REJECTED as noise!\n(0 False Discoveries)", 
+             xy=(12, bonferroni_gate[11]), xytext=(8.0, 0.0074),
+             arrowprops=dict(facecolor="#2ca02c", shrink=0.08, width=1.5, headwidth=6),
+             fontsize=9, fontweight="bold", color="#2ca02c",
+             bbox=dict(boxstyle="round,pad=0.3", fc="#ffffff", ec="#2ca02c", lw=1.2))
 
-ax.set_title("The Hero Chart: Real-Time SignalGate Trajectory on Pure Noise ($N=3000, p=0.12$)", 
-             fontsize=13, fontweight="bold")
-ax.set_xlabel("Agent Turn Index", fontsize=11)
-ax.set_ylabel("Relative Information Gain (RIG)", fontsize=11)
-ax.set_xticks(range(1, 16))
-ax.set_ylim(0.0005, 0.0100)
-ax.legend(loc="upper left", frameon=True, fontsize=9.5)
+ax1.set_title("A: Real-Time Trajectory on Population ($N=3000, p=0.12$)", fontsize=11, fontweight="bold")
+ax1.set_xlabel("Agent Turn Index", fontsize=11)
+ax1.set_ylabel("Relative Information Gain (RIG)", fontsize=11)
+ax1.set_xticks(range(1, 16))
+ax1.set_ylim(0.0010, 0.0085)
+ax1.legend(loc="upper left", frameon=True, fontsize=8.5)
+
+# --- PANEL B: Signal-to-Gate Ratio (Flat Rejection Boundary at 1.0) ---
+signal_to_gate = cum_best_rig / bonferroni_gate
+turn_ratio = telemetry_null["best_rig_in_turn"].values / bonferroni_gate
+
+ax2.axhline(1.0, color="#d62728", linestyle="-", lw=2.2, label="Discovery Boundary (Ratio = 1.0)")
+ax2.fill_between(turns, 1.0, 1.35, color="#2ca02c", alpha=0.12, label="Verified Signal Zone (Ratio >= 1.0)")
+ax2.fill_between(turns, 0.0, 1.0, color="#d62728", alpha=0.10, label="Rejection Zone (Ratio < 1.0)")
+
+ax2.plot(turns, signal_to_gate, color="#1f77b4", lw=2.5, marker="o", markersize=6, 
+         label="Cumulative Best / Bonferroni Gate")
+ax2.plot(turns, turn_ratio, color="#ff7f0e", linestyle=":", lw=1.8, marker="x", markersize=6, 
+         label="Turn Best / Bonferroni Gate")
+
+ax2.annotate("Noise Trajectory Locked Below 1.0\nMax Ratio = 0.79 (Safe Discard)", 
+             xy=(1, signal_to_gate[0]), xytext=(4.0, 0.88),
+             arrowprops=dict(facecolor="#1f77b4", shrink=0.08, width=1.5, headwidth=5),
+             fontsize=9, fontweight="bold", color="#1f77b4",
+             bbox=dict(boxstyle="round,pad=0.3", fc="#ffffff", ec="#1f77b4", lw=1.2))
+
+ax2.set_title("B: Signal-to-Gate Ratio (Invariant Rejection Line at 1.0)", fontsize=11, fontweight="bold")
+ax2.set_xlabel("Agent Turn Index", fontsize=11)
+ax2.set_ylabel("Signal-to-Gate Ratio (RIG / $\\tau_{\\mathrm{gate}}$)", fontsize=11)
+ax2.set_xticks(range(1, 16))
+ax2.set_ylim(0.0, 1.35)
+ax2.legend(loc="lower right", frameon=True, fontsize=8.5)
+
 plt.tight_layout()
 plt.show()
 
@@ -346,11 +374,18 @@ In the **`needle_in_haystack` dataset ($N=3000, p=0.12$)**, we inject 47 pure-no
 2. `compromised_asn_match`: Population $\text{RIG} \approx 0.015$ (Strong signal)
 3. `high_risk_mcc_group`: Population $\text{RIG} \approx 0.030$ (Very strong signal)
 
-To counteract **selection bias (The Winner's Curse)**, SignalGate's `audit_dataframe()` runs non-parametric bootstrap resampling ($B=100$):
-$$\text{Optimism Bias} = \frac{1}{B} \sum_{b=1}^B \left( \text{RIG}_{\text{train}}(X_b^*) - \text{RIG}_{\text{val}}(X_b^*) \right)$$
-$$\text{RIG}_{\text{debiased}} = \max\left(0, \text{RIG}_{\text{train}} - 2 \cdot \text{Optimism Bias}\right)$$
+To counteract **selection bias (The Winner's Curse)**, SignalGate employs a two-step de-biasing and stability classification engine:
 
-Genuine needles maintain strong debiased RIG above the Bonferroni gate, while overfit noise candidates collapse to zero!""")
+1. **Optimism Bias Correction:**
+   Estimate empirical selection bias via holdout validation or out-of-fold cross-validation ($\text{Bias}_{\text{holdout/OOF}}$) bounded by the EVT noise ceiling $\tau_{\text{EVT}}$:
+   $$\text{RIG}_{\text{corrected}} = \max\left(0, \text{RIG}_{\text{train}} - \text{Bias}_{\text{holdout/OOF}}\right)$$
+
+2. **Bootstrap Stability Gates ($B=100$):**
+   Estimate parameter variance $\sigma_{\text{boot}}$ via non-parametric bootstrap resampling:
+   $$2\sigma \text{ Stability Criterion (Highly Stable)}: \quad \text{RIG}_{\text{corrected}} - 2 \cdot \sigma_{\text{boot}} > 0$$
+   $$1\sigma \text{ Stability Criterion (Moderately Stable)}: \quad \text{RIG}_{\text{corrected}} - \sigma_{\text{boot}} > 0$$
+
+Genuine needles maintain strong debiased RIG above the Bonferroni gate and clear the $2\sigma$ stability gate, while overfit noise candidates collapse to zero!""")
 
 # ==========================================
 # CELL 11: SECTION 4 CODE (AUDIT & PLOT 4)

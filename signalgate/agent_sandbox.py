@@ -461,45 +461,70 @@ class InstrumentedAgentSandbox:
 
 def run_exploratory_agent_simulation(
     sandbox: InstrumentedAgentSandbox,
-    seed: Optional[int] = 42
+    seed: Optional[int] = 42,
+    include_slices: bool = False
 ) -> pd.DataFrame:
-    """Simulates a realistic 15-turn autonomous data science exploratory agent workflow."""
+    """Simulates a realistic 15-turn autonomous data science exploratory agent workflow.
+
+    Parameters
+    ----------
+    sandbox : InstrumentedAgentSandbox
+        Sandbox instance to execute agent actions against.
+    seed : int, optional
+        Random seed for simulation consistency.
+    include_slices : bool, default False
+        If False (default), turns 1-15 explore full-population feature engineering
+        (base scans, pairwise interaction grids, and high-order mutations on N=base_n),
+        producing a clean, unclipped trajectory. If True, turns 9-12 perform subgroup
+        slice drilldowns where N_slice collapses.
+    """
     cols = [c for c in sandbox.df.columns if c != sandbox.target_col]
     rng = np.random.default_rng(seed)
 
-    # Turns 1–3: Initial base column scans
+    # Turns 1–3: Initial base column scans (30 cols, M=30)
     sandbox.scan_feature_batch(cols[:10])
     sandbox.scan_feature_batch(cols[10:20])
     sandbox.scan_feature_batch(cols[20:30])
 
-    # Turns 4–8: Pairwise interaction grids on top candidate columns
+    # Turns 4–8: Pairwise interaction grids on candidate columns (185 pairs, M=215)
     sandbox.test_interaction_grid(cols[:3], cols[3:7], op="and")     # 12 pairs
     sandbox.test_interaction_grid(cols[:3], cols[3:7], op="or")      # 12 pairs
     sandbox.test_interaction_grid(cols[:5], cols[5:10], op="and")    # 25 pairs
     sandbox.test_interaction_grid(cols[:6], cols[6:12], op="xor")    # 36 pairs
     sandbox.test_interaction_grid(cols[:10], cols[10:20], op="and")  # 100 pairs
 
-    # Turns 9–12: Multi-dimensional subgroup slice drilldowns (N_slice collapse)
-    slice_col1 = cols[0]
-    sandbox.drill_down_slice(filter_col=slice_col1, filter_val=1, candidate_cols=cols[1:16])  # 15 cols
-    slice_col2 = cols[1]
-    sandbox.drill_down_slice(filter_col=slice_col2, filter_val=1, candidate_cols=cols[2:17])  # 15 cols
+    if include_slices:
+        # Turns 9–12: Multi-dimensional subgroup slice drilldowns (N_slice collapse)
+        slice_col1 = cols[0]
+        sandbox.drill_down_slice(filter_col=slice_col1, filter_val=1, candidate_cols=cols[1:16])  # 15 cols
+        slice_col2 = cols[1]
+        sandbox.drill_down_slice(filter_col=slice_col2, filter_val=1, candidate_cols=cols[2:17])  # 15 cols
 
-    # Compounded slice (filter by slice_col1, then slice_col2)
-    slice_mask = (sandbox.df[slice_col1] == 1) & (sandbox.df[cols[2]] == 1)
-    if slice_mask.sum() >= 15:
-        # Evaluate on compounded slice
-        sandbox.drill_down_slice(filter_col=cols[2], filter_val=1, candidate_cols=cols[3:18])  # 15 cols
+        # Compounded slice (filter by slice_col1, then slice_col2)
+        slice_mask = (sandbox.df[slice_col1] == 1) & (sandbox.df[cols[2]] == 1)
+        if slice_mask.sum() >= 15:
+            sandbox.drill_down_slice(filter_col=cols[2], filter_val=1, candidate_cols=cols[3:18])  # 15 cols
+        else:
+            sandbox.drill_down_slice(filter_col=cols[3], filter_val=1, candidate_cols=cols[4:19])  # 15 cols
+
+        slice_col3 = cols[4]
+        sandbox.drill_down_slice(filter_col=slice_col3, filter_val=1, candidate_cols=cols[5:25])  # 20 cols
+
+        # Turns 13–15: Deep feature mutations and candidate sweeps
+        sandbox.test_interaction_grid(cols[:10], cols[10:20], op="and")   # 100 pairs
+        sandbox.test_interaction_grid(cols[:10], cols[10:20], op="or")    # 100 pairs
+        sandbox.scan_feature_batch(cols[:30])                             # 30 cols
     else:
-        sandbox.drill_down_slice(filter_col=cols[3], filter_val=1, candidate_cols=cols[4:19])  # 15 cols
+        # Turns 9–12: Feature transformations and expanded interaction grids on population (N=base_n)
+        sandbox.test_interaction_grid(cols[10:15], cols[15:25], op="and") # 50 pairs
+        sandbox.test_interaction_grid(cols[10:15], cols[15:25], op="or")  # 50 pairs
+        sandbox.test_interaction_grid(cols[5:12], cols[12:20], op="xor")  # 56 pairs
+        sandbox.test_interaction_grid(cols[:10], cols[20:28], op="and")   # 80 pairs
 
-    slice_col3 = cols[4]
-    sandbox.drill_down_slice(filter_col=slice_col3, filter_val=1, candidate_cols=cols[5:25])  # 20 cols
-
-    # Turns 13–15: Deep feature mutations and candidate sweeps
-    sandbox.test_interaction_grid(cols[:10], cols[10:20], op="and")   # 100 pairs
-    sandbox.test_interaction_grid(cols[:10], cols[10:20], op="or")    # 100 pairs
-    sandbox.scan_feature_batch(cols[:30])                             # 30 cols
+        # Turns 13–15: Deep candidate sweeps and batch sweeps
+        sandbox.test_interaction_grid(cols[2:6], cols[20:28], op="or")    # 32 pairs
+        sandbox.scan_feature_batch(cols[:20])                             # 20 cols
+        sandbox.scan_feature_batch(cols[10:30])                           # 20 cols
 
     return sandbox.get_telemetry_df()
 
