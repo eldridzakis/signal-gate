@@ -2,7 +2,7 @@
 
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Tests](https://img.shields.io/badge/tests-23%20passed-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/tests-30%20passed-brightgreen.svg)]()
 [![MCP Server](https://img.shields.io/badge/MCP-Protocol%20Ready-purple.svg)](https://modelcontextprotocol.io)
 
 > **Stateful statistical guardrails and Model Context Protocol (MCP) server for autonomous LLM data agents, Text-to-SQL, and AutoML. Quantifying the Winner's Curse, estimating closed-form noise ceilings, and filtering out spurious insights.**
@@ -204,6 +204,7 @@ print(stable_features[['feature', 'train_rig', 'corrected_rig', 'stability_class
 | :--- | :--- |
 | **[`01_feature_noise_thresholds.ipynb`](notebooks/01_feature_noise_thresholds.ipynb)** | Mathematical proofs, asymptotic $\chi^2$ vs Monte-Carlo permutations, parameter sweeps ($N$, minority class $p$), and Bonferroni/EVT noise gates. |
 | **[`02_selection_bias_and_debiasing.ipynb`](notebooks/02_selection_bias_and_debiasing.ipynb)** | Quantifying the Winner's Curse on Lending Club loan defaults, measuring search complexity vs. bias, and executing $1\sigma / 2\sigma$ bootstrap de-biasing. |
+| **[`03_agent_phacking_benchmark.ipynb`](notebooks/03_agent_phacking_benchmark.ipynb)** | Autonomous agent p-hacking benchmark ($M > 500$ hypotheses), real-time trajectory hero chart, subgroup slicing ($N \to 0$), and bootstrap needle recovery. |
 
 ---
 
@@ -218,18 +219,21 @@ signal-gate/
 │   ├── permutation.py            # Vectorized Monte-Carlo permutation tester
 │   ├── debias.py                 # Out-of-Fold (OOF) & Bootstrap de-biasing engine
 │   ├── mcp_server.py             # Stateful MCP statistical guardrail server
-│   └── agent_tools.py            # OpenAI/Anthropic tool schemas & callable dispatchers
+│   ├── agent_tools.py            # OpenAI/Anthropic tool schemas & callable dispatchers
+│   └── agent_sandbox.py          # Synthetic benchmarks & agent simulation telemetry
 ├── feature_noise_gate/           # Backward-compatibility alias
 ├── sampling_toolbox/             # Backward-compatibility alias
 ├── notebooks/                    # Self-contained walkthroughs
 │   ├── 01_feature_noise_thresholds.ipynb
-│   └── 02_selection_bias_and_debiasing.ipynb
-├── tests/                        # Automated unit tests (23 test suites)
+│   ├── 02_selection_bias_and_debiasing.ipynb
+│   └── 03_agent_phacking_benchmark.ipynb
+├── tests/                        # Automated unit tests (30 test suites)
 │   ├── test_metrics.py
 │   ├── test_threshold.py
 │   ├── test_permutation.py
 │   ├── test_debias.py
-│   └── test_mcp_guardrail.py
+│   ├── test_mcp_guardrail.py
+│   └── test_agent_sandbox.py
 ├── Data/                         # Benchmark datasets (King County, Lending Club)
 ├── integrations/                 # Connectors for MCP server & AutoML log parsing
 ├── archive/                      # Historical notebooks preserved for reference
@@ -247,7 +251,7 @@ Run the test suite using standard Python `unittest`:
 python -m unittest discover -s tests -v
 ```
 
-All 23 tests run in $< 0.8$ seconds.
+All 30 tests run in $< 1.0$ second.
 
 ---
 

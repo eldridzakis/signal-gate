@@ -156,6 +156,13 @@ class AgentGuardrailTools:
         """Resets the search budget and test counter for a session."""
         return self.ledger.reset_session_budget(session_id=session_id)
 
+    def execute_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
+        """Executes a tool call by name with provided arguments."""
+        callables = self.to_callable_dict()
+        if tool_name not in callables:
+            raise ValueError(f"Unknown tool: {tool_name}. Choose from {list(callables.keys())}")
+        return callables[tool_name](**arguments)
+
     def to_callable_dict(self) -> Dict[str, Callable]:
         """Returns a mapping of tool names to callable methods for agent dispatchers."""
         return {

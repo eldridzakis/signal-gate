@@ -19,6 +19,11 @@ from signalgate import (
     get_anthropic_tools,
     create_agent_tools,
     AgentGuardrailTools,
+    BASE_DOMAIN_COLUMNS,
+    generate_benchmark_datasets,
+    InstrumentedAgentSandbox,
+    run_exploratory_agent_simulation,
+    run_monte_carlo_benchmark,
     __version__,
 )
 
@@ -41,4 +46,9 @@ __all__ = [
     "get_anthropic_tools",
     "create_agent_tools",
     "AgentGuardrailTools",
+    "BASE_DOMAIN_COLUMNS",
+    "generate_benchmark_datasets",
+    "InstrumentedAgentSandbox",
+    "run_exploratory_agent_simulation",
+    "run_monte_carlo_benchmark",
 ]

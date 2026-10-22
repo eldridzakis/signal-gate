@@ -349,6 +349,7 @@ class NoiseGateSessionLedger:
             "marginal_1_sigma_features": marginal_1_sigma,
             "rejected_noise_features": rejected_noise,
             "stability_table": df_stab.to_dict(orient="records"),
+            "audit_table": df_stab.to_dict(orient="records"),
             "agent_directive": (
                 f"AUDIT COMPLETE: Promoted {len(promoted_2_sigma)} / {len(candidate_cols)} candidate features "
                 f"clearing 2-Sigma stability after subtracting optimism bias ({estimated_optimism_bias:.5f}). "

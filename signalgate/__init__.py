@@ -34,6 +34,13 @@ from .agent_tools import (
     create_agent_tools,
     AgentGuardrailTools,
 )
+from .agent_sandbox import (
+    BASE_DOMAIN_COLUMNS,
+    generate_benchmark_datasets,
+    InstrumentedAgentSandbox,
+    run_exploratory_agent_simulation,
+    run_monte_carlo_benchmark,
+)
 
 # Convenient top-level aliases
 SignalGateSessionLedger = NoiseGateSessionLedger
@@ -63,4 +70,9 @@ __all__ = [
     "get_anthropic_tools",
     "create_agent_tools",
     "AgentGuardrailTools",
+    "BASE_DOMAIN_COLUMNS",
+    "generate_benchmark_datasets",
+    "InstrumentedAgentSandbox",
+    "run_exploratory_agent_simulation",
+    "run_monte_carlo_benchmark",
 ]
