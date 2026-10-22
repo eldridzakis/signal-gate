@@ -1,30 +1,27 @@
-"""Sampling Toolbox: Statistical rigor for feature evaluation & selection.
+"""Backward-compatibility module forwarding to signalgate."""
 
-Quantifying the Winner's Curse, estimating noise thresholds, and de-biasing
-automated feature engineering.
-"""
-
-from .metrics import (
+from signalgate import (
     entropy,
     rig,
     rig_all_columns,
     fast_contingency_matrix,
-    fast_mutual_info_from_contingency
-)
-from .threshold import (
+    fast_mutual_info_from_contingency,
     FeatureNoiseThreshold,
     estimate_noise_threshold,
     binary_entropy,
-    target_entropy_from_weights
-)
-from .permutation import (
-    PermutationObject
-)
-from .debias import (
-    FeatureDebiaser
+    target_entropy_from_weights,
+    PermutationObject,
+    FeatureDebiaser,
+    NoiseGateSessionLedger,
+    create_mcp_server,
+    GLOBAL_LEDGER,
+    get_openai_tools,
+    get_anthropic_tools,
+    create_agent_tools,
+    AgentGuardrailTools,
+    __version__,
 )
 
-__version__ = "1.0.0"
 __all__ = [
     "entropy",
     "rig",
@@ -37,4 +34,11 @@ __all__ = [
     "target_entropy_from_weights",
     "PermutationObject",
     "FeatureDebiaser",
+    "NoiseGateSessionLedger",
+    "create_mcp_server",
+    "GLOBAL_LEDGER",
+    "get_openai_tools",
+    "get_anthropic_tools",
+    "create_agent_tools",
+    "AgentGuardrailTools",
 ]

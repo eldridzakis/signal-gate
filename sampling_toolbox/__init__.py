@@ -1,6 +1,6 @@
-"""Backward-compatibility module forwarding to feature_noise_gate."""
+"""Backward-compatibility module forwarding to signalgate."""
 
-from feature_noise_gate import (
+from signalgate import (
     entropy,
     rig,
     rig_all_columns,
@@ -12,6 +12,13 @@ from feature_noise_gate import (
     target_entropy_from_weights,
     PermutationObject,
     FeatureDebiaser,
+    NoiseGateSessionLedger,
+    create_mcp_server,
+    GLOBAL_LEDGER,
+    get_openai_tools,
+    get_anthropic_tools,
+    create_agent_tools,
+    AgentGuardrailTools,
     __version__,
 )
 
@@ -27,4 +34,11 @@ __all__ = [
     "target_entropy_from_weights",
     "PermutationObject",
     "FeatureDebiaser",
+    "NoiseGateSessionLedger",
+    "create_mcp_server",
+    "GLOBAL_LEDGER",
+    "get_openai_tools",
+    "get_anthropic_tools",
+    "create_agent_tools",
+    "AgentGuardrailTools",
 ]

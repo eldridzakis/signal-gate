@@ -3,9 +3,9 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "feature-noise-gate"
-version = "1.0.0"
-description = "Quantifying the Winner's Curse, estimating noise thresholds, and de-biasing automated feature engineering"
+name = "signalgate"
+version = "1.2.0"
+description = "SignalGate: Stateful statistical guardrails and MCP server for autonomous LLM data agents, Text-to-SQL, and AutoML"
 readme = "README.md"
 requires-python = ">=3.8"
 license = { text = "MIT" }
@@ -13,8 +13,12 @@ authors = [
     { name = "Peter Eldridge" }
 ]
 keywords = [
+    "signalgate",
     "feature-selection",
-    "feature-noise-gate",
+    "mcp",
+    "mcp-server",
+    "agentic-ai",
+    "llm-guardrails",
     "automl",
     "information-gain",
     "multiple-testing",
@@ -46,10 +50,18 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+mcp = [
+    "mcp>=1.0.0",
+]
 dev = [
     "pytest>=7.0",
     "jupyter>=1.0.0",
+    "mcp>=1.0.0",
 ]
 
+[project.scripts]
+signalgate-mcp = "signalgate.mcp_server:main"
+feature-noise-gate-mcp = "signalgate.mcp_server:main"
+
 [tool.setuptools.packages.find]
-include = ["feature_noise_gate*", "sampling_toolbox*"]
+include = ["signalgate*", "feature_noise_gate*", "sampling_toolbox*", "integrations*"]

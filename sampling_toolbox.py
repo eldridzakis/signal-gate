@@ -1,6 +1,6 @@
-"""Backward-compatibility module forwarding to feature_noise_gate."""
+"""Backward-compatibility module forwarding to signalgate."""
 
-from feature_noise_gate import (
+from signalgate import (
     entropy,
     rig,
     rig_all_columns,

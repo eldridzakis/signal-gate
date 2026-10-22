@@ -3,7 +3,9 @@
 import unittest
 import numpy as np
 import pandas as pd
-from feature_noise_gate.metrics import entropy, rig, rig_all_columns, fast_contingency_matrix
+from signalgate.metrics import entropy, rig, rig_all_columns, fast_contingency_matrix
+import signalgate
+import feature_noise_gate
 import sampling_toolbox
 
 
@@ -51,6 +53,21 @@ class TestMetrics(unittest.TestCase):
 
 
     def test_backward_compatibility(self):
+        # signalgate
+        self.assertTrue(hasattr(signalgate, 'rig'))
+        self.assertTrue(hasattr(signalgate, 'PermutationObject'))
+        self.assertTrue(hasattr(signalgate, 'FeatureNoiseThreshold'))
+        self.assertTrue(hasattr(signalgate, 'FeatureDebiaser'))
+        self.assertTrue(hasattr(signalgate, 'NoiseGateSessionLedger'))
+        self.assertTrue(hasattr(signalgate, 'SignalGateSessionLedger'))
+
+        # feature_noise_gate alias
+        self.assertTrue(hasattr(feature_noise_gate, 'rig'))
+        self.assertTrue(hasattr(feature_noise_gate, 'PermutationObject'))
+        self.assertTrue(hasattr(feature_noise_gate, 'FeatureNoiseThreshold'))
+        self.assertTrue(hasattr(feature_noise_gate, 'FeatureDebiaser'))
+
+        # sampling_toolbox alias
         self.assertTrue(hasattr(sampling_toolbox, 'rig'))
         self.assertTrue(hasattr(sampling_toolbox, 'PermutationObject'))
         self.assertTrue(hasattr(sampling_toolbox, 'FeatureNoiseThreshold'))

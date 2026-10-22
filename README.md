@@ -1,24 +1,27 @@
-# Feature Noise Gate
+# SignalGate
 
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Tests](https://img.shields.io/badge/tests-16%20passed-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/tests-23%20passed-brightgreen.svg)]()
+[![MCP Server](https://img.shields.io/badge/MCP-Protocol%20Ready-purple.svg)](https://modelcontextprotocol.io)
 
-> **Quantifying the Winner's Curse, estimating statistical noise thresholds, and de-biasing automated feature engineering.**
+> **Stateful statistical guardrails and Model Context Protocol (MCP) server for autonomous LLM data agents, Text-to-SQL, and AutoML. Quantifying the Winner's Curse, estimating closed-form noise ceilings, and filtering out spurious insights.**
 
 ---
 
 ## 📌 Overview
 
-Automated Machine Learning (AutoML) and automated feature engineering engines explore massive hypothesis spaces—evaluating thousands to millions of candidate transformations, numerical cuts, n-grams, and context joins.
+Automated Machine Learning (AutoML) engines and autonomous LLM data agents (e.g. Claude Code, Cursor, LangGraph pipelines, Text-to-SQL slice explorers) explore massive hypothesis spaces—evaluating thousands to millions of candidate transformations, numerical cuts, n-grams, and database segments.
 
-Selecting features that maximize performance metrics on a training split introduces **selection bias (The Winner's Curse)**:
-1. **Spurious Features Pass as Genuine:** Random noise features will inevitably achieve high sample metric scores purely by chance.
+Selecting features or reporting insights that maximize sample metrics introduces **selection bias (The Winner's Curse)**:
+1. **Spurious Discoveries Pass as Genuine:** Random noise slices and features inevitably achieve high sample metric scores purely by chance.
 2. **Optimistic Overestimation:** Genuine features exhibit inflated scores on training data compared to test and production data ($`\text{Bias} = \text{Metric}_{\text{train}} - \text{Metric}_{\text{unseen}} > 0`$).
-3. **Compounded by Large Search Budgets:** As the search space ($M$) expands (e.g., adding external datasets like OpenStreetMap), the noise floor and overestimation bias increase systematically.
+3. **Compounded by Large Search Budgets:** As the search space ($M$) expands, the noise floor and overestimation bias increase systematically.
+4. **Agentic $p$-Hacking:** High-velocity autonomous agents that iteratively hypothesize, slice, and test patterns without stateful tracking quickly flood downstream models with multiple-testing artifacts.
 
-**Feature Noise Gate** provides an information-theoretic framework to:
+**SignalGate** provides an information-theoretic framework and a **Stateful Model Context Protocol (MCP) Guardrail Server** to:
 * **Instantly calculate closed-form noise thresholds** given dataset size ($N$), target distribution ($p$), and search space size ($M$).
+* **Act as an active statistical guardrail for LLM agents**, statefully tracking cumulative hypotheses ($M$) and preventing agents from hallucinating spurious correlations as genuine insights.
 * **Run vectorized Monte-Carlo permutation tests** (100x faster than traditional dataframe shuffling).
 * **De-bias feature importances** and classify features into $1\sigma$ and $2\sigma$ statistical confidence tiers via bootstrap resampling.
 
@@ -45,7 +48,7 @@ Key Theoretical Insights:
 ```
 
 ### 2. Search-Space-Aware Noise Gates ($M$ Evaluated Features)
-When an AutoML engine evaluates $M$ candidate features:
+When an AutoML engine or LLM agent evaluates $M$ candidate features:
 
 * **Bonferroni / Šidák Significance Threshold ($\alpha = 0.05$):**
   $$\tau_{\text{significance}}(N, p, M, \alpha) = \frac{F_{\chi^2_1}^{-1}\left(1 - \frac{\alpha}{M}\right)}{2 N \ln(2) \cdot H(p)}$$
@@ -56,34 +59,111 @@ When an AutoML engine evaluates $M$ candidate features:
 
 ---
 
+## 🤖 Agentic ML & MCP Guardrail Integration
+
+Autonomous data science and Text-to-SQL agents running in while-loops act as high-velocity multiple-testing machines. As they slice warehouses or engineer features, standard significance criteria fail because the search space ($M$) is constantly growing.
+
+**SignalGate** includes a stateful **Model Context Protocol (MCP)** server and framework-agnostic agent tools to act as an active gatekeeper:
+
+```mermaid
+flowchart LR
+    A["LLM Agent (Claude Code / LangGraph / Cursor)"] -->|"Propose Feature or Slice"| B["SignalGate (MCP Guardrail)"]
+    B -->|"Stateful Tracker (M += 1)"| C{"Noise Gate Check"}
+    C -->|"RIG >= tau_sig"| D["VERIFIED_SIGNAL<br>(Proceed)"]
+    C -->|"tau_evt <= RIG < tau_sig"| E["BORDERLINE_WARNING<br>(Needs Holdout Validation)"]
+    C -->|"RIG < tau_evt"| F["REJECT_SPURIOUS_NOISE<br>(Discard)"]
+    D & E & F -->|"Agent Directive"| A
+```
+
+### 1. Registering the MCP Server in Claude Desktop / Cursor / Claude Code
+
+Add the server to your `claude_desktop_config.json` (or Cursor MCP settings):
+
+```json
+{
+  "mcpServers": {
+    "signalgate": {
+      "command": "signalgate-mcp"
+    }
+  }
+}
+```
+
+Or run via Python directly:
+```bash
+pip install -e ".[mcp]"
+signalgate-mcp
+```
+
+### 2. Available MCP & Agent Tools
+
+* **`evaluate_feature_or_slice`**: Stateful gatekeeper for individual features or 2x2 contingency slices. Automatically ratchets $M$, checks the finite-sample Cochran condition ($E_{11} \ge 5$), and returns authoritative agent directives (`VERIFIED_SIGNAL`, `BORDERLINE_WARNING`, `REJECT_SPURIOUS_NOISE`).
+* **`audit_dataframe_candidates`**: Audits batches of features from CSV/Parquet files or in-memory DataFrames, running Out-of-Fold (OOF) cross-validation and $2\sigma$ bootstrap stability classification.
+* **`get_search_budget_status`**: Returns current hypothesis testing volume ($M$), current noise floor, gate inflation ratio, and optimal stopping recommendations.
+* **`reset_session_budget`**: Resets the hypothesis counter when starting a fresh dataset or analysis task.
+
+### 3. Using in Python Agent Reflection Loops (LangGraph / CrewAI / Raw LLM)
+
+```python
+from signalgate import SignalGateSessionLedger
+
+ledger = SignalGateSessionLedger()
+
+# Agent evaluates an engineered feature or database slice
+verdict = ledger.evaluate_feature_or_slice(
+    observed_rig=0.012,
+    nrows=4000,
+    minority_frac=0.20,
+    session_id="customer_churn_analysis",
+    feature_name="days_since_last_login > 30"
+)
+
+print(verdict["verdict"])         # "VERIFIED_SIGNAL" | "BORDERLINE_WARNING" | "REJECT_SPURIOUS_NOISE"
+print(verdict["agent_directive"]) # Authoritative natural-language directive for LLM
+```
+
+Or plug in ready-to-use OpenAI / Anthropic schemas:
+```python
+from signalgate import get_openai_tools, get_anthropic_tools, create_agent_tools
+
+tools = create_agent_tools()
+dispatch_dict = tools.to_callable_dict()
+openai_tool_schemas = get_openai_tools()
+```
+
+---
+
 ## 🚀 Quickstart
 
 ### Installation
 ```bash
-git clone https://github.com/eldridzakis/feature-noise-gate.git
-cd feature-noise-gate
+git clone https://github.com/eldridzakis/signal-gate.git
+cd signal-gate
 pip install -e .
+
+# Or with MCP server support:
+pip install -e ".[mcp]"
 ```
 
 ### 1. Instant Noise Threshold Calculation
 Calculate how high a feature's RIG must be to be statistically distinguished from noise after evaluating $M=20,000$ candidates on a dataset of 5,000 rows with a 15% minority class:
 
 ```python
-from feature_noise_gate import estimate_noise_threshold, FeatureNoiseThreshold
+from signalgate import estimate_noise_threshold, SignalNoiseThreshold
 
 # Instant lookup (< 1 millisecond)
 tau = estimate_noise_threshold(nrows=5000, minority_frac=0.15, n_features_evaluated=20000, alpha=0.05)
 print(f"Noise threshold: RIG must exceed {tau:.5f}")
 
 # Full search-space sensitivity table
-estimator = FeatureNoiseThreshold(nrows=5000, target_distribution=0.15)
+estimator = SignalNoiseThreshold(nrows=5000, target_distribution=0.15)
 summary_df = estimator.evaluate_search_space([100, 1000, 10000, 100000])
 print(summary_df)
 ```
 
 ### 2. Fast Monte-Carlo Permutation Test
 ```python
-from feature_noise_gate import PermutationObject
+from signalgate import PermutationObject
 
 perm = PermutationObject()
 perm.set_data_parameters(nrows=2000, class_weights=[0.25])
@@ -97,14 +177,14 @@ perm.null_rigs_comparison(threshold=0.005)
 
 ### 3. Feature De-Biasing & Stability Classification
 ```python
-from feature_noise_gate import FeatureDebiaser
+from signalgate import SignalDebiaser
 
-# 1. Compute holdout bias: Bias = Train_RIG - Unseen_RIG
-df_bias = FeatureDebiaser.compute_holdout_bias(df_train, df_test, target='target')
+# 1. Compute holdout bias: Bias = Train_Metric - Unseen_Metric
+df_bias = SignalDebiaser.compute_holdout_bias(df_train, df_test, target='target')
 median_bias = df_bias['test_bias'].median()
 
 # 2. De-bias and classify stability via Bootstrap 1-sigma & 2-sigma testing
-df_stability = FeatureDebiaser.bootstrap_stability_analysis(
+df_stability = SignalDebiaser.bootstrap_stability_analysis(
     df=df_train,
     target='target',
     estimated_bias=median_bias,
@@ -130,26 +210,30 @@ print(stable_features[['feature', 'train_rig', 'corrected_rig', 'stability_class
 ## 📂 Repository Structure
 
 ```
-feature-noise-gate/
-├── feature_noise_gate/           # Core library
+signal-gate/
+├── signalgate/                   # Core library
 │   ├── __init__.py               # Public API exports
 │   ├── metrics.py                # Fast entropy, mutual info, RIG calculations
 │   ├── threshold.py              # Analytical Chi-squared & EVT noise estimators
 │   ├── permutation.py            # Vectorized Monte-Carlo permutation tester
-│   └── debias.py                 # Out-of-Fold (OOF) & Bootstrap de-biasing engine
+│   ├── debias.py                 # Out-of-Fold (OOF) & Bootstrap de-biasing engine
+│   ├── mcp_server.py             # Stateful MCP statistical guardrail server
+│   └── agent_tools.py            # OpenAI/Anthropic tool schemas & callable dispatchers
+├── feature_noise_gate/           # Backward-compatibility alias
 ├── sampling_toolbox/             # Backward-compatibility alias
 ├── notebooks/                    # Self-contained walkthroughs
 │   ├── 01_feature_noise_thresholds.ipynb
 │   └── 02_selection_bias_and_debiasing.ipynb
-├── tests/                        # Automated unit tests (16 test suites)
+├── tests/                        # Automated unit tests (23 test suites)
 │   ├── test_metrics.py
 │   ├── test_threshold.py
 │   ├── test_permutation.py
-│   └── test_debias.py
+│   ├── test_debias.py
+│   └── test_mcp_guardrail.py
 ├── Data/                         # Benchmark datasets (King County, Lending Club)
-├── integrations/                 # Optional connectors for AutoML log parsing
+├── integrations/                 # Connectors for MCP server & AutoML log parsing
 ├── archive/                      # Historical notebooks preserved for reference
-├── pyproject.toml                # Modern package configuration
+├── pyproject.toml                # Modern package configuration (with CLI scripts)
 └── README.md
 ```
 
@@ -163,7 +247,7 @@ Run the test suite using standard Python `unittest`:
 python -m unittest discover -s tests -v
 ```
 
-All 16 tests run in $< 0.5$ seconds.
+All 23 tests run in $< 0.8$ seconds.
 
 ---
 
