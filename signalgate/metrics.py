@@ -9,24 +9,43 @@ import numpy as np
 import pandas as pd
 
 
-def entropy(values: Sequence[float]) -> float:
+def entropy(values: Union[float, Sequence[float], np.ndarray, pd.Series]) -> float:
     """Calculates Shannon entropy in bits (base-2 logarithm).
 
     Parameters
     ----------
-    values : Sequence[float]
-        Sequence of probability values or normalized counts summing to 1.0.
+    values : float or Sequence[float]
+        If a single float p in [0, 1], computes binary entropy:
+            H(p) = -p*log2(p) - (1-p)*log2(1-p).
+        If a sequence or 1D array of class probabilities or counts, computes:
+            H(P) = -sum(p_i * log2(p_i)).
 
     Returns
     -------
     float
         Shannon entropy in bits: -sum(p * log2(p)).
     """
-    total = 0.0
-    for v in values:
-        if v > 0.0 and v < 1.0:
-            total -= v * np.log2(v)
-    return float(total)
+    if isinstance(values, (int, float)):
+        p = float(values)
+        if p <= 0.0 or p >= 1.0:
+            return 0.0
+        return float(-p * np.log2(p) - (1.0 - p) * np.log2(1.0 - p))
+
+    arr = np.asarray(values, dtype=float)
+    if arr.size == 0:
+        return 0.0
+    if arr.size == 1:
+        p = float(arr.flat[0])
+        if p <= 0.0 or p >= 1.0:
+            return 0.0
+        return float(-p * np.log2(p) - (1.0 - p) * np.log2(1.0 - p))
+
+    total = arr.sum()
+    if total <= 0.0:
+        return 0.0
+    p_norm = arr / total
+    nonzero = p_norm > 0.0
+    return float(-np.sum(p_norm[nonzero] * np.log2(p_norm[nonzero])))
 
 
 def fast_contingency_matrix(

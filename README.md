@@ -2,7 +2,7 @@
 
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Tests](https://img.shields.io/badge/tests-30%20passed-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/tests-35%20passed-brightgreen.svg)]()
 [![MCP Server](https://img.shields.io/badge/MCP-Protocol%20Ready-purple.svg)](https://modelcontextprotocol.io)
 
 > **Stateful statistical guardrails and Model Context Protocol (MCP) server for autonomous LLM data agents, Text-to-SQL, and AutoML. Quantifying the Winner's Curse, estimating closed-form noise ceilings, and filtering out spurious insights.**
@@ -33,29 +33,34 @@ Selecting features or reporting insights that maximize sample metrics introduces
 Relative Information Gain (normalized mutual information) measures the reduction in target entropy:
 $$\text{RIG}(X, Y) = \frac{I(X; Y)}{H(Y)} = \frac{H(Y) - H(Y \mid X)}{H(Y)}$$
 
-Under the null hypothesis $H_0$ that feature $X$ and target $Y$ are independent, Wilks' Theorem establishes that the deviance statistic asymptotically follows a Chi-squared distribution:
-$$2 N \ln(2) \cdot I(X; Y) \xrightarrow{d} \chi^2_{df}$$
-where $df = (|X| - 1)(|Y| - 1) = 1$ for boolean features and binary targets.
+For arbitrary $R$-category features ($R \ge 2$) and $C$-class targets ($C \ge 2$), the target prior entropy generalizes to:
+$$H(Y) = -\sum_{c=1}^{C} p_c \log_2(p_c) \in (0, \log_2 C] \text{ bits}$$
+
+Under the null hypothesis $H_0$ that candidate feature $X$ and target $Y$ are independent, Wilks' Theorem establishes that the deviance statistic asymptotically follows a Chi-squared distribution with $k = df = (R - 1)(C - 1)$ degrees of freedom:
+$$2 N \ln(2) \cdot I(X; Y) \xrightarrow{d} \chi^2_k$$
+which reduces identically to $df = (2-1)(2-1) = 1$ for boolean features and binary targets.
 
 Dividing by the target prior entropy $H(Y)$ gives the asymptotic distribution of null RIG:
-$$\text{RIG}_{\text{null}} \sim \frac{\chi^2_1}{2 N \ln(2) \cdot H(Y)}$$
+$$\text{RIG}_{\text{null}} \sim \frac{\chi^2_k}{2 N \ln(2) \cdot H(Y)}$$
 
 ```
 Key Theoretical Insights:
-• Scaling: Expected null RIG scales as O(1/N).
-• Target Imbalance: Lower minority class prevalence p reduces H(Y), which raises the noise floor!
-• Invariance to Feature Marginals: Null RIG mean is invariant to feature support P(X=1).
+• Scaling: Expected null RIG scales as O(k / N).
+• Target Imbalance: Lower entropy H(Y) raises the null noise floor!
+• High-Cardinality Penalty: A 10-category feature (R=10) on a 4-class target (C=4) carries k=27 df, requiring a proportionately higher RIG to clear noise gates than a binary feature (k=3 df).
+• Invariance to Feature Marginals: Null RIG mean is invariant to feature marginal distribution P(X=x).
 ```
 
 ### 2. Search-Space-Aware Noise Gates ($M$ Evaluated Features)
 When an AutoML engine or LLM agent evaluates $M$ candidate features:
 
 * **Bonferroni / Šidák Significance Threshold ($\alpha = 0.05$):**
-  $$\tau_{\text{significance}}(N, p, M, \alpha) = \frac{F_{\chi^2_1}^{-1}\left(1 - \frac{\alpha}{M}\right)}{2 N \ln(2) \cdot H(p)}$$
+  $$\tau_{\text{significance}}(N, \mathbf{p}, M, k, \alpha) = \frac{F_{\chi^2_k}^{-1}\left(1 - \frac{\alpha}{M}\right)}{2 N \ln(2) \cdot H(Y)}$$
 
-* **Extreme Value Theory (EVT) Expected Maximum:**
-  $$\mathbb{E}[\max_{1 \le i \le M} \chi^2_1] \approx 2 \ln M - \ln \ln M - \ln \pi + 2\gamma \quad (\gamma \approx 0.5772)$$
-  $$\tau_{\text{EVT}}(N, p, M) \approx \frac{2 \ln M - \ln \ln M - \ln \pi + 2\gamma}{2 N \ln(2) \cdot H(p)} \approx \frac{2 \ln M - \ln \ln M + 0.010}{2 N \ln(2) \cdot H(p)}$$
+* **Generalized Extreme Value Theory (EVT) Expected Maximum:**
+  $$\mathbb{E}\left[\max_{1 \le i \le M} \chi^2_k\right] \approx 2 \ln M + (k - 2) \ln(\ln M) - 2 \ln \Gamma\left(\frac{k}{2}\right) + 2\gamma \quad (\gamma \approx 0.5772)$$
+  $$\tau_{\text{EVT}}(N, \mathbf{p}, M, k) \approx \frac{\mathbb{E}\left[\max_{1 \le i \le M} \chi^2_k\right]}{2 N \ln(2) \cdot H(Y)}$$
+  *(Guaranteed exact identity to binary $2\ln M - \ln\ln M - \ln\pi + 2\gamma$ when $k=1$ since $\Gamma(1/2) = \sqrt{\pi}$)*.
 
 ---
 
@@ -97,7 +102,7 @@ signalgate-mcp
 
 ### 2. Available MCP & Agent Tools
 
-* **`evaluate_feature_or_slice`**: Stateful gatekeeper for individual features or 2x2 contingency slices. Automatically ratchets $M$, checks the finite-sample Cochran condition ($E_{11} \ge 5$), and returns authoritative agent directives (`VERIFIED_SIGNAL`, `BORDERLINE_WARNING`, `REJECT_SPURIOUS_NOISE`).
+* **`evaluate_feature_or_slice`**: Stateful gatekeeper for individual features or 2x2 / $R \times C$ contingency slices. Automatically ratchets $M$, checks the finite-sample Cochran condition ($\min E_{rc} \ge 1$ and $<20\%$ cells $< 5$), and returns authoritative agent directives (`VERIFIED_SIGNAL`, `BORDERLINE_WARNING`, `REJECT_SPURIOUS_NOISE`).
 * **`audit_dataframe_candidates`**: Audits batches of features from CSV/Parquet files or in-memory DataFrames, running Out-of-Fold (OOF) cross-validation and $2\sigma$ bootstrap stability classification.
 * **`get_search_budget_status`**: Returns current hypothesis testing volume ($M$), current noise floor, gate inflation ratio, and optimal stopping recommendations.
 * **`reset_session_budget`**: Resets the hypothesis counter when starting a fresh dataset or analysis task.

@@ -125,14 +125,30 @@ class PermutationObject:
 
         df = pd.DataFrame({'target': target})
 
-        # 2. Synthetic boolean features
+        # 2. Synthetic boolean or multi-category features
         for feat_idx, feature_fraction in enumerate(self.feature_fractions):
-            col_name = f'feature_{round(feature_fraction, 3)}'
-            n_ones = int(round(self.nrows * feature_fraction))
-            n_zeros = self.nrows - n_ones
-            feat_vals = np.array([0] * n_zeros + [1] * n_ones, dtype=int)
-            rng.shuffle(feat_vals)
-            df[col_name] = feat_vals
+            if isinstance(feature_fraction, (int, float)):
+                col_name = f'feature_{round(float(feature_fraction), 3)}'
+                n_ones = int(round(self.nrows * float(feature_fraction)))
+                n_zeros = self.nrows - n_ones
+                feat_vals = np.array([0] * n_zeros + [1] * n_ones, dtype=int)
+                rng.shuffle(feat_vals)
+                df[col_name] = feat_vals
+            else:
+                # Multi-category feature fractions summing to 1.0
+                weights = np.asarray(feature_fraction, dtype=float)
+                weights = weights / weights.sum()
+                counts = np.floor(weights * self.nrows).astype(int)
+                remainder = self.nrows - counts.sum()
+                if remainder > 0:
+                    counts[:remainder] += 1
+                values = []
+                for cat_idx, count in enumerate(counts):
+                    values.extend([cat_idx] * count)
+                feat_vals = np.array(values, dtype=int)
+                rng.shuffle(feat_vals)
+                col_name = f'feature_cat_{len(weights)}_{feat_idx}'
+                df[col_name] = feat_vals
 
         self.data = df
         return self.data
@@ -187,15 +203,49 @@ class PermutationObject:
         n_features = len(feature_cols)
 
         if metric_fn is None:
-            # Fast vectorized binary RIG path
-            features_matrix = self.data[feature_cols].to_numpy()
-            target_orig = self.data[target_col].to_numpy().copy()
+            # Fast vectorized multiclass & multi-category RIG path
+            features_df = self.data[feature_cols]
+            n_features = len(feature_cols)
+            n_samples = len(self.data)
 
-            null_matrix = np.empty((self.permutations, n_features), dtype=float)
-            target_shuffled = target_orig.copy()
-            for i in range(self.permutations):
-                rng.shuffle(target_shuffled)
-                null_matrix[i, :] = _compute_rig_vectorized_binary(features_matrix, target_shuffled)
+            target_vals = self.data[target_col].to_numpy()
+            y_codes, _ = pd.factorize(target_vals)
+            n_y = int(y_codes.max() + 1) if len(y_codes) > 0 else 0
+            if n_y <= 1:
+                null_matrix = np.zeros((self.permutations, n_features), dtype=float)
+            else:
+                counts_y = np.bincount(y_codes, minlength=n_y)
+                p_y = counts_y / n_samples
+                h_y = fast_entropy_from_marginals(p_y)
+
+                if h_y <= 1e-12:
+                    null_matrix = np.zeros((self.permutations, n_features), dtype=float)
+                else:
+                    # Pre-factorize features once
+                    x_codes_list = []
+                    n_x_list = []
+                    for col in feature_cols:
+                        xc, _ = pd.factorize(features_df[col].to_numpy())
+                        nx = int(xc.max() + 1) if len(xc) > 0 else 0
+                        x_codes_list.append(xc)
+                        n_x_list.append(nx)
+
+                    null_matrix = np.empty((self.permutations, n_features), dtype=float)
+                    y_shuffled = y_codes.copy()
+
+                    for i in range(self.permutations):
+                        rng.shuffle(y_shuffled)
+                        for col_idx in range(n_features):
+                            nx = n_x_list[col_idx]
+                            if nx <= 1:
+                                null_matrix[i, col_idx] = 0.0
+                                continue
+                            flat = x_codes_list[col_idx] * n_y + y_shuffled
+                            contingency = np.bincount(flat, minlength=nx * n_y).reshape(nx, n_y)
+                            mi = fast_mutual_info_from_contingency(contingency)
+                            null_matrix[i, col_idx] = mi / h_y
+
+            null_matrix = np.clip(null_matrix, 0.0, 1.0)
         else:
             # Generic user-defined metric function path
             null_matrix = np.empty((self.permutations, n_features), dtype=float)

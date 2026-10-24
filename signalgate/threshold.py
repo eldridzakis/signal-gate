@@ -8,7 +8,7 @@ Bonferroni/Sidak corrections, and Extreme Value Theory (EVT).
 from typing import Dict, List, Optional, Sequence, Tuple, Union
 import numpy as np
 import pandas as pd
-from scipy import stats
+from scipy import special, stats
 
 
 def binary_entropy(p: float) -> float:
@@ -18,15 +18,24 @@ def binary_entropy(p: float) -> float:
     return float(-p * np.log2(p) - (1.0 - p) * np.log2(1.0 - p))
 
 
-def target_entropy_from_weights(class_weights: Sequence[float]) -> float:
-    """Computes Shannon entropy for arbitrary class distributions."""
+def target_entropy_from_weights(
+    class_weights: Union[float, Sequence[float], np.ndarray, pd.Series]
+) -> float:
+    """Computes Shannon entropy for arbitrary binary or multiclass distributions."""
+    if isinstance(class_weights, (int, float)):
+        return binary_entropy(float(class_weights))
     weights = np.asarray(class_weights, dtype=float)
-    if len(weights) == 1:
-        p = float(weights[0])
+    if weights.size == 0:
+        return 0.0
+    if weights.size == 1:
+        p = float(weights.flat[0])
         return binary_entropy(p)
-    weights = weights / weights.sum()
-    nonzero = weights > 0.0
-    return float(-np.sum(weights[nonzero] * np.log2(weights[nonzero])))
+    total = weights.sum()
+    if total <= 0.0:
+        return 0.0
+    p_norm = weights / total
+    nonzero = p_norm > 0.0
+    return float(-np.sum(p_norm[nonzero] * np.log2(p_norm[nonzero])))
 
 
 class FeatureNoiseThreshold:
@@ -48,9 +57,13 @@ class FeatureNoiseThreshold:
     def __init__(
         self,
         nrows: int,
-        target_distribution: Union[float, Sequence[float]],
-        cardinality_x: int = 2,
-        cardinality_y: int = 2
+        target_distribution: Optional[Union[float, Sequence[float], np.ndarray, pd.Series]] = None,
+        cardinality_x: Optional[int] = None,
+        cardinality_y: Optional[int] = None,
+        n_feature_categories: int = 2,
+        n_classes: int = 2,
+        df: Optional[int] = None,
+        minority_frac: Optional[Union[float, Sequence[float], np.ndarray, pd.Series]] = None,
     ):
         """Initializes the threshold estimator.
 
@@ -58,26 +71,54 @@ class FeatureNoiseThreshold:
         ----------
         nrows : int
             Number of observations (sample size N).
-        target_distribution : float or Sequence[float]
+        target_distribution : float or Sequence[float], optional
             Minority class fraction (for binary targets, e.g. 0.2) or full
-            class probability distribution (e.g. [0.7, 0.2, 0.1]).
-        cardinality_x : int, default 2
-            Number of distinct values in the candidate feature (2 for boolean).
-        cardinality_y : int, default 2
-            Number of distinct values in the target (2 for binary classification).
+            class probability distribution / counts (e.g. [0.7, 0.2, 0.1]).
+        cardinality_x : int, optional
+            Number of distinct values in the candidate feature (R). Alias for n_feature_categories.
+        cardinality_y : int, optional
+            Number of distinct values in the target (C). Alias for n_classes.
+        n_feature_categories : int, default 2
+            Number of distinct categories in the candidate feature (R).
+        n_classes : int, default 2
+            Number of distinct classes in the target (C).
+        df : int, optional
+            Explicit degrees of freedom k = (R-1)*(C-1). Overrides cardinality parameters.
+        minority_frac : float or Sequence[float], optional
+            Alias for target_distribution for backward compatibility.
         """
         if nrows <= 0:
             raise ValueError("nrows must be positive.")
+
+        if target_distribution is None:
+            if minority_frac is not None:
+                target_distribution = minority_frac
+            else:
+                raise ValueError("Either target_distribution or minority_frac must be provided.")
 
         self.nrows = nrows
         if isinstance(target_distribution, (int, float)):
             self.class_weights = [float(target_distribution)]
         else:
-            self.class_weights = list(target_distribution)
+            self.class_weights = list(np.asarray(target_distribution, dtype=float))
 
-        self.cardinality_x = cardinality_x
-        self.cardinality_y = cardinality_y
-        self.df = (cardinality_x - 1) * (cardinality_y - 1)
+        # Determine R and C
+        r = cardinality_x if cardinality_x is not None else n_feature_categories
+        c = cardinality_y if cardinality_y is not None else n_classes
+
+        # Auto-infer C if target_distribution has length > 2 and C was not explicitly overridden
+        if len(self.class_weights) > 2 and cardinality_y is None and n_classes == 2:
+            c = len(self.class_weights)
+
+        self.cardinality_x = int(r)
+        self.cardinality_y = int(c)
+        self.n_feature_categories = self.cardinality_x
+        self.n_classes = self.cardinality_y
+
+        if df is not None:
+            self.df = int(df)
+        else:
+            self.df = max(1, (self.cardinality_x - 1) * (self.cardinality_y - 1))
 
         self.target_entropy = target_entropy_from_weights(self.class_weights)
         if self.target_entropy <= 0.0:
@@ -162,10 +203,15 @@ class FeatureNoiseThreshold:
     def evt_expected_max(self, n_features_evaluated: int) -> float:
         """Expected maximum null RIG among M evaluated features using Extreme Value Theory.
 
-        For M independent null features, the distribution of max(Chi2_1) follows a Gumbel-type
-        extreme value distribution with:
-            E[max(Chi2_1)] ~= 2*ln(M) - ln(ln(M)) - ln(pi) + 2*gamma
-        where gamma ~= 0.57721566 (Euler-Mascheroni constant).
+        For M independent null features with k degrees of freedom, the asymptotic Gumbel
+        expected maximum follows:
+            E[max(Chi2_k)] ~= 2*ln(M) + (k - 2)*ln(ln(M)) - 2*ln(Gamma(k/2)) + 2*gamma
+        where gamma ~= 0.5772156649 (Euler-Mascheroni constant) and ln(Gamma(k/2)) is
+        computed via scipy.special.gammaln(k / 2.0).
+
+        When k = 1, since Gamma(1/2) = sqrt(pi) and 2*ln(Gamma(1/2)) = ln(pi), this
+        formula reduces identically to the binary formula:
+            2*ln(M) - ln(ln(M)) - ln(pi) + 2*gamma.
 
         Parameters
         ----------
@@ -178,17 +224,22 @@ class FeatureNoiseThreshold:
             Expected maximum null RIG. Represents the noise ceiling under H0.
         """
         m = float(n_features_evaluated)
-        if m <= 1:
+        if m <= 1.0:
             return self.expected_null_mean
 
-        if self.df == 1:
-            gamma = 0.5772156649015328
-            ln_m = np.log(m)
-            ln_ln_m = np.log(max(ln_m, 1e-12))
-            expected_chi2_max = 2.0 * ln_m - ln_ln_m - np.log(np.pi) + 2.0 * gamma
+        k = float(self.df)
+        gamma = 0.5772156649015328
+
+        if m <= 2.0:
+            # For small M <= 2, guard against ln(ln(M)) domain issues using quantile bound
+            expected_chi2_max = max(k, float(stats.chi2.ppf(1.0 - 1.0 / (2.0 * m), df=self.df)))
         else:
-            # General degrees of freedom quantile approximation at 1 - 1/M
-            expected_chi2_max = stats.chi2.ppf(1.0 - 1.0 / m, df=self.df)
+            ln_m = np.log(m)
+            ln_ln_m = np.log(ln_m)
+            log_gamma_k2 = float(special.gammaln(k / 2.0))
+            expected_chi2_max = 2.0 * ln_m + (k - 2.0) * ln_ln_m - 2.0 * log_gamma_k2 + 2.0 * gamma
+            # Ensure expected max is at least the mean of 1 variable
+            expected_chi2_max = max(k, expected_chi2_max)
 
         return float(max(0.0, expected_chi2_max / self.scaling_factor))
 
@@ -212,9 +263,13 @@ class FeatureNoiseThreshold:
 
 def estimate_noise_threshold(
     nrows: int,
-    minority_frac: float,
-    n_features_evaluated: int,
-    alpha: float = 0.05
+    minority_frac: Optional[Union[float, Sequence[float], np.ndarray, pd.Series]] = None,
+    n_features_evaluated: int = 1,
+    alpha: float = 0.05,
+    target_distribution: Optional[Union[float, Sequence[float], np.ndarray, pd.Series]] = None,
+    n_classes: int = 2,
+    n_feature_categories: int = 2,
+    df: Optional[int] = None
 ) -> float:
     """Convenience function to quickly estimate the RIG noise threshold.
 
@@ -222,17 +277,35 @@ def estimate_noise_threshold(
     ----------
     nrows : int
         Sample size (rows in training dataset).
-    minority_frac : float
-        Minority class proportion (e.g. 0.20 for a 20% default rate).
-    n_features_evaluated : int
+    minority_frac : float or Sequence[float], optional
+        Minority class proportion (e.g. 0.20 for binary) or class distribution.
+    n_features_evaluated : int, default 1
         Total number of candidate features evaluated.
     alpha : float, default 0.05
         Family-wise error rate tolerance.
+    target_distribution : float or Sequence[float], optional
+        Class probability distribution or counts (alias for minority_frac).
+    n_classes : int, default 2
+        Number of target classes (C).
+    n_feature_categories : int, default 2
+        Number of distinct categories in the candidate feature (R).
+    df : int, optional
+        Explicit degrees of freedom k = (R-1)*(C-1). Overrides cardinality parameters.
 
     Returns
     -------
     float
         RIG threshold above which a feature is statistically distinguishable from noise.
     """
-    estimator = FeatureNoiseThreshold(nrows=nrows, target_distribution=minority_frac)
+    dist = target_distribution if target_distribution is not None else minority_frac
+    if dist is None:
+        dist = 0.5
+
+    estimator = FeatureNoiseThreshold(
+        nrows=nrows,
+        target_distribution=dist,
+        n_classes=n_classes,
+        n_feature_categories=n_feature_categories,
+        df=df
+    )
     return estimator.analytical_threshold(n_features_evaluated=n_features_evaluated, alpha=alpha)

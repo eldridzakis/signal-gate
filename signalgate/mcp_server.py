@@ -116,16 +116,20 @@ class NoiseGateSessionLedger:
         self,
         observed_rig: Optional[float] = None,
         nrows: Optional[int] = None,
-        minority_frac: Optional[float] = None,
-        feature_support: Optional[float] = None,
-        contingency_counts: Optional[Union[Sequence[int], Dict[str, int]]] = None,
+        minority_frac: Optional[Union[float, Sequence[float], np.ndarray, pd.Series]] = None,
+        target_distribution: Optional[Union[float, Sequence[float], np.ndarray, pd.Series]] = None,
+        feature_support: Optional[Union[float, Sequence[float], np.ndarray]] = None,
+        contingency_counts: Optional[Union[Dict[str, int], Sequence[int], Sequence[Sequence[int]], np.ndarray]] = None,
         hypotheses_in_batch: int = 1,
         alpha: float = 0.05,
         session_id: str = "default",
         feature_name: Optional[str] = None,
-        slice_description: Optional[str] = None
+        slice_description: Optional[str] = None,
+        n_classes: int = 2,
+        n_feature_categories: int = 2,
+        df: Optional[int] = None,
     ) -> Dict[str, Any]:
-        """Evaluates whether an observed RIG or 2x2 slice clears statistical noise gates.
+        """Evaluates whether an observed RIG or R x C slice clears statistical noise gates.
 
         Parameters
         ----------
@@ -133,13 +137,15 @@ class NoiseGateSessionLedger:
             Observed Relative Information Gain on training split.
         nrows : int, optional
             Total sample size (N).
-        minority_frac : float, optional
-            Minority class proportion (p).
-        feature_support : float, optional
-            Fraction of rows where feature or slice predicate is true.
-        contingency_counts : sequence or dict, optional
-            [n00, n01, n10, n11] counts where row 0 is feature=0, row 1 is feature=1.
-            If provided, automatically computes observed_rig, nrows, minority_frac,
+        minority_frac : float or sequence, optional
+            Minority class proportion (p) or class distribution (backward compatible).
+        target_distribution : float or sequence, optional
+            Full target class probability distribution or raw class counts.
+        feature_support : float or sequence, optional
+            Fraction of rows where feature or slice predicate is true (or marginal distribution).
+        contingency_counts : sequence, dict, or 2D array, optional
+            [n00, n01, n10, n11] counts, dict, or R x C 2D contingency matrix.
+            If provided, automatically computes observed_rig, nrows, target_distribution,
             and feature_support.
         hypotheses_in_batch : int, default 1
             Number of candidate hypotheses evaluated in this step.
@@ -151,8 +157,17 @@ class NoiseGateSessionLedger:
             Name or expression of the candidate feature.
         slice_description : str, optional
             Predicate defining the segment or slice.
+        n_classes : int, default 2
+            Number of distinct target classes (C).
+        n_feature_categories : int, default 2
+            Number of distinct categories in the candidate feature (R).
+        df : int, optional
+            Explicit degrees of freedom k = (R-1)*(C-1).
         """
         session = self.get_or_create_session(session_id=session_id)
+
+        small_cell_warning = False
+        e11 = None
 
         # 1. Parse contingency counts if provided
         if contingency_counts is not None:
@@ -161,23 +176,33 @@ class NoiseGateSessionLedger:
                 n01 = contingency_counts.get("n01", contingency_counts.get("01", 0))
                 n10 = contingency_counts.get("n10", contingency_counts.get("10", 0))
                 n11 = contingency_counts.get("n11", contingency_counts.get("11", 0))
+                mat = np.array([[n00, n01], [n10, n11]], dtype=np.int64)
             else:
-                n00, n01, n10, n11 = contingency_counts
+                arr = np.asarray(contingency_counts, dtype=np.int64)
+                if arr.ndim == 1:
+                    if len(arr) == 4:
+                        mat = arr.reshape(2, 2)
+                    else:
+                        raise ValueError(f"1D contingency_counts must have length 4, got {len(arr)}.")
+                elif arr.ndim == 2:
+                    mat = arr
+                else:
+                    raise ValueError(f"contingency_counts must be 1D (length 4) or 2D (R x C), got ndim={arr.ndim}.")
 
-            total_n = int(n00 + n01 + n10 + n11)
+            total_n = int(mat.sum())
             if total_n <= 0:
                 raise ValueError("Total contingency counts must be positive.")
 
-            mat = np.array([[n00, n01], [n10, n11]], dtype=np.int64)
-            n_y0 = n00 + n10
-            n_y1 = n01 + n11
-            min_class_count = min(n_y0, n_y1)
-            derived_minority = min_class_count / total_n
+            r_rows, c_cols = mat.shape
+            n_classes = c_cols
+            n_feature_categories = r_rows
 
-            n_x1 = n10 + n11
-            derived_support = n_x1 / total_n
+            p_y = mat.sum(axis=0) / total_n
+            p_x = mat.sum(axis=1) / total_n
 
-            p_y = np.array([n_y0 / total_n, n_y1 / total_n], dtype=float)
+            derived_minority = float(p_y.min())
+            derived_support = float(p_x[1]) if r_rows == 2 else p_x.tolist()
+
             h_y = fast_entropy_from_marginals(p_y)
             mi = fast_mutual_info_from_contingency(mat)
             calc_rig = (mi / h_y) if h_y > 1e-12 else 0.0
@@ -186,18 +211,27 @@ class NoiseGateSessionLedger:
                 observed_rig = float(calc_rig)
             if nrows is None:
                 nrows = total_n
+            if target_distribution is None:
+                target_distribution = p_y
             if minority_frac is None:
                 minority_frac = float(derived_minority)
             if feature_support is None:
-                feature_support = float(derived_support)
+                feature_support = derived_support
 
-        if nrows is None or minority_frac is None or observed_rig is None:
+            # Cochran's rule check on 2D table
+            E = total_n * (p_x[:, None] @ p_y[None, :])
+            min_e = float(E.min())
+            frac_lt_5 = float((E < 5.0).mean())
+            small_cell_warning = (min_e < 1.0) or (frac_lt_5 > 0.20)
+            e11 = min_e
+
+        dist = target_distribution if target_distribution is not None else minority_frac
+        if nrows is None or dist is None or observed_rig is None:
             raise ValueError(
-                "Either contingency_counts or all of (observed_rig, nrows, minority_frac) must be supplied."
+                "Either contingency_counts or all of (observed_rig, nrows, minority_frac/target_distribution) must be supplied."
             )
 
         n = int(nrows)
-        p = float(minority_frac)
         r = float(np.clip(observed_rig, 0.0, 1.0))
 
         # 2. Update session hypothesis budget
@@ -206,45 +240,68 @@ class NoiseGateSessionLedger:
         m = session.cumulative_hypotheses_M
 
         # 3. Calculate analytical noise gates
-        estimator = FeatureNoiseThreshold(nrows=n, target_distribution=p)
+        estimator = FeatureNoiseThreshold(
+            nrows=n,
+            target_distribution=dist,
+            n_classes=n_classes,
+            n_feature_categories=n_feature_categories,
+            df=df
+        )
         tau_sig = estimator.analytical_threshold(n_features_evaluated=m, alpha=alpha)
         tau_evt = estimator.evt_expected_max(n_features_evaluated=m)
+        k_df = estimator.df
 
-        # 4. Small-cell condition check (Cochran's rule)
-        e11 = None
-        small_cell_warning = False
-        if feature_support is not None:
-            sup = float(feature_support)
-            e11 = float(n * p * sup)
-            if e11 < 5.0:
-                small_cell_warning = True
+        # 4. Small-cell condition check (Cochran's rule for non-contingency calls)
+        if contingency_counts is None and feature_support is not None:
+            if isinstance(feature_support, (int, float)) and isinstance(dist, (int, float)):
+                sup = float(feature_support)
+                p_val = float(dist)
+                e11 = float(n * p_val * sup)
+                if e11 < 5.0:
+                    small_cell_warning = True
+            else:
+                s_arr = np.asarray(feature_support, dtype=float)
+                if s_arr.size == 1:
+                    s_arr = np.array([1.0 - float(s_arr), float(s_arr)])
+                else:
+                    s_arr = s_arr / s_arr.sum()
+                d_arr = np.asarray(dist, dtype=float)
+                if d_arr.size == 1:
+                    d_arr = np.array([1.0 - float(d_arr), float(d_arr)])
+                else:
+                    d_arr = d_arr / d_arr.sum()
+                E = n * (s_arr[:, None] @ d_arr[None, :])
+                min_e = float(E.min())
+                frac_lt_5 = float((E < 5.0).mean())
+                small_cell_warning = (min_e < 1.0) or (frac_lt_5 > 0.20)
+                e11 = min_e
 
         # 5. Formulate verdict and agent directive
         if r >= tau_sig:
             verdict = "VERIFIED_SIGNAL"
             agent_directive = (
                 f"PROCEED: Feature/slice observed RIG ({r:.5f}) clears the multiple-testing "
-                f"significance gate (tau={tau_sig:.5f}) at cumulative M={m} tests and alpha={alpha}. "
+                f"significance gate (tau={tau_sig:.5f}, df={k_df}) at cumulative M={m} tests and alpha={alpha}. "
                 "Statistically confirmed to be genuine signal beyond random search noise."
             )
         elif r >= tau_evt:
             verdict = "BORDERLINE_WARNING"
             agent_directive = (
-                f"BORDERLINE: Feature/slice observed RIG ({r:.5f}) exceeds expected maximum noise (tau_evt={tau_evt:.5f}), "
+                f"BORDERLINE: Feature/slice observed RIG ({r:.5f}) exceeds expected maximum noise (tau_evt={tau_evt:.5f}, df={k_df}), "
                 f"but fails the strict Bonferroni significance gate (tau={tau_sig:.5f}) for M={m} tests. "
                 "High risk of selection bias / Winner's Curse. Do NOT deploy without out-of-fold cross-validation or holdout verification."
             )
         else:
             verdict = "REJECT_SPURIOUS_NOISE"
             agent_directive = (
-                f"DISCARD: Feature/slice observed RIG ({r:.5f}) is below the expected noise ceiling (tau_evt={tau_evt:.5f}) "
+                f"DISCARD: Feature/slice observed RIG ({r:.5f}) is below the expected noise ceiling (tau_evt={tau_evt:.5f}, df={k_df}) "
                 f"for M={m} evaluated tests. Consistent with pure random sampling variance. "
                 "Do NOT promote, report, or select this feature/slice."
             )
 
         if small_cell_warning:
             agent_directive += (
-                f" [WARNING: Expected co-occurrence E11 = {e11:.2f} < 5. "
+                f" [WARNING: Expected co-occurrence E11 / Cochran's small-cell condition triggered (min expected cell count = {e11:.2f} < 5 or sparse cells > 20%). "
                 "Sparse cell counts make asymptotic Chi-squared anti-conservative; "
                 "run PermutationObject to verify with exact Monte-Carlo resamples.]"
             )
@@ -256,6 +313,9 @@ class NoiseGateSessionLedger:
             "bonferroni_significance_gate": float(tau_sig),
             "cumulative_session_tests_M": int(m),
             "batch_tests_added": int(batch_size),
+            "degrees_of_freedom_k": int(k_df),
+            "n_classes": int(estimator.cardinality_y),
+            "n_feature_categories": int(estimator.cardinality_x),
             "small_cell_warning": small_cell_warning,
             "expected_minority_cooccurrence_E11": e11,
             "feature_name": feature_name,
@@ -293,12 +353,37 @@ class NoiseGateSessionLedger:
         target_series = df_train[target_col]
         val_counts = target_series.value_counts(normalize=True)
         minority_p = float(val_counts.min()) if len(val_counts) > 1 else 0.5
+        n_classes = len(val_counts)
+        target_dist = val_counts.values
 
-        estimator = FeatureNoiseThreshold(nrows=n, target_distribution=minority_p)
+        estimator = FeatureNoiseThreshold(
+            nrows=n,
+            target_distribution=target_dist if n_classes > 2 else minority_p,
+            n_classes=n_classes
+        )
         current_tau_sig = estimator.analytical_threshold(n_features_evaluated=m, alpha=alpha)
         current_tau_evt = estimator.evt_expected_max(n_features_evaluated=m)
 
-        # 2. Bias estimation
+        # Feature-specific degrees of freedom and noise thresholds
+        feature_df_k = {}
+        feature_bonferroni = {}
+        feature_evt = {}
+        for feat in candidate_cols:
+            r_j = max(2, int(df_train[feat].nunique()))
+            k_j = (r_j - 1) * (n_classes - 1)
+            f_est = FeatureNoiseThreshold(
+                nrows=n,
+                target_distribution=target_dist if n_classes > 2 else minority_p,
+                n_classes=n_classes,
+                n_feature_categories=r_j,
+                df=k_j
+            )
+            feature_df_k[feat] = k_j
+            feature_bonferroni[feat] = float(f_est.analytical_threshold(n_features_evaluated=m, alpha=alpha))
+            feature_evt[feat] = float(f_est.evt_expected_max(n_features_evaluated=m))
+
+        # 2. Bias estimation bounded by feature-specific EVT noise ceiling
+        feature_biases = {}
         if df_val is not None:
             df_bias = FeatureDebiaser.compute_holdout_bias(
                 df_train=df_train,
@@ -307,8 +392,10 @@ class NoiseGateSessionLedger:
                 feature_cols=candidate_cols,
                 eval_label="val"
             )
+            for _, row in df_bias.iterrows():
+                f = row["feature"]
+                feature_biases[f] = float(max(row["val_bias"], feature_evt.get(f, current_tau_evt)))
             raw_bias = float(df_bias["val_bias"].median())
-            estimated_optimism_bias = float(max(raw_bias, current_tau_evt))
         else:
             # Estimate bias via Out-of-Fold cross-validation bounded by EVT noise ceiling
             df_oof = FeatureDebiaser.compute_oof_metric(
@@ -318,18 +405,26 @@ class NoiseGateSessionLedger:
                 n_splits=5,
                 seed=seed
             )
+            for _, row in df_oof.iterrows():
+                f = row["feature"]
+                feature_biases[f] = float(max(row["oof_bias"], feature_evt.get(f, current_tau_evt)))
             raw_bias = float(df_oof["oof_bias"].median())
-            estimated_optimism_bias = float(max(raw_bias, current_tau_evt))
+
+        estimated_optimism_bias = float(np.median(list(feature_biases.values())))
 
         # 3. Bootstrap stability classification
         df_stab = FeatureDebiaser.bootstrap_stability_analysis(
             df=df_train,
             target=target_col,
             feature_cols=candidate_cols,
-            estimated_bias=estimated_optimism_bias,
+            estimated_bias=feature_biases,
             n_bootstraps=n_bootstraps,
             seed=seed
         )
+
+        df_stab["df_k"] = df_stab["feature"].map(feature_df_k)
+        df_stab["bonferroni_gate"] = df_stab["feature"].map(feature_bonferroni)
+        df_stab["evt_noise_ceiling"] = df_stab["feature"].map(feature_evt)
 
         promoted_2_sigma = df_stab[df_stab["is_2_sigma"]]["feature"].tolist()
         marginal_1_sigma = df_stab[df_stab["is_1_sigma"] & ~df_stab["is_2_sigma"]]["feature"].tolist()
@@ -340,6 +435,8 @@ class NoiseGateSessionLedger:
             "target_col": target_col,
             "sample_size_N": n,
             "minority_fraction": minority_p,
+            "n_classes": n_classes,
+            "target_distribution": target_dist.tolist() if hasattr(target_dist, "tolist") else list(target_dist),
             "features_audited_in_batch": len(candidate_cols),
             "cumulative_session_tests_M": m,
             "current_bonferroni_gate": float(current_tau_sig),

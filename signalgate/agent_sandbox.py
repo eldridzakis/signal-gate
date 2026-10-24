@@ -195,9 +195,10 @@ class InstrumentedAgentSandbox:
         # Baseline sample parameters
         self.base_n = len(self.df)
         val_counts = self.df[self.target_col].value_counts(normalize=True)
+        self.n_classes = len(val_counts)
+        self.base_target_dist = val_counts.values
         self.base_p = float(val_counts.min()) if len(val_counts) > 1 else 0.5
-        p_y = np.array([1.0 - self.base_p, self.base_p])
-        self.base_hy = fast_entropy_from_marginals(p_y)
+        self.base_hy = fast_entropy_from_marginals(self.base_target_dist)
 
         # Telemetry records
         self.turn_counter = 0
@@ -215,18 +216,34 @@ class InstrumentedAgentSandbox:
     ) -> Dict[str, Any]:
         """Calculates RIG, naive p-value, and checks SignalGate gates."""
         obs_rig = rig(series, target)
-        support = float(series.mean())
 
-        # Naive p-value (single test Chi2 with M=1)
-        p_y = np.array([1.0 - p_eff, p_eff])
+        r_cats = max(2, int(series.nunique()))
+        val_counts = target.value_counts(normalize=True)
+        c_classes = max(2, len(val_counts))
+        k_df = (r_cats - 1) * (c_classes - 1)
+
+        p_y = val_counts.values
         hy = fast_entropy_from_marginals(p_y)
         mi = obs_rig * hy
         deviance_stat = 2.0 * n_eff * np.log(2.0) * mi
-        naive_p = float(stats.chi2.sf(deviance_stat, df=1))
+        naive_p = float(stats.chi2.sf(deviance_stat, df=k_df))
 
-        # Expected co-occurrence E11
-        e11 = float(n_eff * p_eff * support)
-        small_cell = e11 < 5.0
+        # Support calculation
+        if r_cats == 2 and set(series.dropna().unique()).issubset({0, 1}):
+            support = float(series.mean())
+            e11 = float(n_eff * p_eff * support)
+            small_cell = e11 < 5.0
+        else:
+            support = float((series.value_counts(normalize=True)).min())
+            mat = pd.crosstab(series, target).values
+            n_tot = mat.sum()
+            p_x_vec = mat.sum(axis=1) / n_tot
+            p_y_vec = mat.sum(axis=0) / n_tot
+            e_matrix = n_tot * (p_x_vec[:, None] @ p_y_vec[None, :])
+            min_e = float(e_matrix.min())
+            frac_lt_5 = float((e_matrix < 5.0).mean())
+            small_cell = (min_e < 1.0) or (frac_lt_5 > 0.20)
+            e11 = min_e
 
         return {
             "feature_name": feature_name,
@@ -236,6 +253,10 @@ class InstrumentedAgentSandbox:
             "support": support,
             "e11": e11,
             "small_cell": small_cell,
+            "df_k": k_df,
+            "n_classes": c_classes,
+            "n_feature_categories": r_cats,
+            "target_distribution": p_y,
         }
 
     def _record_telemetry(
@@ -255,7 +276,11 @@ class InstrumentedAgentSandbox:
             observed_rig=best_eval["observed_rig"],
             nrows=n_eff,
             minority_frac=p_eff,
+            target_distribution=best_eval.get("target_distribution"),
             feature_support=best_eval["support"],
+            n_classes=best_eval.get("n_classes", 2),
+            n_feature_categories=best_eval.get("n_feature_categories", 2),
+            df=best_eval.get("df_k", 1),
             hypotheses_in_batch=batch_k,
             alpha=self.alpha,
             session_id=self.session_id,
@@ -280,6 +305,9 @@ class InstrumentedAgentSandbox:
             "p_effective": p_eff,
             "batch_hypotheses_k": batch_k,
             "cumulative_M": cum_m,
+            "degrees_of_freedom_k": guard_res.get("degrees_of_freedom_k", best_eval.get("df_k", 1)),
+            "n_classes": guard_res.get("n_classes", 2),
+            "n_feature_categories": guard_res.get("n_feature_categories", 2),
             "best_feature_in_turn": best_eval["feature_name"],
             "best_rig_in_turn": best_eval["observed_rig"],
             "cumulative_best_rig": self.cumulative_best_rig,
