@@ -55,12 +55,19 @@ Key Theoretical Insights:
 When an AutoML engine or LLM agent evaluates $M$ candidate features:
 
 * **Bonferroni / Šidák Significance Threshold ($\alpha = 0.05$):**
+
   $$\tau_{\text{significance}}(N, \mathbf{p}, M, k, \alpha) = \frac{F_{\chi^2_k}^{-1}\left(1 - \frac{\alpha}{M}\right)}{2 N \ln(2) \cdot H(Y)}$$
 
 * **Generalized Extreme Value Theory (EVT) Expected Maximum:**
+
   $$\mathbb{E}\left[\max_{1 \le i \le M} \chi^2_k\right] \approx 2 \ln M + (k - 2) \ln(\ln M) - 2 \ln \Gamma\left(\frac{k}{2}\right) + 2\gamma \quad (\gamma \approx 0.5772)$$
+
   $$\tau_{\text{EVT}}(N, \mathbf{p}, M, k) \approx \frac{\mathbb{E}\left[\max_{1 \le i \le M} \chi^2_k\right]}{2 N \ln(2) \cdot H(Y)}$$
-  *(Guaranteed exact identity to binary $2\ln M - \ln\ln M - \ln\pi + 2\gamma$ when $k=1$ since $\Gamma(1/2) = \sqrt{\pi}$)*.
+
+  > [!NOTE]
+  > **Exact Reduction to Binary ($k = 1$):**
+  > For binary classification ($C = 2$) and boolean features ($R = 2$), degrees of freedom $k = 1$. Since $\Gamma(1/2) = \sqrt{\pi}$, the EVT threshold simplifies identically to:
+  > $$\tau_{\text{EVT}}(N, p, M) \approx \frac{2 \ln M - \ln(\ln M) - \ln \pi + 2\gamma}{2 N \ln(2) \cdot H(p)}$$
 
 ---
 
