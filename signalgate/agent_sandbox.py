@@ -12,7 +12,7 @@ import pandas as pd
 from scipy import stats
 
 from .metrics import fast_entropy_from_marginals, fast_mutual_info_from_contingency, rig
-from .threshold import FeatureNoiseThreshold
+from .threshold import FeatureNoiseThreshold, estimate_effective_tests
 from .mcp_server import NoiseGateSessionLedger
 
 
@@ -205,6 +205,25 @@ class InstrumentedAgentSandbox:
         self.cumulative_best_rig = 0.0
         self.cumulative_best_feature = "none"
         self.telemetry_history: List[Dict[str, Any]] = []
+        self.evaluated_series_log: Dict[str, np.ndarray] = {}
+
+    def _log_evaluated_series(self, feature_name: str, series_vals: Union[np.ndarray, pd.Series]):
+        """Logs an evaluated candidate feature series into the session driver store."""
+        arr = np.asarray(series_vals, dtype=float)
+        if len(arr) != self.base_n:
+            padded = np.zeros(self.base_n, dtype=float)
+            padded[:min(len(arr), self.base_n)] = arr[:min(len(arr), self.base_n)]
+            arr = padded
+        col_key = feature_name
+        if col_key in self.evaluated_series_log:
+            col_key = f"{feature_name}_turn{self.turn_counter}_{len(self.evaluated_series_log)}"
+        self.evaluated_series_log[col_key] = arr
+
+    def get_evaluated_features_df(self) -> pd.DataFrame:
+        """Returns the full N x M_raw DataFrame of all candidate drivers evaluated during the session."""
+        if not self.evaluated_series_log:
+            return pd.DataFrame(index=self.df.index)
+        return pd.DataFrame(self.evaluated_series_log, index=self.df.index)
 
     def _evaluate_series(
         self,
@@ -289,9 +308,63 @@ class InstrumentedAgentSandbox:
         )
 
         cum_m = guard_res["cumulative_session_tests_M"]
-        tau_sig = guard_res["bonferroni_significance_gate"]
-        tau_evt = guard_res["evt_expected_noise_max"]
-        verdict = guard_res["verdict"]
+
+        # Effective tests M_eff estimation from all evaluated candidate features
+        eval_df = self.get_evaluated_features_df()
+        if len(eval_df.columns) > 0:
+            eff_stats = estimate_effective_tests(eval_df)
+            m_eff = float(eff_stats["M_eff"])
+            redundancy_ratio = float(eff_stats["redundancy_ratio"])
+            mean_abs_corr = float(eff_stats["mean_abs_correlation"])
+        else:
+            m_eff = float(cum_m)
+            redundancy_ratio = 1.0
+            mean_abs_corr = 0.0
+
+        # Calculate noise thresholds for raw M and effective M
+        estimator = FeatureNoiseThreshold(
+            nrows=n_eff,
+            target_distribution=best_eval.get("target_distribution", self.base_target_dist),
+            n_classes=best_eval.get("n_classes", self.n_classes),
+            n_feature_categories=best_eval.get("n_feature_categories", 2),
+            df=best_eval.get("df_k", 1)
+        )
+        tau_sig_raw = estimator.analytical_threshold(n_features_evaluated=cum_m, alpha=self.alpha)
+        tau_evt_raw = estimator.evt_expected_max(n_features_evaluated=cum_m)
+        tau_sig_eff = estimator.analytical_threshold(effective_features_evaluated=m_eff, alpha=self.alpha)
+        tau_evt_eff = estimator.evt_expected_max(effective_features_evaluated=m_eff)
+
+        # Verdict using correlation-adjusted M_eff
+        obs_rig = best_eval["observed_rig"]
+        if obs_rig >= tau_sig_eff:
+            verdict = "VERIFIED_SIGNAL"
+            agent_directive = (
+                f"PROCEED: Feature/slice observed RIG ({obs_rig:.5f}) clears the correlation-adjusted "
+                f"significance gate (tau={tau_sig_eff:.5f}, df={best_eval.get('df_k', 1)}) at effective M={m_eff:.1f} "
+                f"(raw M={cum_m}, redundancy ratio={redundancy_ratio:.2f}) and alpha={self.alpha}. "
+                "Statistically confirmed to be genuine signal beyond random search noise."
+            )
+        elif obs_rig >= tau_evt_eff:
+            verdict = "BORDERLINE_WARNING"
+            agent_directive = (
+                f"CAUTION: Feature/slice observed RIG ({obs_rig:.5f}) clears the correlation-adjusted EVT noise ceiling "
+                f"({tau_evt_eff:.5f}) at effective M={m_eff:.1f} (raw M={cum_m}), but falls short of Bonferroni/Sidak significance "
+                f"(tau={tau_sig_eff:.5f}). High risk of selection bias / Winner's Curse. "
+                "Do NOT promote without independent holdout cross-validation."
+            )
+        else:
+            verdict = "REJECT_SPURIOUS_NOISE"
+            agent_directive = (
+                f"DISCARD: Feature/slice observed RIG ({obs_rig:.5f}) falls below the correlation-adjusted EVT expected noise ceiling "
+                f"({tau_evt_eff:.5f}) at effective M={m_eff:.1f} (raw M={cum_m}). "
+                "Expected from multiple testing of random noise."
+            )
+
+        if best_eval["small_cell"]:
+            agent_directive += (
+                f" [WARNING: Expected co-occurrence E11 / Cochran's small-cell condition triggered (min expected cell count = {best_eval['e11']:.2f} < 5). "
+                "Sparse cell counts make asymptotic Chi-squared anti-conservative; run PermutationObject to verify with exact Monte-Carlo resamples.]"
+            )
 
         if best_eval["observed_rig"] > self.cumulative_best_rig:
             self.cumulative_best_rig = best_eval["observed_rig"]
@@ -305,6 +378,9 @@ class InstrumentedAgentSandbox:
             "p_effective": p_eff,
             "batch_hypotheses_k": batch_k,
             "cumulative_M": cum_m,
+            "cumulative_M_eff": m_eff,
+            "redundancy_ratio": redundancy_ratio,
+            "mean_abs_correlation": mean_abs_corr,
             "degrees_of_freedom_k": guard_res.get("degrees_of_freedom_k", best_eval.get("df_k", 1)),
             "n_classes": guard_res.get("n_classes", 2),
             "n_feature_categories": guard_res.get("n_feature_categories", 2),
@@ -314,12 +390,15 @@ class InstrumentedAgentSandbox:
             "cumulative_best_feature": self.cumulative_best_feature,
             "naive_p_value": best_eval["naive_p_value"],
             "naive_significant": best_eval["naive_significant"],
-            "evt_expected_max_rig": tau_evt,
-            "bonferroni_gate_rig": tau_sig,
+            "evt_expected_max_rig": tau_evt_eff,
+            "evt_expected_max_raw": tau_evt_raw,
+            "bonferroni_gate_rig": tau_sig_eff,
+            "bonferroni_gate_raw": tau_sig_raw,
+            "bonferroni_gate_eff": tau_sig_eff,
             "small_cell_warning": best_eval["small_cell"],
             "expected_e11": best_eval["e11"],
             "verdict": verdict,
-            "agent_directive": guard_res["agent_directive"],
+            "agent_directive": agent_directive,
         }
 
         self.telemetry_history.append(telemetry_entry)
@@ -343,15 +422,19 @@ class InstrumentedAgentSandbox:
                 "best_feature": best_eval["feature_name"],
                 "observed_rig": best_eval["observed_rig"],
                 "cumulative_M": cum_m,
-                "evt_expected_max": tau_evt,
-                "bonferroni_gate": tau_sig,
+                "cumulative_M_eff": m_eff,
+                "redundancy_ratio": redundancy_ratio,
+                "evt_expected_max": tau_evt_eff,
+                "bonferroni_gate": tau_sig_eff,
+                "bonferroni_gate_raw": tau_sig_raw,
                 "verdict": verdict,
                 "small_cell_warning": best_eval["small_cell"],
-                "agent_directive": guard_res["agent_directive"]
+                "agent_directive": agent_directive
             }
 
     def scan_single_feature(self, col_name: str) -> Dict[str, Any]:
         """Scans a single candidate feature (M += 1)."""
+        self._log_evaluated_series(col_name, self.df[col_name].to_numpy())
         ev = self._evaluate_series(
             series=self.df[col_name],
             target=self.df[self.target_col],
@@ -373,6 +456,9 @@ class InstrumentedAgentSandbox:
         col_list = [c for c in col_list if c in self.df.columns and c != self.target_col]
         if not col_list:
             raise ValueError("No valid columns in col_list.")
+
+        for col in col_list:
+            self._log_evaluated_series(col, self.df[col].to_numpy())
 
         evals = [
             self._evaluate_series(
@@ -423,6 +509,7 @@ class InstrumentedAgentSandbox:
             else:
                 raise ValueError(f"Unsupported op: {op}")
 
+            self._log_evaluated_series(name, inter.astype(int).to_numpy())
             ev = self._evaluate_series(
                 series=inter.astype(int),
                 target=self.df[self.target_col],
@@ -461,6 +548,10 @@ class InstrumentedAgentSandbox:
         p_slice = float(val_counts.min()) if len(val_counts) > 1 else 0.5
 
         candidate_cols = [c for c in candidate_cols if c in df_slice.columns and c not in [self.target_col, filter_col]]
+        for col in candidate_cols:
+            full_series = np.where(slice_mask, self.df[col].to_numpy(), 0)
+            self._log_evaluated_series(f"[{filter_col}=={filter_val}] {col}", full_series)
+
         evals = [
             self._evaluate_series(
                 series=df_slice[col],
@@ -658,3 +749,203 @@ def run_monte_carlo_benchmark(
         }
     }
     return summary
+
+
+def simulate_agent_archetypes(
+    df: pd.DataFrame,
+    target_col: str = "is_fraud",
+    seed: int = 42
+) -> Dict[str, Any]:
+    """Simulates 3 distinct autonomous agent exploratory archetypes on the same dataset.
+
+    Each archetype evaluates exactly M_raw = 200 candidate features and logs all
+    evaluated drivers in an internal DataFrame store:
+      - Archetype 1: 'Broad Schema & Orthogonal Explorer' (Low collinearity, high rho)
+      - Archetype 2: 'Combinatorial Interaction Grid Agent' (Moderate collinearity, medium rho)
+      - Archetype 3: 'Local Threshold & Window Tweaker Agent' (Extreme collinearity, low rho)
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Dataset containing candidate features and target column.
+    target_col : str, default 'is_fraud'
+        Binary or multiclass target column name.
+    seed : int, default 42
+        Random seed for reproducibility.
+
+    Returns
+    -------
+    dict
+        Dictionary mapping archetype names ('broad_orthogonal', 'combinatorial_grid', 'threshold_tweaker')
+        to performance and correlation statistics, evaluated drivers DataFrame, and sandbox.
+    """
+    rng = np.random.default_rng(seed)
+    n = len(df)
+    candidate_cols = [c for c in df.columns if c != target_col]
+    if len(candidate_cols) < 5:
+        raise ValueError(f"Need at least 5 candidate columns in df, got {len(candidate_cols)}.")
+
+    target_m = 200
+    results = {}
+
+    # =========================================================================
+    # Archetype 1: Broad Schema & Orthogonal Explorer
+    # =========================================================================
+    sb1 = InstrumentedAgentSandbox(df=df, target_col=target_col, guardrail_enabled=True, session_id=f"arch1_{seed}")
+    n_base1 = min(len(candidate_cols), 40)
+    cols_base1 = candidate_cols[:n_base1]
+    sb1.scan_feature_batch(cols_base1)
+
+    needed1 = target_m - n_base1
+    new_cols1 = {}
+    pool1 = list(candidate_cols)
+    while len(new_cols1) < needed1:
+        c1, c2 = rng.choice(pool1, size=2, replace=False)
+        op = rng.choice(["and", "or", "xor"])
+        if op == "and":
+            inter = (df[c1] == 1) & (df[c2] == 1)
+        elif op == "or":
+            inter = (df[c1] == 1) | (df[c2] == 1)
+        else:
+            inter = (df[c1] == 1) ^ (df[c2] == 1)
+        cname = f"({c1}_{op}_{c2})_cand{len(new_cols1)}"
+        new_cols1[cname] = inter.astype(int)
+
+    df_new1 = pd.DataFrame(new_cols1, index=sb1.df.index)
+    sb1.df = pd.concat([sb1.df, df_new1], axis=1)
+    sb1.scan_feature_batch(list(new_cols1.keys()))
+    sb1.df.drop(columns=list(new_cols1.keys()), inplace=True)
+
+    eval1 = sb1.get_evaluated_features_df()
+    stats1 = estimate_effective_tests(eval1)
+    t1 = sb1.get_telemetry_df()
+    last_t1 = t1.iloc[-1]
+    raw_gate1 = float(last_t1["bonferroni_gate_raw"])
+    eff_gate1 = float(last_t1["bonferroni_gate_eff"])
+    red1 = float(100.0 * (raw_gate1 - eff_gate1) / raw_gate1) if raw_gate1 > 0 else 0.0
+
+    results["broad_orthogonal"] = {
+        "name": "Broad Schema & Orthogonal Explorer",
+        "description": "Explores diverse base schema columns and independent cross-feature combinations.",
+        "sandbox": sb1,
+        "evaluated_df": eval1,
+        "telemetry": t1,
+        "M_raw": int(stats1["M_raw"]),
+        "M_eff": float(stats1["M_eff"]),
+        "redundancy_ratio": float(stats1["redundancy_ratio"]),
+        "mean_abs_corr": float(stats1["mean_abs_correlation"]),
+        "raw_bonferroni_gate": raw_gate1,
+        "eff_bonferroni_gate": eff_gate1,
+        "threshold_reduction_pct": red1,
+        "best_feature": str(last_t1["cumulative_best_feature"]),
+        "best_rig": float(last_t1["cumulative_best_rig"]),
+        "verdict": str(last_t1["verdict"]),
+    }
+
+    # =========================================================================
+    # Archetype 2: Combinatorial Interaction Grid Agent
+    # =========================================================================
+    sb2 = InstrumentedAgentSandbox(df=df, target_col=target_col, guardrail_enabled=True, session_id=f"arch2_{seed}")
+    n_parents = min(6, len(candidate_cols))
+    parents2 = candidate_cols[:n_parents]
+    sb2.scan_feature_batch(parents2)
+
+    needed2 = target_m - len(sb2.evaluated_series_log)
+    new_cols2 = {}
+    while len(new_cols2) < needed2:
+        p1, p2 = rng.choice(parents2, size=2, replace=False)
+        op = rng.choice(["and", "or", "xor"])
+        if op == "and":
+            v = (df[p1] == 1) & (df[p2] == 1)
+        elif op == "or":
+            v = (df[p1] == 1) | (df[p2] == 1)
+        else:
+            v = (df[p1] == 1) ^ (df[p2] == 1)
+        p3 = rng.choice(parents2)
+        v2 = (v & (df[p3] == 1)).astype(int)
+        cname = f"({p1}_{op}_{p2}&{p3})_grid{len(new_cols2)}"
+        new_cols2[cname] = v2
+
+    df_new2 = pd.DataFrame(new_cols2, index=sb2.df.index)
+    sb2.df = pd.concat([sb2.df, df_new2], axis=1)
+    sb2.scan_feature_batch(list(new_cols2.keys()))
+    sb2.df.drop(columns=list(new_cols2.keys()), inplace=True)
+
+    eval2 = sb2.get_evaluated_features_df()
+    stats2 = estimate_effective_tests(eval2)
+    t2 = sb2.get_telemetry_df()
+    last_t2 = t2.iloc[-1]
+    raw_gate2 = float(last_t2["bonferroni_gate_raw"])
+    eff_gate2 = float(last_t2["bonferroni_gate_eff"])
+    red2 = float(100.0 * (raw_gate2 - eff_gate2) / raw_gate2) if raw_gate2 > 0 else 0.0
+
+    results["combinatorial_grid"] = {
+        "name": "Combinatorial Interaction Grid Agent",
+        "description": "Greedily takes top base features and tests boolean combinations sharing common parent columns.",
+        "sandbox": sb2,
+        "evaluated_df": eval2,
+        "telemetry": t2,
+        "M_raw": int(stats2["M_raw"]),
+        "M_eff": float(stats2["M_eff"]),
+        "redundancy_ratio": float(stats2["redundancy_ratio"]),
+        "mean_abs_corr": float(stats2["mean_abs_correlation"]),
+        "raw_bonferroni_gate": raw_gate2,
+        "eff_bonferroni_gate": eff_gate2,
+        "threshold_reduction_pct": red2,
+        "best_feature": str(last_t2["cumulative_best_feature"]),
+        "best_rig": float(last_t2["cumulative_best_rig"]),
+        "verdict": str(last_t2["verdict"]),
+    }
+
+    # =========================================================================
+    # Archetype 3: Local Threshold & Window Tweaker Agent
+    # =========================================================================
+    sb3 = InstrumentedAgentSandbox(df=df, target_col=target_col, guardrail_enabled=True, session_id=f"arch3_{seed}")
+    score_cols = candidate_cols[:min(5, len(candidate_cols))]
+    w1 = rng.uniform(0.5, 1.5, size=len(score_cols))
+    w2 = rng.uniform(0.5, 1.5, size=len(score_cols))
+    s1 = df[score_cols].to_numpy().dot(w1) + rng.normal(0, 0.4, size=n)
+    s2 = df[score_cols].to_numpy().dot(w2) + rng.normal(0, 0.4, size=n)
+
+    cuts1 = np.linspace(0.35, 0.65, 100)
+    cuts2 = np.linspace(0.35, 0.65, 100)
+    new_cols3 = {}
+    for q in cuts1:
+        v = (s1 > np.percentile(s1, q * 100)).astype(int)
+        new_cols3[f"score1_q_{q:.3f}"] = v
+    for q in cuts2:
+        v = (s2 > np.percentile(s2, q * 100)).astype(int)
+        new_cols3[f"score2_q_{q:.3f}"] = v
+
+    df_new3 = pd.DataFrame(new_cols3, index=sb3.df.index)
+    sb3.df = pd.concat([sb3.df, df_new3], axis=1)
+    sb3.scan_feature_batch(list(new_cols3.keys()))
+    sb3.df.drop(columns=list(new_cols3.keys()), inplace=True)
+
+    eval3 = sb3.get_evaluated_features_df()
+    stats3 = estimate_effective_tests(eval3)
+    t3 = sb3.get_telemetry_df()
+    last_t3 = t3.iloc[-1]
+    raw_gate3 = float(last_t3["bonferroni_gate_raw"])
+    eff_gate3 = float(last_t3["bonferroni_gate_eff"])
+    red3 = float(100.0 * (raw_gate3 - eff_gate3) / raw_gate3) if raw_gate3 > 0 else 0.0
+
+    results["threshold_tweaker"] = {
+        "name": "Local Threshold & Window Tweaker Agent",
+        "description": "Fixates on continuous score variants and sweeps 100+ fine-grained, overlapping threshold cuts.",
+        "sandbox": sb3,
+        "evaluated_df": eval3,
+        "telemetry": t3,
+        "M_raw": int(stats3["M_raw"]),
+        "M_eff": float(stats3["M_eff"]),
+        "redundancy_ratio": float(stats3["redundancy_ratio"]),
+        "mean_abs_corr": float(stats3["mean_abs_correlation"]),
+        "raw_bonferroni_gate": raw_gate3,
+        "eff_bonferroni_gate": eff_gate3,
+        "threshold_reduction_pct": red3,
+        "best_feature": str(last_t3["cumulative_best_feature"]),
+        "best_rig": float(last_t3["cumulative_best_rig"]),
+        "verdict": str(last_t3["verdict"]),
+    }
+
+    return results

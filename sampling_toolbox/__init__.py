@@ -8,6 +8,7 @@ from signalgate import (
     fast_mutual_info_from_contingency,
     FeatureNoiseThreshold,
     estimate_noise_threshold,
+    estimate_effective_tests,
     binary_entropy,
     target_entropy_from_weights,
     PermutationObject,
@@ -24,6 +25,7 @@ from signalgate import (
     InstrumentedAgentSandbox,
     run_exploratory_agent_simulation,
     run_monte_carlo_benchmark,
+    simulate_agent_archetypes,
     __version__,
 )
 
@@ -35,6 +37,7 @@ __all__ = [
     "fast_mutual_info_from_contingency",
     "FeatureNoiseThreshold",
     "estimate_noise_threshold",
+    "estimate_effective_tests",
     "binary_entropy",
     "target_entropy_from_weights",
     "PermutationObject",
@@ -51,4 +54,5 @@ __all__ = [
     "InstrumentedAgentSandbox",
     "run_exploratory_agent_simulation",
     "run_monte_carlo_benchmark",
+    "simulate_agent_archetypes",
 ]

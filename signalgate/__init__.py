@@ -14,6 +14,7 @@ from .metrics import (
 from .threshold import (
     FeatureNoiseThreshold,
     estimate_noise_threshold,
+    estimate_effective_tests,
     binary_entropy,
     target_entropy_from_weights,
 )
@@ -40,6 +41,7 @@ from .agent_sandbox import (
     InstrumentedAgentSandbox,
     run_exploratory_agent_simulation,
     run_monte_carlo_benchmark,
+    simulate_agent_archetypes,
 )
 
 # Convenient top-level aliases
@@ -57,6 +59,7 @@ __all__ = [
     "FeatureNoiseThreshold",
     "SignalNoiseThreshold",
     "estimate_noise_threshold",
+    "estimate_effective_tests",
     "binary_entropy",
     "target_entropy_from_weights",
     "PermutationObject",
@@ -75,4 +78,5 @@ __all__ = [
     "InstrumentedAgentSandbox",
     "run_exploratory_agent_simulation",
     "run_monte_carlo_benchmark",
+    "simulate_agent_archetypes",
 ]

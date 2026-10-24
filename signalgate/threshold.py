@@ -5,7 +5,7 @@ under the null hypothesis of independence, leveraging Wilks' Theorem,
 Bonferroni/Sidak corrections, and Extreme Value Theory (EVT).
 """
 
-from typing import Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 import numpy as np
 import pandas as pd
 from scipy import special, stats
@@ -167,40 +167,59 @@ class FeatureNoiseThreshold:
 
     def analytical_threshold(
         self,
-        n_features_evaluated: int,
+        n_features_evaluated: int = 1,
         alpha: float = 0.05,
-        method: str = "bonferroni"
+        method: str = "bonferroni",
+        effective_features_evaluated: Optional[float] = None,
+        candidate_df: Optional[Union[pd.DataFrame, np.ndarray]] = None,
     ) -> float:
         """Calculates the feature significance threshold controlling Family-Wise Error Rate (FWER).
 
         Parameters
         ----------
-        n_features_evaluated : int
-            Total number of candidate features evaluated (M).
+        n_features_evaluated : int, default 1
+            Total number of candidate features evaluated (M_raw).
         alpha : float, default 0.05
             Overall significance tolerance (e.g. 5% chance of any false discovery).
         method : {'bonferroni', 'sidak'}, default 'bonferroni'
             Multiple comparison correction method.
+        effective_features_evaluated : float, optional
+            Effective number of independent features (M_eff <= M_raw).
+        candidate_df : pd.DataFrame or np.ndarray, optional
+            Evaluated features matrix from which M_eff will be estimated automatically.
 
         Returns
         -------
         float
             Significance threshold tau. Features with train RIG > tau are statistically
-            significant after adjusting for the M tests.
+            significant after adjusting for the tests.
         """
-        if n_features_evaluated < 1:
-            raise ValueError("n_features_evaluated must be >= 1.")
+        if candidate_df is not None:
+            eff_res = estimate_effective_tests(candidate_df)
+            m = float(eff_res["M_eff"])
+        elif effective_features_evaluated is not None:
+            m = float(effective_features_evaluated)
+        else:
+            m = float(n_features_evaluated)
+
+        if m < 1.0:
+            raise ValueError("n_features_evaluated / M_eff must be >= 1.0.")
 
         if method == "sidak":
-            alpha_per_test = 1.0 - (1.0 - alpha) ** (1.0 / n_features_evaluated)
+            alpha_per_test = 1.0 - (1.0 - alpha) ** (1.0 / m)
         else:  # bonferroni
-            alpha_per_test = alpha / n_features_evaluated
+            alpha_per_test = alpha / m
 
         quantile = 1.0 - alpha_per_test
         chi2_crit = stats.chi2.ppf(quantile, df=self.df)
         return float(chi2_crit / self.scaling_factor)
 
-    def evt_expected_max(self, n_features_evaluated: int) -> float:
+    def evt_expected_max(
+        self,
+        n_features_evaluated: int = 1,
+        effective_features_evaluated: Optional[float] = None,
+        candidate_df: Optional[Union[pd.DataFrame, np.ndarray]] = None,
+    ) -> float:
         """Expected maximum null RIG among M evaluated features using Extreme Value Theory.
 
         For M independent null features with k degrees of freedom, the asymptotic Gumbel
@@ -215,15 +234,26 @@ class FeatureNoiseThreshold:
 
         Parameters
         ----------
-        n_features_evaluated : int
-            Number of candidate features evaluated (M).
+        n_features_evaluated : int, default 1
+            Number of candidate features evaluated (M_raw).
+        effective_features_evaluated : float, optional
+            Effective number of independent features (M_eff <= M_raw).
+        candidate_df : pd.DataFrame or np.ndarray, optional
+            Evaluated features matrix from which M_eff will be estimated automatically.
 
         Returns
         -------
         float
             Expected maximum null RIG. Represents the noise ceiling under H0.
         """
-        m = float(n_features_evaluated)
+        if candidate_df is not None:
+            eff_res = estimate_effective_tests(candidate_df)
+            m = float(eff_res["M_eff"])
+        elif effective_features_evaluated is not None:
+            m = float(effective_features_evaluated)
+        else:
+            m = float(n_features_evaluated)
+
         if m <= 1.0:
             return self.expected_null_mean
 
@@ -261,6 +291,112 @@ class FeatureNoiseThreshold:
         return pd.DataFrame(rows)
 
 
+def estimate_effective_tests(
+    X_or_df: Union[pd.DataFrame, np.ndarray, Sequence],
+    max_m_corr: int = 2000
+) -> Dict[str, Any]:
+    """Estimates the effective number of independent hypothesis tests (M_eff <= M_raw).
+
+    Uses the linear algebra Frobenius-norm trace identity:
+        sum_{i=1}^M lambda_i^2 = Tr(R^2) = ||R||_F^2
+    avoiding costly O(M^3) eigendecompositions. If M > N, applies the dual Gram
+    matrix trick G = Z @ Z.T (N x N) which shares the exact same non-zero eigenvalues.
+
+    Applies the Cheverud-Nyholt / Li-Ji eigenvalue variance formula:
+        Var(lambda) = (sum_{i=1}^M lambda_i^2 - M) / (M * (M - 1))
+        M_eff = 1 + (M - 1) * (1 - Var(lambda))
+    bounded strictly in [1.0, M_raw].
+
+    Parameters
+    ----------
+    X_or_df : pd.DataFrame, np.ndarray, or sequence
+        N x M matrix of candidate feature values evaluated by the agent/pipeline.
+    max_m_corr : int, default 2000
+        Maximum M for computing exact mean absolute off-diagonal correlation.
+
+    Returns
+    -------
+    dict
+        M_raw : int, total candidate features evaluated
+        M_eff : float, effective number of independent tests
+        redundancy_ratio : float, M_eff / M_raw in (0, 1]
+        mean_abs_correlation : float, average off-diagonal |r_ij|
+    """
+    if isinstance(X_or_df, pd.DataFrame):
+        arr = X_or_df.to_numpy(dtype=float, copy=True)
+    else:
+        arr = np.array(X_or_df, dtype=float, copy=True)
+        if arr.ndim == 1:
+            arr = arr[:, None]
+
+    if arr.size == 0 or arr.ndim < 2 or arr.shape[1] == 0:
+        return {"M_raw": 0, "M_eff": 0.0, "redundancy_ratio": 1.0, "mean_abs_correlation": 0.0}
+
+    n_samples, m_raw = arr.shape
+    if m_raw == 1:
+        return {"M_raw": 1, "M_eff": 1.0, "redundancy_ratio": 1.0, "mean_abs_correlation": 0.0}
+    if n_samples < 2:
+        return {"M_raw": m_raw, "M_eff": float(m_raw), "redundancy_ratio": 1.0, "mean_abs_correlation": 0.0}
+
+    # Handle NaNs if any
+    if np.isnan(arr).any():
+        arr = np.nan_to_num(arr, nan=0.0)
+
+    # Standardize non-constant columns to zero mean and unit L2 norm in-place
+    means = np.mean(arr, axis=0)
+    arr -= means
+    norms = np.linalg.norm(arr, axis=0)
+    valid_cols = norms > 1e-12
+    n_valid = int(np.sum(valid_cols))
+
+    if n_valid <= 1:
+        return {
+            "M_raw": int(m_raw),
+            "M_eff": 1.0,
+            "redundancy_ratio": float(1.0 / m_raw),
+            "mean_abs_correlation": 0.0
+        }
+
+    z = arr[:, valid_cols]
+    z /= norms[valid_cols]
+    m_valid = n_valid
+
+    # Frobenius-norm trace identity: Tr(R^2) = ||R||_F^2
+    if m_valid <= n_samples:
+        # Primal: M x M
+        gram = z.T @ z
+        sum_lambda_sq = float(np.sum(gram * gram))
+        if m_valid <= max_m_corr:
+            abs_gram = np.abs(gram)
+            mean_abs_corr = float((np.sum(abs_gram) - m_valid) / (m_valid * (m_valid - 1)))
+        else:
+            mean_abs_corr = 0.0
+    else:
+        # Dual trick: N x N
+        gram_dual = z @ z.T
+        sum_lambda_sq = float(np.sum(gram_dual * gram_dual))
+        if m_valid <= max_m_corr:
+            r = z.T @ z
+            abs_r = np.abs(r)
+            mean_abs_corr = float((np.sum(abs_r) - m_valid) / (m_valid * (m_valid - 1)))
+        else:
+            mean_abs_corr = 0.0
+
+    var_ratio = (sum_lambda_sq - m_valid) / (m_valid * (m_valid - 1))
+    var_ratio = float(np.clip(var_ratio, 0.0, 1.0))
+
+    m_eff = 1.0 + (m_valid - 1.0) * (1.0 - var_ratio)
+    m_eff = float(np.clip(m_eff, 1.0, float(m_raw)))
+    redundancy_ratio = float(m_eff / m_raw)
+
+    return {
+        "M_raw": int(m_raw),
+        "M_eff": float(m_eff),
+        "redundancy_ratio": float(redundancy_ratio),
+        "mean_abs_correlation": float(mean_abs_corr),
+    }
+
+
 def estimate_noise_threshold(
     nrows: int,
     minority_frac: Optional[Union[float, Sequence[float], np.ndarray, pd.Series]] = None,
@@ -269,7 +405,9 @@ def estimate_noise_threshold(
     target_distribution: Optional[Union[float, Sequence[float], np.ndarray, pd.Series]] = None,
     n_classes: int = 2,
     n_feature_categories: int = 2,
-    df: Optional[int] = None
+    df: Optional[int] = None,
+    effective_features_evaluated: Optional[float] = None,
+    candidate_df: Optional[Union[pd.DataFrame, np.ndarray]] = None,
 ) -> float:
     """Convenience function to quickly estimate the RIG noise threshold.
 
@@ -280,7 +418,7 @@ def estimate_noise_threshold(
     minority_frac : float or Sequence[float], optional
         Minority class proportion (e.g. 0.20 for binary) or class distribution.
     n_features_evaluated : int, default 1
-        Total number of candidate features evaluated.
+        Total number of candidate features evaluated (M_raw).
     alpha : float, default 0.05
         Family-wise error rate tolerance.
     target_distribution : float or Sequence[float], optional
@@ -291,6 +429,10 @@ def estimate_noise_threshold(
         Number of distinct categories in the candidate feature (R).
     df : int, optional
         Explicit degrees of freedom k = (R-1)*(C-1). Overrides cardinality parameters.
+    effective_features_evaluated : float, optional
+        Effective number of independent features (M_eff <= M_raw).
+    candidate_df : pd.DataFrame or np.ndarray, optional
+        Evaluated features matrix from which M_eff will be estimated automatically.
 
     Returns
     -------
@@ -308,4 +450,9 @@ def estimate_noise_threshold(
         n_feature_categories=n_feature_categories,
         df=df
     )
-    return estimator.analytical_threshold(n_features_evaluated=n_features_evaluated, alpha=alpha)
+    return estimator.analytical_threshold(
+        n_features_evaluated=n_features_evaluated,
+        alpha=alpha,
+        effective_features_evaluated=effective_features_evaluated,
+        candidate_df=candidate_df
+    )
