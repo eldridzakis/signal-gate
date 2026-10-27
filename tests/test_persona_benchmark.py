@@ -1,0 +1,130 @@
+"""Unit tests for Persona Benchmark, The Hawthorne Effect, and Data Modality Engine."""
+
+import unittest
+import numpy as np
+import pandas as pd
+
+from signalgate.persona_benchmark import (
+    PERSONA_PROMPTS,
+    TRACKING_INSTRUCTIONS,
+    RawCSVSandbox,
+    SemanticLayerSandbox,
+    build_governed_semantic_dataset,
+    simulate_persona_run,
+    run_persona_modality_benchmark,
+    build_langchain_agent_runner,
+)
+from signalgate.agent_sandbox import generate_benchmark_datasets
+
+
+class TestPersonaBenchmark(unittest.TestCase):
+    """Test suite for agent personas, self-tracking ledgers, and semantic layer modality."""
+
+    def setUp(self):
+        self.df_null, self.gt_null = generate_benchmark_datasets(mode="null_honeypot", nrows=500, minority_frac=0.12, seed=42)
+        self.df_needle, self.gt_needle = generate_benchmark_datasets(mode="needle_in_haystack", nrows=500, minority_frac=0.12, seed=42)
+
+    def test_persona_and_tracking_prompts(self):
+        """Test 1: Verify persona registry and tracking prompt structures."""
+        self.assertIn("business_analyst", PERSONA_PROMPTS)
+        self.assertIn("statistician_unassisted", PERSONA_PROMPTS)
+        self.assertIn("statistician_signalgate", PERSONA_PROMPTS)
+
+        self.assertIn("untracked", TRACKING_INSTRUCTIONS)
+        self.assertIn("self_tracked_ledger", TRACKING_INSTRUCTIONS)
+
+        self.assertIn("3–5 concrete drivers", PERSONA_PROMPTS["business_analyst"])
+        self.assertIn("multiple hypothesis testing", PERSONA_PROMPTS["statistician_unassisted"])
+        self.assertIn("SignalGate Statistical Guardrail", PERSONA_PROMPTS["statistician_signalgate"])
+        self.assertIn("CRITICAL: You must log every single feature", TRACKING_INSTRUCTIONS["self_tracked_ledger"])
+
+    def test_raw_csv_sandbox_and_batch_blindness(self):
+        """Test 2: Verify RawCSVSandbox tracking and batch blindness under-reporting ratio."""
+        sb = RawCSVSandbox(self.df_null, target_col="is_fraud", session_id="test_raw")
+        cand_cols = [c for c in self.df_null.columns if c != "is_fraud"]
+
+        # Turn 1: 1 batch scan of 8 features
+        sb.scan_feature_batch(cand_cols[:8])
+        self.assertEqual(sb.agent_self_reported_M, 1)
+        self.assertEqual(sb.telemetry_history[-1]["cumulative_M"], 8)
+
+        # Turn 2: 1 grid test of 3x3 = 9 combinations
+        sb.test_interaction_grid(cand_cols[:3], cand_cols[3:6], op="and")
+        self.assertEqual(sb.agent_self_reported_M, 2)
+        self.assertEqual(sb.telemetry_history[-1]["cumulative_M"], 17)
+
+        # Verify under-reporting ratio
+        ratio = sb.get_under_reporting_ratio()
+        self.assertAlmostEqual(ratio, 17.0 / 2.0, delta=1e-5)
+        self.assertGreater(ratio, 5.0)
+
+    def test_semantic_layer_sandbox_and_slice_variance(self):
+        """Test 3: Verify SemanticLayerSandbox governed dimensions, catalog, and query execution."""
+        sem_df, catalog = build_governed_semantic_dataset(self.df_null, target_col="is_fraud")
+        self.assertIn("geo_tier", catalog)
+        self.assertIn("device_platform", catalog)
+        self.assertIn("payment_channel", catalog)
+        self.assertIn("auth_security", catalog)
+
+        sb = SemanticLayerSandbox(self.df_null, target_col="is_fraud", session_id="test_sem")
+        cat = sb.get_catalog()
+        self.assertIn("dimensions", cat)
+        self.assertIn("metrics", cat)
+        self.assertEqual(cat["base_sample_size"], 500)
+
+        # Execute single dimensional query
+        res = sb.query_metric(metric="fraud_rate", dimensions=["geo_tier"])
+        self.assertIn("results_table", res)
+        self.assertGreater(len(res["results_table"]), 0)
+
+        # Execute multi-filter deep slice with small sample size
+        res_deep = sb.query_metric(
+            metric="fraud_rate",
+            dimensions=["payment_channel"],
+            filters={"auth_security": "Failed_Burst"}
+        )
+        self.assertIn("results_table", res_deep)
+        slice_telemetry = sb.get_slice_variance_telemetry()
+        self.assertIsInstance(slice_telemetry, pd.DataFrame)
+        self.assertGreater(len(slice_telemetry), 0)
+
+    def test_simulate_persona_run(self):
+        """Test 4: Verify simulate_persona_run on null honeypot and needle in haystack."""
+        # On Null Honeypot (N=3000, p=0.12):
+        res_ba = simulate_persona_run(persona="business_analyst", dataset_mode="null_honeypot", nrows=3000, seed=42)
+        self.assertEqual(res_ba["false_discovery_rate"], 1.0)
+        self.assertGreater(res_ba["false_discoveries"], 0)
+
+        res_sg = simulate_persona_run(persona="statistician_signalgate", dataset_mode="null_honeypot", nrows=3000, seed=42)
+        self.assertEqual(res_sg["false_discovery_rate"], 0.0)
+        self.assertEqual(res_sg["false_discoveries"], 0)
+
+        # On Needle in Haystack (N=3000, p=0.12):
+        res_needle_sg = simulate_persona_run(persona="statistician_signalgate", dataset_mode="needle_in_haystack", nrows=3000, seed=42)
+        self.assertEqual(res_needle_sg["false_discovery_rate"], 0.0)
+        self.assertGreaterEqual(res_needle_sg["recall"], 0.66)
+
+    def test_run_persona_modality_benchmark(self):
+        """Test 5: Verify multi-seed benchmark runner returns all required summary DataFrames."""
+        summary = run_persona_modality_benchmark(n_seeds=2, nrows=500, minority_frac=0.12, base_seed=42)
+        self.assertIn("persona_df", summary)
+        self.assertIn("hawthorne_df", summary)
+        self.assertIn("modality_df", summary)
+        self.assertIn("all_runs", summary)
+
+        self.assertEqual(len(summary["persona_df"]), 6)  # 3 personas x 2 dataset modes
+        self.assertEqual(len(summary["hawthorne_df"]), 4)  # 2 tracking modes x 2 personas
+        self.assertEqual(len(summary["modality_df"]), 2)   # 2 modalities
+
+    def test_langchain_agent_runner_fallback(self):
+        """Test 6: Verify build_langchain_agent_runner dry-run fallback."""
+        sb = RawCSVSandbox(self.df_null, session_id="test_runner")
+        runner = build_langchain_agent_runner(sb, persona="business_analyst", dry_run=True)
+        res = runner.invoke({"input": "Find top fraud drivers"})
+        self.assertIn("output", res)
+        self.assertEqual(res["persona"], "business_analyst")
+        self.assertGreater(res["sandbox_true_M_raw"], 0)
+
+
+if __name__ == "__main__":
+    unittest.main()

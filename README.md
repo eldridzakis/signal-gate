@@ -2,7 +2,7 @@
 
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Tests](https://img.shields.io/badge/tests-35%20passed-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/tests-46%20passed-brightgreen.svg)]()
 [![MCP Server](https://img.shields.io/badge/MCP-Protocol%20Ready-purple.svg)](https://modelcontextprotocol.io)
 
 > **Stateful statistical guardrails and Model Context Protocol (MCP) server for autonomous LLM data agents, Text-to-SQL, and AutoML. Quantifying the Winner's Curse, estimating closed-form noise ceilings, and filtering out spurious insights.**
@@ -68,6 +68,17 @@ When an AutoML engine or LLM agent evaluates $M$ candidate features:
   > **Exact Reduction to Binary ($k = 1$):**
   > For binary classification ($C = 2$) and boolean features ($R = 2$), degrees of freedom $k = 1$. Since $\Gamma(1/2) = \sqrt{\pi}$, the EVT threshold simplifies identically to:
   > $$\tau_{\text{EVT}}(N, p, M) \approx \frac{2 \ln M - \ln(\ln M) - \ln \pi + 2\gamma}{2 N \ln(2) \cdot H(p)}$$
+
+### 3. Correlation-Aware Noise Gates & Effective Hypotheses ($M_{\text{eff}} \le M_{\text{raw}}$)
+When candidate features are collinear (e.g., interaction grids sharing parent columns, sliding windows, or dense quantile splits), plugging raw $M_{\text{raw}}$ into Bonferroni or EVT over-inflates the noise gate ($\tau(M_{\text{raw}}) > \tau(M_{\text{eff}})$), risking Type II false rejections of moderate genuine signals.
+
+SignalGate estimates the **Effective Number of Independent Hypotheses ($M_{\text{eff}} \le M_{\text{raw}}$)** in milliseconds using the Cheverud–Nyholt / Li–Ji eigenvalue variance scaling:
+$$\text{Var}(\lambda) = \frac{\sum_{i=1}^M \lambda_i^2 - M}{M}, \quad M_{\text{eff}} = 1 + (M - 1)\left(1 - \frac{\text{Var}(\lambda)}{M}\right)$$
+
+Rather than computing an expensive $\mathcal{O}(M^3)$ eigendecomposition, SignalGate evaluates the sum of squared eigenvalues via the Frobenius norm trace identity:
+$$\sum_{i=1}^M \lambda_i^2 = \text{Tr}(\mathbf{R}^2) = \|\mathbf{R}\|_F^2$$
+* **Primal Formulation ($M \le N$):** Computes sample correlation matrix $\mathbf{R} = \mathbf{Z}^T \mathbf{Z}$ ($M \times M$) in $\mathcal{O}(M^2 N)$.
+* **Dual Gram Trick ($M > N$):** Computes $\mathbf{G}_{\text{dual}} = \mathbf{Z} \mathbf{Z}^T$ ($N \times N$), which possesses the identical non-zero eigenvalues and computes in $\mathcal{O}(N^2 M)$ time!
 
 ---
 
@@ -216,7 +227,8 @@ print(stable_features[['feature', 'train_rig', 'corrected_rig', 'stability_class
 | :--- | :--- |
 | **[`01_feature_noise_thresholds.ipynb`](notebooks/01_feature_noise_thresholds.ipynb)** | Mathematical proofs, asymptotic $\chi^2$ vs Monte-Carlo permutations, parameter sweeps ($N$, minority class $p$), and Bonferroni/EVT noise gates. |
 | **[`02_selection_bias_and_debiasing.ipynb`](notebooks/02_selection_bias_and_debiasing.ipynb)** | Quantifying the Winner's Curse on Lending Club loan defaults, measuring search complexity vs. bias, and executing $1\sigma / 2\sigma$ bootstrap de-biasing. |
-| **[`03_agent_phacking_benchmark.ipynb`](notebooks/03_agent_phacking_benchmark.ipynb)** | Autonomous agent p-hacking benchmark ($M > 500$ hypotheses), real-time trajectory hero chart, subgroup slicing ($N \to 0$), and bootstrap needle recovery. |
+| **[`03_agent_phacking_benchmark.ipynb`](notebooks/03_agent_phacking_benchmark.ipynb)** | Autonomous agent p-hacking benchmark ($M > 500$ hypotheses), real-time trajectory hero chart, subgroup slicing ($N \to 0$), Frobenius $M_{\text{eff}}$ analysis, and bootstrap needle recovery. |
+| **[`04_llm_persona_and_modality_benchmark.ipynb`](notebooks/04_llm_persona_and_modality_benchmark.ipynb)** | LLM agent personas (Business Analyst vs. Statistician vs. SignalGate), The Hawthorne Effect & Batch Blindness ($8\times$–$25\times$ gap), and Raw CSV vs. Governed Semantic Layer modality benchmark. |
 
 ---
 
@@ -227,25 +239,30 @@ signal-gate/
 ├── signalgate/                   # Core library
 │   ├── __init__.py               # Public API exports
 │   ├── metrics.py                # Fast entropy, mutual info, RIG calculations
-│   ├── threshold.py              # Analytical Chi-squared & EVT noise estimators
+│   ├── threshold.py              # Analytical Chi-squared, EVT, & Frobenius M_eff estimators
 │   ├── permutation.py            # Vectorized Monte-Carlo permutation tester
 │   ├── debias.py                 # Out-of-Fold (OOF) & Bootstrap de-biasing engine
 │   ├── mcp_server.py             # Stateful MCP statistical guardrail server
 │   ├── agent_tools.py            # OpenAI/Anthropic tool schemas & callable dispatchers
-│   └── agent_sandbox.py          # Synthetic benchmarks & agent simulation telemetry
+│   ├── agent_sandbox.py          # Synthetic benchmarks & agent simulation telemetry
+│   └── persona_benchmark.py      # LLM personas, Hawthorne self-tracking, & semantic layer
 ├── feature_noise_gate/           # Backward-compatibility alias
 ├── sampling_toolbox/             # Backward-compatibility alias
 ├── notebooks/                    # Self-contained walkthroughs
 │   ├── 01_feature_noise_thresholds.ipynb
 │   ├── 02_selection_bias_and_debiasing.ipynb
-│   └── 03_agent_phacking_benchmark.ipynb
-├── tests/                        # Automated unit tests (30 test suites)
+│   ├── 03_agent_phacking_benchmark.ipynb
+│   └── 04_llm_persona_and_modality_benchmark.ipynb
+├── tests/                        # Automated unit tests (46 test suites)
 │   ├── test_metrics.py
 │   ├── test_threshold.py
+│   ├── test_effective_tests.py
 │   ├── test_permutation.py
 │   ├── test_debias.py
 │   ├── test_mcp_guardrail.py
-│   └── test_agent_sandbox.py
+│   ├── test_agent_sandbox.py
+│   ├── test_multiclass.py
+│   └── test_persona_benchmark.py
 ├── Data/                         # Benchmark datasets (King County, Lending Club)
 ├── integrations/                 # Connectors for MCP server & AutoML log parsing
 ├── archive/                      # Historical notebooks preserved for reference
@@ -263,7 +280,7 @@ Run the test suite using standard Python `unittest`:
 python -m unittest discover -s tests -v
 ```
 
-All 30 tests run in $< 1.0$ second.
+All 46 tests run in $< 8.0$ seconds.
 
 ---
 

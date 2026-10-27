@@ -48,3 +48,6 @@ htmlcov/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Jupyter Notebooks
+./notebooks/05_Peter_Testing.ipynb

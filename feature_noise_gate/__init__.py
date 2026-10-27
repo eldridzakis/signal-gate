@@ -26,6 +26,14 @@ from signalgate import (
     run_exploratory_agent_simulation,
     run_monte_carlo_benchmark,
     simulate_agent_archetypes,
+    PERSONA_PROMPTS,
+    TRACKING_INSTRUCTIONS,
+    RawCSVSandbox,
+    SemanticLayerSandbox,
+    build_governed_semantic_dataset,
+    simulate_persona_run,
+    run_persona_modality_benchmark,
+    build_langchain_agent_runner,
     __version__,
 )
 
@@ -55,4 +63,12 @@ __all__ = [
     "run_exploratory_agent_simulation",
     "run_monte_carlo_benchmark",
     "simulate_agent_archetypes",
+    "PERSONA_PROMPTS",
+    "TRACKING_INSTRUCTIONS",
+    "RawCSVSandbox",
+    "SemanticLayerSandbox",
+    "build_governed_semantic_dataset",
+    "simulate_persona_run",
+    "run_persona_modality_benchmark",
+    "build_langchain_agent_runner",
 ]

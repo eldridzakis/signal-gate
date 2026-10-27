@@ -43,6 +43,16 @@ from .agent_sandbox import (
     run_monte_carlo_benchmark,
     simulate_agent_archetypes,
 )
+from .persona_benchmark import (
+    PERSONA_PROMPTS,
+    TRACKING_INSTRUCTIONS,
+    RawCSVSandbox,
+    SemanticLayerSandbox,
+    build_governed_semantic_dataset,
+    simulate_persona_run,
+    run_persona_modality_benchmark,
+    build_langchain_agent_runner,
+)
 
 # Convenient top-level aliases
 SignalGateSessionLedger = NoiseGateSessionLedger
@@ -79,4 +89,12 @@ __all__ = [
     "run_exploratory_agent_simulation",
     "run_monte_carlo_benchmark",
     "simulate_agent_archetypes",
+    "PERSONA_PROMPTS",
+    "TRACKING_INSTRUCTIONS",
+    "RawCSVSandbox",
+    "SemanticLayerSandbox",
+    "build_governed_semantic_dataset",
+    "simulate_persona_run",
+    "run_persona_modality_benchmark",
+    "build_langchain_agent_runner",
 ]
