@@ -229,6 +229,7 @@ print(stable_features[['feature', 'train_rig', 'corrected_rig', 'stability_class
 | **[`02_selection_bias_and_debiasing.ipynb`](notebooks/02_selection_bias_and_debiasing.ipynb)** | Quantifying the Winner's Curse on Lending Club loan defaults, measuring search complexity vs. bias, and executing $1\sigma / 2\sigma$ bootstrap de-biasing. |
 | **[`03_agent_phacking_benchmark.ipynb`](notebooks/03_agent_phacking_benchmark.ipynb)** | Autonomous agent p-hacking benchmark ($M > 500$ hypotheses), real-time trajectory hero chart, subgroup slicing ($N \to 0$), Frobenius $M_{\text{eff}}$ analysis, and bootstrap needle recovery. |
 | **[`04_llm_persona_and_modality_benchmark.ipynb`](notebooks/04_llm_persona_and_modality_benchmark.ipynb)** | LLM agent personas (Business Analyst vs. Statistician vs. SignalGate), The Hawthorne Effect & Batch Blindness ($8\times$–$25\times$ gap), and Raw CSV vs. Governed Semantic Layer modality benchmark. |
+| **[`05_frontier_llm_benchmark.ipynb`](notebooks/05_frontier_llm_benchmark.ipynb)** | **Empirical Frontier LLM Benchmark:** Empirical validation across **Anthropic Claude Opus 5.5**, **OpenAI GPT-6.1 Sol**, **Google Gemini 3.5 Flash Lite**, and **Claude Sonnet 5.5**. Demonstrates FDR elimination, collinear power preservation, and resolves unassisted "Multiplicity Paralysis". |
 
 ---
 
@@ -251,7 +252,9 @@ signal-gate/
 │   ├── 01_feature_noise_thresholds.ipynb
 │   ├── 02_selection_bias_and_debiasing.ipynb
 │   ├── 03_agent_phacking_benchmark.ipynb
-│   └── 04_llm_persona_and_modality_benchmark.ipynb
+│   ├── 04_llm_persona_and_modality_benchmark.ipynb
+│   ├── 05_frontier_llm_benchmark.ipynb
+│   └── figures/                  # Publication-grade benchmark plots
 ├── tests/                        # Automated unit tests (47 test suites)
 │   ├── test_metrics.py
 │   ├── test_threshold.py

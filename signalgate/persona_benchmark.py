@@ -41,6 +41,7 @@ def _ensure_api_keys() -> None:
 
 
 _ensure_google_api_key = _ensure_api_keys
+_ensure_api_keys()
 
 from .metrics import fast_entropy_from_marginals, rig
 from .threshold import FeatureNoiseThreshold, estimate_effective_tests
