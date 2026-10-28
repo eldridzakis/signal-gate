@@ -17,7 +17,9 @@ Automated Machine Learning (AutoML) engines and autonomous LLM data agents (e.g.
 
 Selecting features or reporting insights that maximize sample metrics introduces **selection bias (The Winner's Curse)**:
 1. **Spurious Discoveries Pass as Genuine:** Random noise slices and features inevitably achieve high sample metric scores purely by chance.
-2. **Optimistic Overestimation:** Genuine features exhibit inflated scores on training data compared to test and production data ($\text{Bias} = \text{Metric}_{\text{train}} - \text{Metric}_{\text{test}} > 0$).
+2. **Optimistic Overestimation:** Genuine features exhibit inflated scores on training data compared to test and production data:
+
+   $$\text{Bias} = \text{Metric}_{\text{train}} - \text{Metric}_{\text{test}} > 0$$
 3. **Compounded by Large Search Budgets:** As the search space ($M$) expands, the noise floor and overestimation bias increase systematically.
 4. **Agentic $p$-Hacking:** High-velocity autonomous agents that iteratively hypothesize, slice, and test patterns without stateful tracking quickly flood downstream models with multiple-testing artifacts.
 
