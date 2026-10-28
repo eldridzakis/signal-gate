@@ -83,11 +83,11 @@ $$\sum_{i=1}^M \lambda_i^2 = \text{Tr}(\mathbf{R}^2) = \|\mathbf{R}\|_F^2$$
 * **Dual Gram Trick ($M > N$):** Computes $\mathbf{G}_{\text{dual}} = \mathbf{Z} \mathbf{Z}^T$ ($N \times N$), which possesses the identical non-zero eigenvalues and computes in $\mathcal{O}(N^2 M)$ time!
 
 ### 4. Closed-Form Continuous Metric Gate (`ANOVA F -> RIG`) for SQL `GROUP BY` Queries
-For continuous business targets (e.g., revenue, house prices, latency) where SQL `GROUP BY` queries return only sufficient statistics `COUNT(*)`, `AVG(y)`, and `STDDEV(y)` across $K$ groups $\{(n_g, \bar{y}_g, s_g)\}_{g=1}^K$, SignalGate avoids arbitrary target binning by using the exact Gaussian / one-way ANOVA mutual information identity:
+For continuous business targets (e.g., revenue, house prices, latency) where SQL `GROUP BY` queries return only sufficient statistics `COUNT(*)`, `AVG(y)`, and `STDDEV(y)` across $K$ groups $\{ (n_g, \bar{y}_g, s_g) \}_{g=1}^K$, SignalGate avoids arbitrary target binning by using the exact Gaussian / one-way ANOVA mutual information identity:
 
 $$SS_{\text{between}} = \sum_{g=1}^K n_g (\bar{y}_g - \bar{y}_{\text{grand}})^2, \qquad SS_{\text{within}} = \sum_{g=1}^K (n_g - 1) s_g^2, \qquad \eta^2 = \frac{SS_{\text{between}}}{SS_{\text{between}} + SS_{\text{within}}}$$
 
-$$I_{\text{ANOVA}}(X; Y) = -\frac{1}{2} \log_2(1 - \eta^2) \text{ bits}, \qquad G_{\text{equiv}} = -N \ln(1 - \eta^2) \xrightarrow{d} \chi^2_{K-1} \text{ under } H_0$$
+$$I_{\text{ANOVA}}(X; Y) = -\frac{1}{2} \log_2(1 - \eta^2), \qquad G_{\text{equiv}} = -N \ln(1 - \eta^2) \sim \chi^2_{K-1} \quad (H_0)$$
 
 This maps any continuous SQL `GROUP BY` query directly onto SignalGate's $\chi^2_{K-1}$ Extreme Value Theory envelope (`anova_rig_from_group_stats` and `evaluate_continuous_group_aggregation`) without requiring raw row-level data.
 
