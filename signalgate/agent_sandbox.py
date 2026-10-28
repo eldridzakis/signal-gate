@@ -164,8 +164,42 @@ def generate_benchmark_datasets(
             "target_rig": 0.030,
             "description": "High-risk merchant category code group",
         }
+    elif mode == "correlated_blocks":
+        # 40 features arranged in 4 collinear clusters of 10 features each (rho ~ 0.90)
+        # Demonstrates continuous Frobenius M_eff matrix reduction vs. naive Bonferroni
+        cluster_prefixes = [
+            ("velocity_cluster", 0.14),
+            ("card_prepaid_cluster", 0.10),
+            ("device_mismatch_cluster", 0.08),
+            ("geo_ip_cluster", 0.06),
+        ]
+        for c_idx, (prefix, base_supp) in enumerate(cluster_prefixes):
+            latent = rng.normal(0.0, 1.0, nrows)
+            for j in range(10):
+                val = 0.95 * latent + np.sqrt(1.0 - 0.95**2) * rng.normal(0.0, 1.0, nrows)
+                col_name = f"{prefix}_{j}"
+                data[col_name] = (val > stats.norm.ppf(1.0 - base_supp)).astype(int)
+                ground_truth[col_name] = {
+                    "is_genuine": False,
+                    "population_rig": 0.0,
+                    "target_support": base_supp,
+                }
+
+        # Inject 1 subtle genuine needle into Cluster 0
+        # Target RIG ~ 0.0035, naive p ~ 0.0012:
+        # Passes SignalGate (M_eff ~ 7 -> threshold p < 0.007),
+        # but fails naive Bonferroni (M_raw ~ 75+ -> threshold p < 0.0006)
+        x_needle = np.zeros(nrows, dtype=int)
+        x_needle[rng.choice(idx_pos, size=int(round(0.182 * len(idx_pos))), replace=False)] = 1
+        x_needle[rng.choice(idx_neg, size=int(round(0.124 * len(idx_neg))), replace=False)] = 1
+        data["verified_velocity_spike"] = x_needle
+        ground_truth["verified_velocity_spike"] = {
+            "is_genuine": True,
+            "target_rig": 0.0035,
+            "description": "Subtle correlated velocity surge signal",
+        }
     else:
-        raise ValueError(f"Unknown mode: {mode}. Choose 'null_honeypot' or 'needle_in_haystack'.")
+        raise ValueError(f"Unknown mode: {mode}. Choose 'null_honeypot', 'needle_in_haystack', or 'correlated_blocks'.")
 
     df = pd.DataFrame(data)
     return df, ground_truth

@@ -48,10 +48,21 @@ def main():
         help="Maximum live API calls to make today (auto-defaults to 12 for Gemini free tier, unlimited for Claude/OpenAI)",
     )
     parser.add_argument(
+        "--dataset-modes",
+        nargs="+",
+        default=["null_honeypot", "needle_in_haystack", "correlated_blocks"],
+        help="Dataset modes to evaluate: null_honeypot, needle_in_haystack, correlated_blocks (default: all three)",
+    )
+    parser.add_argument(
         "--n-seeds",
         type=int,
         default=3,
-        help="Number of random seeds per persona/dataset cell (default: 3 seeds -> 18 total runs)",
+        help="Number of random seeds per persona/dataset cell (default: 3 seeds)",
+    )
+    parser.add_argument(
+        "--unblind-counts",
+        action="store_true",
+        help="Spoon-feed candidate counts in brackets into unassisted prompts (default is False: realistic batch blindness)",
     )
     parser.add_argument(
         "--cache-path",
@@ -82,16 +93,22 @@ def main():
     # Auto-detect daily limit: 12 for Gemini free tier unless specified; unlimited for prepaid credit APIs (Claude/OpenAI)
     if args.daily_limit is not None:
         effective_daily_limit = args.daily_limit if args.daily_limit > 0 else None
+    elif "flash-lite" in args.model_name.lower():
+        # Flash Lite tier offers 500 RPD (requests/day), allowing full benchmark runs in one session
+        effective_daily_limit = 50
     elif "gemini" in args.model_name.lower():
+        # Standard Flash models (3.6 / 3.8) cap at 20 RPD on free tier
         effective_daily_limit = 12
     else:
         effective_daily_limit = None
 
     cache = LLMEvalTraceCache(cache_path=actual_cache_path)
     personas = ("business_analyst", "statistician_unassisted", "statistician_signalgate")
-    dataset_modes = ("null_honeypot", "needle_in_haystack")
+    dataset_modes = tuple(args.dataset_modes)
+    blind_unassisted = not args.unblind_counts
     total_planned = len(personas) * len(dataset_modes) * args.n_seeds
     limit_display = f"{effective_daily_limit} calls (Free-tier safety cap)" if effective_daily_limit else "Unlimited (Prepaid credit API)"
+    telemetry_display = "Batch Blindness (Realistic)" if blind_unassisted else "Unblinded (Denominator Hints)"
 
     print("=" * 72)
     print("  SignalGate Frontier Benchmark -- Daily Incremental Runner")
@@ -99,6 +116,7 @@ def main():
     print(f"  Target Model      : {args.model_name}")
     print(f"  Personas          : {', '.join(personas)}")
     print(f"  Dataset Modes     : {', '.join(dataset_modes)}")
+    print(f"  Telemetry Mode    : {telemetry_display}")
     print(f"  Seeds per Cell    : {args.n_seeds} ({total_planned} total planned runs)")
     print(f"  Daily Call Limit  : {limit_display}")
     print(f"  Cache File        : {actual_cache_path}")
@@ -115,6 +133,7 @@ def main():
             use_cache=True,
             cache_path=actual_cache_path,
             daily_call_limit=0,
+            blind_unassisted_counts=blind_unassisted,
         )
         print(f"Completed Runs in Cache : {res['total_completed']} / {total_planned}")
         print(f"Remaining Runs to Run   : {res['total_remaining']}")
@@ -133,6 +152,7 @@ def main():
         use_cache=True,
         cache_path=actual_cache_path,
         daily_call_limit=effective_daily_limit,
+        blind_unassisted_counts=blind_unassisted,
     )
 
     print("\n" + "-" * 72)

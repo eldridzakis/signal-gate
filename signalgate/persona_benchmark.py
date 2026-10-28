@@ -507,7 +507,7 @@ def simulate_persona_run(
         )
         all_cols = [c for c in df.columns if c != "is_fraud"]
         # Ensure needles are explored if present
-        if dataset_mode == "needle_in_haystack":
+        if dataset_mode in ("needle_in_haystack", "correlated_blocks"):
             candidate_cols = ["verified_velocity_spike", "compromised_asn_match", "high_risk_mcc_group"] + [
                 c for c in all_cols if c not in GENUINE_NEEDLE_NAMES
             ]
@@ -615,19 +615,28 @@ def simulate_persona_run(
     false_disc = 0
     for d in reported_discoveries:
         is_needle = any(needle in d for needle in GENUINE_NEEDLE_NAMES)
-        if dataset_mode == "needle_in_haystack" and is_needle:
+        if dataset_mode in ("needle_in_haystack", "correlated_blocks") and is_needle:
             true_disc += 1
         else:
             false_disc += 1
 
-    # Check needle recall (out of 3)
-    target_needles = ["verified_velocity_spike", "compromised_asn_match", "high_risk_mcc_group"] if sandbox_type == "raw_csv" else ["velocity_status", "network_risk", "merchant_mcc"]
+    # Check needle recall (out of 3 for needle_in_haystack, out of 1 for correlated_blocks)
+    target_needles = (
+        ["verified_velocity_spike"]
+        if dataset_mode == "correlated_blocks"
+        else (
+            ["verified_velocity_spike", "compromised_asn_match", "high_risk_mcc_group"]
+            if sandbox_type == "raw_csv"
+            else ["velocity_status", "network_risk", "merchant_mcc"]
+        )
+    )
     needles_recovered = sum(any(n in d for d in reported_discoveries) for n in target_needles)
 
+    n_expected_needles = 1.0 if dataset_mode == "correlated_blocks" else 3.0
     n_reported = len(reported_discoveries)
     fdr = (false_disc / n_reported) if n_reported > 0 else 0.0
-    recall = (needles_recovered / 3.0) if dataset_mode == "needle_in_haystack" else 0.0
-    precision = (true_disc / n_reported) if n_reported > 0 else (1.0 if dataset_mode == "needle_in_haystack" and true_disc == 0 and n_reported == 0 else 1.0)
+    recall = (needles_recovered / n_expected_needles) if dataset_mode in ("needle_in_haystack", "correlated_blocks") else 0.0
+    precision = (true_disc / n_reported) if n_reported > 0 else (1.0 if true_disc == 0 and n_reported == 0 else 1.0)
 
     return {
         "persona": persona,
@@ -871,21 +880,26 @@ def evaluate_agent_run_metrics(
     false_disc = 0
     for d in reported:
         is_needle = any(needle in d for needle in GENUINE_NEEDLE_NAMES)
-        if dataset_mode == "needle_in_haystack" and is_needle:
+        if dataset_mode in ("needle_in_haystack", "correlated_blocks") and is_needle:
             true_disc += 1
         else:
             false_disc += 1
 
     target_needles = (
-        ["verified_velocity_spike", "compromised_asn_match", "high_risk_mcc_group"]
-        if isinstance(sandbox, RawCSVSandbox)
-        else ["velocity_status", "network_risk", "merchant_mcc"]
+        ["verified_velocity_spike"]
+        if dataset_mode == "correlated_blocks"
+        else (
+            ["verified_velocity_spike", "compromised_asn_match", "high_risk_mcc_group"]
+            if isinstance(sandbox, RawCSVSandbox)
+            else ["velocity_status", "network_risk", "merchant_mcc"]
+        )
     )
     needles_recovered = sum(any(n in d for d in reported) for n in target_needles)
 
     n_reported = len(reported)
     fdr = (false_disc / n_reported) if n_reported > 0 else 0.0
-    recall = (needles_recovered / 3.0) if dataset_mode == "needle_in_haystack" else 0.0
+    n_expected_needles = 1.0 if dataset_mode == "correlated_blocks" else 3.0
+    recall = (needles_recovered / n_expected_needles) if dataset_mode in ("needle_in_haystack", "correlated_blocks") else 0.0
     precision = (true_disc / n_reported) if n_reported > 0 else 1.0
 
     # Directive compliance check: did the agent promote candidates rejected by SignalGate?
@@ -1073,11 +1087,21 @@ def _format_compact_tool_output(res: Any) -> str:
 class NativeGeminiModel:
     """Lightweight zero-install Gemini caller using standard library urllib."""
 
+    _last_call_time = 0.0
+
     def __init__(self, model_name: str = "gemini-3.5-flash-lite", temperature: float = 0.0):
         self.model_name = model_name.replace("models/", "") if "models/" in model_name else model_name
         self.temperature = temperature
 
     def invoke(self, messages: Any) -> Any:
+        import time
+        # Pace calls to stay safely below 15 RPM free-tier limit (min 4.2s between calls)
+        now = time.time()
+        elapsed = now - NativeGeminiModel._last_call_time
+        if elapsed < 4.2:
+            time.sleep(4.2 - elapsed)
+        NativeGeminiModel._last_call_time = time.time()
+
         key = os.environ.get("GOOGLE_API_KEY")
         if not key:
             raise ValueError("GOOGLE_API_KEY not found in environment.")
@@ -1127,7 +1151,7 @@ class NativeGeminiModel:
             except urllib.error.HTTPError as http_err:
                 if http_err.code in (503, 429) and attempt < 2:
                     import time
-                    time.sleep(2.0 * (attempt + 1))
+                    time.sleep(6.0 * (attempt + 1))
                     continue
                 error_body = http_err.read().decode("utf-8")
                 raise RuntimeError(f"Google Gemini API Error {http_err.code}: {error_body}")
@@ -1741,6 +1765,10 @@ def _populate_prewarmed_sandbox(
             candidate_cols = ["verified_velocity_spike", "compromised_asn_match", "high_risk_mcc_group"] + [
                 c for c in all_cols if c not in GENUINE_NEEDLE_NAMES
             ]
+        elif dataset_mode == "correlated_blocks":
+            candidate_cols = ["verified_velocity_spike"] + [
+                c for c in all_cols if c != "verified_velocity_spike"
+            ]
         else:
             candidate_cols = all_cols
 
@@ -1792,9 +1820,20 @@ def _populate_prewarmed_sandbox(
 
 
 def format_prewarmed_trajectory_prompt(
-    sandbox: Union[RawCSVSandbox, SemanticLayerSandbox]
+    sandbox: Union[RawCSVSandbox, SemanticLayerSandbox],
+    blind_unassisted_counts: bool = True,
 ) -> str:
-    """Serializes a pre-warmed sandbox exploration history into a compact single-turn LLM prompt."""
+    """Serializes a pre-warmed sandbox exploration history into a compact single-turn LLM prompt.
+
+    Parameters
+    ----------
+    sandbox : RawCSVSandbox or SemanticLayerSandbox
+    blind_unassisted_counts : bool, default True
+        If True, strips explicit candidate batch counts and interaction grid sizes
+        from unassisted tool turns (e.g. `[scan_feature_batch]` instead of `[scan_feature_batch(10 features)]`).
+        This replicates real-world Batch Blindness where unassisted agents observe only
+        the best-candidate result rather than being spoon-fed the exact search denominator.
+    """
     lines = [
         f"Dataset Summary: N={sandbox.base_n} records, target='{sandbox.target_col}' (base rate={sandbox.base_p:.3f}).",
         f"Completed Exploration Log ({len(sandbox.telemetry_history)} tool turns executed):",
@@ -1809,9 +1848,28 @@ def format_prewarmed_trajectory_prompt(
         n_eff = t["n_effective"]
 
         if not sandbox.guardrail_enabled:
+            # Blind unassisted transcript: strip explicit batch and grid sizes
+            # so the transcript accurately reflects real-world unassisted agent logs (Batch Blindness)
+            if blind_unassisted_counts:
+                act = t.get("action_type", "")
+                if act == "scan_batch":
+                    action_clean = "Scan feature batch"
+                elif act in ("test_grid", "interaction_grid"):
+                    op_match = re.search(r"Pairwise (\w+) interaction", desc)
+                    op_name = op_match.group(1) if op_match else "boolean"
+                    action_clean = f"Pairwise {op_name} interaction grid"
+                elif act in ("drill_slice", "drill_down_slice"):
+                    action_clean = "Subgroup slice drill-down"
+                else:
+                    action_clean = re.sub(r"\(.*?\)", "", desc).strip()
+            else:
+                action_clean = desc
+
+            if not action_clean:
+                action_clean = t.get("action_type", "explore")
             sig_label = "SIGNIFICANT (p < 0.05)" if t["naive_significant"] else "NOT_SIGNIFICANT"
             lines.append(
-                f"  Turn {turn_id} [{desc} | N={n_eff}]: "
+                f"  Turn {turn_id} [{action_clean} | N={n_eff}]: "
                 f"best_candidate='{feat}', observed_rig={obs_rig:.5f}, naive_p={naive_p:.4e} ({sig_label})"
             )
         else:
@@ -1855,6 +1913,7 @@ def run_prewarmed_frontier_eval(
     cache_path: Optional[str] = None,
     trace_cache: Optional[LLMEvalTraceCache] = None,
     max_live_calls_remaining: Optional[int] = None,
+    blind_unassisted_counts: bool = True,
 ) -> Dict[str, Any]:
     """Evaluates a frontier LLM on a pre-warmed multi-turn trajectory in a single LLM call (90% lower token cost).
 
@@ -1879,7 +1938,10 @@ def run_prewarmed_frontier_eval(
         f"{TRACKING_INSTRUCTIONS.get(tracking_mode, '')}"
         f"{STRUCTURED_REPORT_INSTRUCTION}"
     )
-    prompt_transcript = format_prewarmed_trajectory_prompt(sandbox)
+    prompt_transcript = format_prewarmed_trajectory_prompt(
+        sandbox,
+        blind_unassisted_counts=blind_unassisted_counts,
+    )
 
     if trace_cache is None and use_cache:
         trace_cache = LLMEvalTraceCache(cache_path=cache_path)
@@ -2020,7 +2082,7 @@ def run_prewarmed_frontier_eval(
 def run_prewarmed_frontier_benchmark(
     model_name: str = "gemini-3.5-flash-lite",
     personas: Sequence[str] = ("business_analyst", "statistician_unassisted", "statistician_signalgate"),
-    dataset_modes: Sequence[str] = ("null_honeypot", "needle_in_haystack"),
+    dataset_modes: Sequence[str] = ("null_honeypot", "needle_in_haystack", "correlated_blocks"),
     sandbox_type: str = "raw_csv",
     tracking_mode: str = "untracked",
     n_seeds: int = 3,
@@ -2031,6 +2093,7 @@ def run_prewarmed_frontier_benchmark(
     use_cache: bool = True,
     cache_path: Optional[str] = None,
     daily_call_limit: Optional[int] = 12,
+    blind_unassisted_counts: bool = True,
 ) -> Dict[str, Any]:
     """Runs a multi-seed pre-warmed frontier benchmark across personas and dataset modes.
 
@@ -2075,6 +2138,7 @@ def run_prewarmed_frontier_benchmark(
                         cache_path=cache_path,
                         trace_cache=trace_cache,
                         max_live_calls_remaining=calls_remaining,
+                        blind_unassisted_counts=blind_unassisted_counts,
                     )
                     all_runs.append(run_result)
                     if run_result.get("llm_calls_made", 0) > 0:

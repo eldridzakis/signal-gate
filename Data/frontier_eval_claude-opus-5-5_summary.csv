@@ -1,7 +1,4 @@
 Model,Persona,Dataset Mode,Completed Seeds,False Discovery Rate (%),Needle Recall (%),Precision (%),Directive Compliance (%),Under-Reporting Ratio,Cache Hits,Live API Calls
-claude-opus-5-5,business_analyst,null_honeypot,3,66.66666666666666,0.0,33.33333333333333,33.33333333333333,7.916666666666667,0,3
-claude-opus-5-5,business_analyst,needle_in_haystack,3,16.666666666666664,66.66666666666666,83.33333333333334,91.66666666666666,8.166666666666666,0,3
-claude-opus-5-5,statistician_unassisted,null_honeypot,3,0.0,0.0,100.0,100.0,5.611111111111112,0,3
-claude-opus-5-5,statistician_unassisted,needle_in_haystack,3,26.666666666666668,100.0,73.33333333333334,93.33333333333333,5.746913580246914,0,3
-claude-opus-5-5,statistician_signalgate,null_honeypot,3,0.0,0.0,100.0,100.0,7.916666666666667,0,3
-claude-opus-5-5,statistician_signalgate,needle_in_haystack,3,0.0,22.22222222222222,100.0,100.0,38.111111111111114,0,3
+claude-opus-5-5,business_analyst,correlated_blocks,3,0.0,100.0,100.0,100.0,0.5018357487922706,3,0
+claude-opus-5-5,statistician_unassisted,correlated_blocks,3,0.0,100.0,100.0,100.0,0.4015336194563662,3,0
+claude-opus-5-5,statistician_signalgate,correlated_blocks,3,0.0,33.33333333333333,100.0,100.0,1.0,3,0
