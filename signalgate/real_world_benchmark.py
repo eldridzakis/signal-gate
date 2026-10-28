@@ -119,8 +119,25 @@ def load_real_world_benchmark_dataset(
             "sqft_basement", "yr_built", "yr_renovated", "zipcode"
         ]
 
+    elif dataset_name == "bank_marketing":
+        file_path = data_dir / "BankMarketing_with_random_parition_column.csv.gz"
+        if not file_path.exists():
+            raise FileNotFoundError(f"Bank Marketing dataset not found at {file_path}")
+
+        raw_df = pd.read_csv(file_path)
+        target_col = "y"
+        split_col = "splitColumn"
+
+        # Exclude 'duration' to prevent post-call target leakage (standard benchmark practice)
+        raw_feature_cols = [
+            "age", "job", "marital", "education", "default", "housing", "loan",
+            "contact", "month", "day_of_week", "campaign", "pdays", "previous",
+            "poutcome", "emp_var_rate", "cons_price_idx", "cons_conf_idx",
+            "euribor3m", "nr_employed"
+        ]
+
     else:
-        raise ValueError(f"Unknown dataset_name: {dataset_name}. Choose 'lending_club' or 'king_county'.")
+        raise ValueError(f"Unknown dataset_name: {dataset_name}. Choose 'lending_club', 'king_county', or 'bank_marketing'.")
 
     # Filter columns
     cols_to_keep = [c for c in raw_feature_cols if c in raw_df.columns]

@@ -35,8 +35,8 @@ def main():
         "--dataset",
         type=str,
         default="lending_club",
-        choices=["lending_club", "king_county"],
-        help="Real-world dataset to benchmark: 'lending_club' or 'king_county' (default: lending_club)",
+        choices=["lending_club", "king_county", "bank_marketing"],
+        help="Real-world dataset to benchmark: 'lending_club', 'king_county', or 'bank_marketing' (default: lending_club)",
     )
     parser.add_argument(
         "--model-name",

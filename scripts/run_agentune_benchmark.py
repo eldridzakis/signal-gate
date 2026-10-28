@@ -16,7 +16,7 @@ from signalgate.agentune_benchmark import run_agentune_overfitting_benchmark
 
 def main():
     parser = argparse.ArgumentParser(description="Run Agentune AutoML Overfitting & SignalGate Benchmark.")
-    parser.add_argument("--dataset", type=str, default="lending_club", choices=["lending_club", "king_county"])
+    parser.add_argument("--dataset", type=str, default="lending_club", choices=["lending_club", "king_county", "bank_marketing"])
     parser.add_argument("--max-candidates", type=int, default=1000, help="Number of synthetic candidate features M")
     parser.add_argument("--top-k", type=int, default=15, help="Top K features to promote")
     parser.add_argument("--sample-train", type=int, default=5000)
