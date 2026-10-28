@@ -1,10 +1,10 @@
-Model,Persona,Dataset Mode,Completed Seeds,False Discovery Rate (%),Needle Recall (%),Precision (%),Directive Compliance (%),Under-Reporting Ratio,Cache Hits,Live API Calls
-gemini-3.5-flash-lite,business_analyst,null_honeypot,3,33.33333333333333,0.0,66.66666666666666,66.66666666666666,13.194444444444445,0,3
-gemini-3.5-flash-lite,business_analyst,needle_in_haystack,3,6.666666666666667,88.88888888888889,93.33333333333333,93.33333333333333,13.611111111111109,0,3
-gemini-3.5-flash-lite,business_analyst,correlated_blocks,3,0.0,33.33333333333333,100.0,100.0,16.333333333333332,0,3
-gemini-3.5-flash-lite,statistician_unassisted,null_honeypot,3,0.0,0.0,100.0,100.0,7.916666666666667,0,3
-gemini-3.5-flash-lite,statistician_unassisted,needle_in_haystack,3,0.0,77.77777777777777,100.0,100.0,6.097777777777776,0,3
-gemini-3.5-flash-lite,statistician_unassisted,correlated_blocks,3,0.0,0.0,100.0,100.0,6.097777777777778,0,3
-gemini-3.5-flash-lite,statistician_signalgate,null_honeypot,3,0.0,0.0,100.0,100.0,1.00354609929078,0,3
-gemini-3.5-flash-lite,statistician_signalgate,needle_in_haystack,3,0.0,100.0,100.0,95.23809523809524,1.0069444444444444,0,3
-gemini-3.5-flash-lite,statistician_signalgate,correlated_blocks,3,16.666666666666664,100.0,83.33333333333334,100.0,1.0465116279069768,0,3
+Model,Persona,Dataset Mode,FDR (%),Recall (%),Precision (%),Directive Compliance (%),Under-Reporting Ratio,Completed Seeds
+gemini-3.5-flash-lite,business_analyst,correlated_blocks,0.0,33.333333333333336,100.0,100.0,16.333333333333332,3
+gemini-3.5-flash-lite,business_analyst,needle_in_haystack,6.666666666666667,88.88888888888887,93.33333333333333,93.33333333333333,13.611111111111109,3
+gemini-3.5-flash-lite,business_analyst,null_honeypot,33.333333333333336,0.0,66.66666666666667,66.66666666666667,13.194444444444445,3
+gemini-3.5-flash-lite,statistician_signalgate,correlated_blocks,16.666666666666668,100.0,83.33333333333333,100.0,1.0465116279069768,3
+gemini-3.5-flash-lite,statistician_signalgate,needle_in_haystack,0.0,100.0,100.0,95.23809523809524,1.0069444444444444,3
+gemini-3.5-flash-lite,statistician_signalgate,null_honeypot,0.0,0.0,100.0,100.0,1.00354609929078,3
+gemini-3.5-flash-lite,statistician_unassisted,correlated_blocks,0.0,0.0,100.0,100.0,6.097777777777778,3
+gemini-3.5-flash-lite,statistician_unassisted,needle_in_haystack,0.0,77.77777777777777,100.0,100.0,6.097777777777778,3
+gemini-3.5-flash-lite,statistician_unassisted,null_honeypot,0.0,0.0,100.0,100.0,7.916666666666667,3
