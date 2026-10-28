@@ -1,0 +1,4 @@
+Dataset,Model,Persona,Holdout_Replication_Rate (%),Real_FDR (%),Mean_Train_RIG,Mean_Holdout_RIG,Generalization_Bias,Decay (%),Under_Reporting_Ratio,Completed_Seeds
+lending_club,claude-opus-5-5,business_analyst,80.55555555555556,19.444444444444443,0.05039305555555556,0.03460138888888889,0.015789444444444443,30.616666666666664,1.8570370370370373,3
+lending_club,claude-opus-5-5,statistician_signalgate,100.0,0.0,0.044561500000000004,0.040598666666666665,0.0039615,7.325,0.9782608695652174,3
+lending_club,claude-opus-5-5,statistician_unassisted,100.0,0.0,0.046546666666666674,0.04252799999999999,0.004017333333333334,7.193333333333334,0.17888888888888888,3

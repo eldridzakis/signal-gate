@@ -1,0 +1,3 @@
+Approach,Total_Generated_M,Selected_Features,Holdout_Replication_Rate (%),Real_FDR (%),Mean_Train_RIG,Mean_Holdout_RIG,Generalization_Bias,Decay (%)
+Unassisted Agentune (Greedy AutoML),1000,15,100.0,0.0,0.11676033603862149,0.11727017032359535,-0.0005098342849738295,7.2911646148774585
+SignalGate-Governed Selection,1000,15,100.0,0.0,0.08916884119627953,0.0916583358923591,-0.002489494696079559,6.409345750423095

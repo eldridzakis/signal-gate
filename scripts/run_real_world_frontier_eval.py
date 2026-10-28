@@ -65,8 +65,8 @@ def main():
     parser.add_argument(
         "--sample-test",
         type=int,
-        default=2500,
-        help="Sample size for holdout test partition (default: 2500)",
+        default=None,
+        help="Sample size for holdout test partition (default: None = full untouched holdout test partition)",
     )
     parser.add_argument(
         "--dry-run",

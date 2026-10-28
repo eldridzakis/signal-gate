@@ -240,41 +240,51 @@ class RealWorldAgentSandbox:
         g_stat = 2.0 * n * np.log(2.0) * (observed_rig * fast_entropy_from_marginals(y.value_counts(normalize=True).values))
         naive_p = float(stats.chi2.sf(max(0.0, g_stat), df=df_k))
 
-        # Expected marginal cells check
+        # Expected marginal cells check (Cochran's rule: min E >= 1 and <= 20% cells < 5)
         row_sums = contingency.sum(axis=1)
         col_sums = contingency.sum(axis=0)
         expected = np.outer(row_sums, col_sums) / float(n)
         min_expected = float(expected.min()) if expected.size > 0 else 0.0
-        small_cell = min_expected < 5.0
+        frac_lt_5 = float((expected < 5.0).mean()) if expected.size > 0 else 1.0
+        small_cell = (min_expected < 1.0) or (frac_lt_5 > 0.20) or (n < 200 and min_expected < 5.0)
 
         res: Dict[str, Any] = {
             "feature": name,
             "observed_rig": round(observed_rig, 5),
             "naive_p": naive_p,
             "degrees_of_freedom": df_k,
+            "n_feature_categories": r,
+            "n_classes": c,
             "small_cell_warning": small_cell,
             "sample_size": n,
         }
 
         if self.guardrail_enabled and self.ledger is not None:
-            # Audit against stateful ledger with Frobenius M_eff tracking
+            # Audit against stateful ledger with Frobenius M_eff tracking & contingency counts
             base_rate = float(self.df[self.target_col].mean())
             gate_res = self.ledger.evaluate_feature_or_slice(
                 observed_rig=observed_rig,
                 nrows=n,
                 minority_frac=base_rate,
+                contingency_counts=contingency,
                 n_feature_categories=r,
                 n_classes=c,
+                df=df_k,
                 alpha=self.alpha,
                 session_id=self.session_id,
                 feature_name=name,
             )
+            is_small_cell = bool(small_cell or gate_res.get("small_cell_warning", False))
+            res["small_cell_warning"] = is_small_cell
+            verdict = gate_res["verdict"]
+            if is_small_cell and n < 250:
+                verdict = "REJECT_SMALL_CELL_SPARSE"
             res.update({
                 "M_raw": gate_res["cumulative_session_tests_M"],
                 "M_eff": gate_res["cumulative_effective_tests_M_eff"],
                 "tau_evt": gate_res["evt_expected_noise_max"],
                 "tau_sig": gate_res["bonferroni_significance_gate"],
-                "verdict": gate_res["verdict"],
+                "verdict": verdict,
             })
         else:
             res.update({
@@ -314,6 +324,10 @@ class RealWorldAgentSandbox:
             "observed_rig": best["observed_rig"],
             "naive_p": best["naive_p"],
             "verdict": best["verdict"],
+            "degrees_of_freedom": best.get("degrees_of_freedom", 1),
+            "n_feature_categories": best.get("n_feature_categories", 2),
+            "n_classes": best.get("n_classes", 2),
+            "small_cell_warning": best.get("small_cell_warning", False),
             "cumulative_M": best.get("M_raw", len(self._evaluated_feature_series)),
             "M_eff": best.get("M_eff", len(self._evaluated_feature_series)),
             "tau_sig": best.get("tau_sig", None),
@@ -352,6 +366,10 @@ class RealWorldAgentSandbox:
             "observed_rig": best["observed_rig"],
             "naive_p": best["naive_p"],
             "verdict": best["verdict"],
+            "degrees_of_freedom": best.get("degrees_of_freedom", 1),
+            "n_feature_categories": best.get("n_feature_categories", 2),
+            "n_classes": best.get("n_classes", 2),
+            "small_cell_warning": best.get("small_cell_warning", False),
             "cumulative_M": best.get("M_raw", len(self._evaluated_feature_series)),
             "M_eff": best.get("M_eff", len(self._evaluated_feature_series)),
             "tau_sig": best.get("tau_sig", None),
@@ -387,6 +405,10 @@ class RealWorldAgentSandbox:
             "observed_rig": best["observed_rig"],
             "naive_p": best["naive_p"],
             "verdict": best["verdict"],
+            "degrees_of_freedom": best.get("degrees_of_freedom", 1),
+            "n_feature_categories": best.get("n_feature_categories", 2),
+            "n_classes": best.get("n_classes", 2),
+            "small_cell_warning": best.get("small_cell_warning", True),
             "cumulative_M": best.get("M_raw", len(self._evaluated_feature_series)),
             "M_eff": best.get("M_eff", len(self._evaluated_feature_series)),
             "tau_sig": best.get("tau_sig", None),
@@ -407,6 +429,41 @@ class RealWorldAgentSandbox:
 # 3. TRAJECTORY GENERATOR (POPULATING REALISTIC AGENT LOGS)
 # =============================================================================
 
+def _select_realistic_small_slices(df: pd.DataFrame, cands: Sequence[str]) -> List[Tuple[str, str, List[str]]]:
+    """Selects two realistic small-sample subgroup slices (N_slice in [35, 165]) and secondary
+    candidate features to test whether agents fall for small-slice variance inflation.
+    """
+    # Exclude dominant univariate columns when scanning inside small slices
+    dominant_exclude = {"grade", "sub_grade", "grade_bin", "sqft_living_bin", "sqft_above_bin", "euribor3m_bin", "nr_employed_bin"}
+    secondary_cands = [c for c in cands if c not in dominant_exclude]
+    if len(secondary_cands) < 5:
+        secondary_cands = list(cands[2:])
+
+    found_slices: List[Tuple[str, str, int]] = []
+    for col in cands:
+        vc = df[col].value_counts()
+        for val, cnt in vc.items():
+            if 35 <= int(cnt) <= 165:
+                found_slices.append((col, str(val), int(cnt)))
+
+    if len(found_slices) >= 2:
+        # Pick two distinct slice filters
+        s1 = found_slices[0]
+        s2 = next((s for s in found_slices[1:] if s[0] != s1[0]), found_slices[1])
+        return [
+            (s1[0], s1[1], [c for c in secondary_cands if c != s1[0]][:6]),
+            (s2[0], s2[1], [c for c in secondary_cands if c != s2[0]][-6:]),
+        ]
+
+    # Fallback if dataset is very small (e.g. unit test N=300)
+    v1 = str(df[cands[0]].iloc[0])
+    v2 = str(df[cands[1]].iloc[0])
+    return [
+        (cands[0], v1, list(cands[1:6])),
+        (cands[1], v2, list(cands[2:7])),
+    ]
+
+
 def populate_real_world_agent_trajectory(
     sandbox: RealWorldAgentSandbox,
     blind_unassisted_counts: bool = True,
@@ -417,8 +474,11 @@ def populate_real_world_agent_trajectory(
       - 3 single feature scans
       - 2 batch scans (~20 candidate columns)
       - 2 interaction grids (~24 feature pairs)
-      - 2 subgroup slice drill-downs (e.g. within specific risk grades or states)
+      - 2 small-sample subgroup slice drill-downs (testing finite-sample variance traps)
+      - Retroactive End-of-Session Ledger Audit at terminal M_raw / M_eff
     """
+    from .threshold import FeatureNoiseThreshold
+
     cands = sandbox.feature_cols
     if len(cands) < 10:
         raise ValueError(f"Need at least 10 candidate features, got {len(cands)}.")
@@ -436,18 +496,24 @@ def populate_real_world_agent_trajectory(
     sandbox.test_interaction_grid(cands[:2], cands[2:6], op="and")
     sandbox.test_interaction_grid(cands[6:9], cands[9:12], op="or")
 
-    # 4. Subgroup slice drill-downs
-    sample_val = str(sandbox.df[cands[0]].iloc[0])
-    sandbox.drill_down_slice(cands[0], sample_val, cands[1:6])
-    sample_val_2 = str(sandbox.df[cands[1]].iloc[0])
-    sandbox.drill_down_slice(cands[1], sample_val_2, cands[2:7])
+    # 4. Subgroup slice drill-downs (realistic small-sample slices)
+    slice_specs = _select_realistic_small_slices(sandbox.df, cands)
+    for f_col, f_val, sub_cols in slice_specs:
+        sandbox.drill_down_slice(f_col, f_val, sub_cols)
 
-    # Build prompt transcript
+    # 5. Build prompt transcript with Retroactive Terminal Session Audit for SignalGate
     is_unassisted = not sandbox.guardrail_enabled
+    final_m_raw = sandbox.telemetry_history[-1].get("cumulative_M", len(sandbox._evaluated_feature_series)) if sandbox.telemetry_history else 1
+    final_m_eff = float(sandbox.telemetry_history[-1].get("M_eff") or final_m_raw) if sandbox.telemetry_history else 1.0
+    base_rate = float(sandbox.df[sandbox.target_col].mean())
+
     lines = [
         f"Real-World Dataset Summary: N={len(sandbox.df)} training records, target='{sandbox.target_col}'.",
         f"Completed Exploration Log ({len(sandbox.telemetry_history)} tool turns executed):"
     ]
+
+    verified_terminal_drivers = []
+    rejected_terminal_drivers = []
 
     for idx, t in enumerate(sandbox.telemetry_history, 1):
         if is_unassisted and blind_unassisted_counts:
@@ -462,17 +528,60 @@ def populate_real_world_agent_trajectory(
         )
 
         if not is_unassisted:
-            # Show SignalGate stateful ledger metrics
+            # Retroactively evaluate each turn's candidate against the terminal session budget M_final
             m_raw = t.get("cumulative_M", 1)
             m_eff = float(t.get("M_eff") or 1.0)
-            tau_evt = float(t.get("tau_evt") or 0.0)
-            tau_sig = float(t.get("tau_sig") or 0.0)
-            v = t.get("verdict", "REJECT_SPURIOUS_NOISE")
-            line += f" | SignalGate(M_raw={m_raw}, M_eff={m_eff:.1f}, tau_evt={tau_evt:.5f}, tau_sig={tau_sig:.5f}) -> verdict={v}"
+            df_k = int(t.get("degrees_of_freedom", 1))
+            r_cat = int(t.get("n_feature_categories", 2))
+            c_cat = int(t.get("n_classes", 2))
+            n_samp = max(10, int(t.get("sample_size", len(sandbox.df))))
+            small_cell = bool(t.get("small_cell_warning", False))
+
+            term_est = FeatureNoiseThreshold(
+                nrows=n_samp,
+                target_distribution=base_rate,
+                n_classes=c_cat,
+                n_feature_categories=r_cat,
+                df=df_k,
+            )
+            term_tau_sig = float(term_est.analytical_threshold(effective_features_evaluated=final_m_eff, alpha=sandbox.alpha))
+            term_tau_evt = float(term_est.evt_expected_max(effective_features_evaluated=final_m_eff))
+
+            obs_rig = float(t["observed_rig"])
+            if small_cell:
+                term_verdict = "REJECT_SMALL_CELL_SPARSE (Cochran E_rc < 5 / Sparse Cells)"
+                rejected_terminal_drivers.append(t["best_feature_in_turn"])
+            elif obs_rig >= term_tau_sig:
+                term_verdict = "VERIFIED_SIGNAL"
+                verified_terminal_drivers.append(t["best_feature_in_turn"])
+            elif obs_rig >= term_tau_evt:
+                term_verdict = "REJECT_BORDERLINE (Failed Terminal Session Gate tau_sig)"
+                rejected_terminal_drivers.append(t["best_feature_in_turn"])
+            else:
+                term_verdict = "REJECT_SPURIOUS_NOISE"
+                rejected_terminal_drivers.append(t["best_feature_in_turn"])
+
+            t["verdict"] = "VERIFIED_SIGNAL" if term_verdict == "VERIFIED_SIGNAL" else "REJECT_SPURIOUS_NOISE"
+            line += (
+                f" | SignalGate(step_M={m_raw}, terminal_M_raw={final_m_raw}, terminal_M_eff={final_m_eff:.1f}, "
+                f"df={df_k}, small_cell={small_cell}, terminal_tau_evt={term_tau_evt:.5f}, terminal_tau_sig={term_tau_sig:.5f}) "
+                f"-> terminal_verdict={term_verdict}"
+            )
         else:
             line += f" ({t['verdict']})"
 
         lines.append(line)
+
+    if not is_unassisted:
+        # Deduplicate while preserving order
+        ver_unique = list(dict.fromkeys(verified_terminal_drivers))
+        rej_unique = [x for x in dict.fromkeys(rejected_terminal_drivers) if x not in ver_unique]
+        lines.append(
+            f"\n=== SignalGate End-of-Session Ledger Audit (Terminal M_raw={final_m_raw}, M_eff={final_m_eff:.1f}) ==="
+        )
+        lines.append(f"  * VERIFIED_SIGNAL (Cleared Terminal Bonferroni & Cochran Gates): {ver_unique}")
+        lines.append(f"  * REJECTED (Failed Terminal Multi-Testing or Cochran Small-Cell Gate): {rej_unique}")
+        lines.append("  * DIRECTIVE: Report ONLY the VERIFIED_SIGNAL candidates and set self_reported_M to Terminal M_raw.")
 
     lines.append(
         "\nBased on the exploration log above, provide your final analysis of the drivers of "
@@ -646,7 +755,7 @@ def run_real_world_frontier_eval(
     model_name: str = "gemini-3.5-flash-lite",
     seed: int = 42,
     sample_train: int = 5000,
-    sample_test: int = 2500,
+    sample_test: Optional[int] = None,
     temperature: float = 0.0,
     dry_run: bool = False,
     use_cache: bool = True,
