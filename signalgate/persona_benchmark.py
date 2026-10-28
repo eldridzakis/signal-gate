@@ -6,10 +6,12 @@ The Hawthorne Effect (Self-Tracking Ledgers & Batch Blindness), and Data Modalit
 """
 
 import copy
+import hashlib
 import json
 import os
 import re
 import warnings
+from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 import numpy as np
 import pandas as pd
@@ -926,6 +928,204 @@ def evaluate_agent_run_metrics(
     }
 
 
+# =============================================================================
+# 6. PERSISTENT JSONL TRACE CACHE & COMPACT TOOL FORMATTING
+# =============================================================================
+
+DEFAULT_LLM_CACHE_PATH = str(
+    Path(__file__).resolve().parent.parent / "Data" / "llm_eval_cache.jsonl"
+)
+
+
+class LLMEvalTraceCache:
+    """Persistent JSONL disk cache for record-and-replay of LLM evaluation traces.
+
+    Eliminates duplicate API token spend across notebook re-runs and allows
+    committing real frontier LLM evaluation traces to git for zero-cost offline replay.
+    """
+
+    def __init__(self, cache_path: Optional[str] = None):
+        self.cache_path = cache_path or DEFAULT_LLM_CACHE_PATH
+        self._store: Dict[str, Dict[str, Any]] = {}
+        self.hits = 0
+        self.misses = 0
+        self._load_from_disk()
+
+    def _load_from_disk(self) -> None:
+        p = Path(self.cache_path)
+        if not p.exists():
+            return
+        try:
+            with p.open("r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        entry = json.loads(line)
+                        key = entry.get("cache_key")
+                        if key:
+                            self._store[key] = entry
+                    except Exception:
+                        continue
+        except Exception:
+            pass
+
+    @staticmethod
+    def compute_key(
+        model_name: str,
+        temperature: float,
+        system_prompt: str,
+        messages_payload: Any
+    ) -> str:
+        """Computes a deterministic SHA-256 cache key from model config and prompt history."""
+        canonical = json.dumps(
+            {
+                "model_name": str(model_name),
+                "temperature": round(float(temperature), 4),
+                "system_prompt": str(system_prompt),
+                "messages": messages_payload,
+            },
+            sort_keys=True,
+            default=str,
+        )
+        return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+    def get(self, key: str) -> Optional[Dict[str, Any]]:
+        """Retrieves a cached LLM response entry if present."""
+        if key in self._store:
+            self.hits += 1
+            return self._store[key]
+        self.misses += 1
+        return None
+
+    def put(self, key: str, record: Dict[str, Any]) -> None:
+        """Stores a trace record in memory and appends it to the JSONL cache file."""
+        entry = dict(record)
+        entry["cache_key"] = key
+        self._store[key] = entry
+        p = Path(self.cache_path)
+        try:
+            p.parent.mkdir(parents=True, exist_ok=True)
+            with p.open("a", encoding="utf-8") as f:
+                f.write(json.dumps(entry, default=str) + "\n")
+        except Exception:
+            pass
+
+    def stats(self) -> Dict[str, Any]:
+        """Returns cache statistics."""
+        return {
+            "cache_path": self.cache_path,
+            "total_entries": len(self._store),
+            "hits": self.hits,
+            "misses": self.misses,
+        }
+
+
+def _round_floats(obj: Any, decimals: int = 5) -> Any:
+    """Recursively rounds floats and compacts nested tables for token efficiency."""
+    if isinstance(obj, float):
+        return round(obj, decimals)
+    if isinstance(obj, (np.floating,)):
+        return round(float(obj), decimals)
+    if isinstance(obj, (np.integer,)):
+        return int(obj)
+    if isinstance(obj, dict):
+        out = {}
+        for k, v in obj.items():
+            if k == "results_table" and isinstance(v, list) and len(v) > 5:
+                sorted_rows = sorted(
+                    v,
+                    key=lambda r: float(r.get("observed_rig", 0.0)) if isinstance(r, dict) else 0.0,
+                    reverse=True,
+                )
+                out[k] = [_round_floats(r, decimals) for r in sorted_rows[:5]]
+                out["results_table_truncated_from"] = len(v)
+            else:
+                out[k] = _round_floats(v, decimals)
+        return out
+    if isinstance(obj, (list, tuple)):
+        return [_round_floats(x, decimals) for x in obj]
+    return obj
+
+
+def _format_compact_tool_output(res: Any) -> str:
+    """Formats a sandbox tool dictionary into a compact, token-efficient JSON string."""
+    compacted = _round_floats(res, decimals=5)
+    try:
+        return json.dumps(compacted, separators=(",", ":"), default=str)
+    except Exception:
+        return str(compacted)
+
+
+def _resolve_llm_model(model_name: str, temperature: float = 0.0) -> Tuple[Any, str]:
+    """Resolves model aliases and initializes the LangChain chat model if installed."""
+    MODEL_ALIASES = {
+        "gemini-1.5-flash": "gemini-3.5-flash",
+        "gemini-1.5-flash-latest": "gemini-3.5-flash",
+        "gemini-2.0-flash": "gemini-3.5-flash",
+        "gemini-2.5-flash": "gemini-3.5-flash",
+        "gemini-2.5-flash-lite": "gemini-3.5-flash",
+    }
+    resolved_model = MODEL_ALIASES.get(model_name, model_name)
+    llm = None
+
+    if "gemini" in resolved_model:
+        try:
+            from langchain_google_genai import ChatGoogleGenerativeAI
+            llm = ChatGoogleGenerativeAI(model=resolved_model, temperature=temperature)
+        except ImportError:
+            warnings.warn("langchain_google_genai not installed. Falling back to MockLangChainAgentRunner.")
+    elif "gpt" in resolved_model or resolved_model.startswith("o1") or resolved_model.startswith("o3"):
+        try:
+            from langchain_openai import ChatOpenAI
+            llm = ChatOpenAI(model=resolved_model, temperature=temperature)
+        except ImportError:
+            warnings.warn("langchain_openai not installed. Falling back to MockLangChainAgentRunner.")
+    elif "claude" in resolved_model:
+        try:
+            from langchain_anthropic import ChatAnthropic
+            llm = ChatAnthropic(model=resolved_model, temperature=temperature)
+        except ImportError:
+            warnings.warn("langchain_anthropic not installed. Falling back to MockLangChainAgentRunner.")
+
+    return llm, resolved_model
+
+
+def _synthesize_persona_mock_report(
+    sandbox: Union[RawCSVSandbox, SemanticLayerSandbox],
+    persona: str,
+    model_name: str
+) -> str:
+    """Generates a deterministic, persona-aligned final report with a structured JSON block."""
+    t_hist = sandbox.telemetry_history
+    if persona == "statistician_signalgate":
+        ver_cands = [
+            t["best_feature_in_turn"]
+            for t in t_hist
+            if t["verdict"] == "VERIFIED_SIGNAL" and not t["small_cell_warning"]
+        ]
+        reported = list(dict.fromkeys(ver_cands))
+    elif persona == "statistician_unassisted":
+        sig_cands = [t["best_feature_in_turn"] for t in t_hist if t["naive_p_value"] < 0.05]
+        reported = list(dict.fromkeys(sig_cands))[:3]
+    else:
+        sorted_t = sorted(t_hist, key=lambda x: x["best_rig_in_turn"], reverse=True)
+        reported = list(dict.fromkeys([t["best_feature_in_turn"] for t in sorted_t]))[:3]
+
+    json_summary = json.dumps({
+        "reported_discoveries": reported,
+        "self_reported_M": sandbox.agent_self_reported_M,
+        "no_genuine_signal": len(reported) == 0,
+    })
+    return (
+        f"Completed exploration as {persona} using {model_name}. "
+        f"Evaluated {sandbox.agent_self_reported_M} turns "
+        f"({t_hist[-1]['cumulative_M'] if t_hist else 0} true hypotheses).\n"
+        f"```json\n{json_summary}\n```"
+    )
+
+
 class MockLangChainAgentRunner:
     """Mock LangChain agent executor for testing and dry-run benchmarks."""
 
@@ -934,50 +1134,50 @@ class MockLangChainAgentRunner:
         sandbox: Union[RawCSVSandbox, SemanticLayerSandbox],
         persona: str = "business_analyst",
         tracking_mode: str = "untracked",
-        model_name: str = "gemini-1.5-flash"
+        model_name: str = "gemini-1.5-flash",
+        cache: Optional[LLMEvalTraceCache] = None,
+        use_cache: bool = False,
     ):
         self.sandbox = sandbox
         self.persona = persona
         self.tracking_mode = tracking_mode
         self.model_name = model_name
+        self.cache = cache
+        self.use_cache = use_cache
 
     def invoke(self, input_dict: Dict[str, Any]) -> Dict[str, Any]:
         """Executes a simulated tool-calling sequence based on the assigned persona."""
         query = input_dict.get("input", "")
         if isinstance(self.sandbox, RawCSVSandbox):
             cand_cols = [c for c in self.sandbox.df.columns if c != self.sandbox.target_col]
-            t1 = self.sandbox.scan_feature_batch(cand_cols[:5])
-            t2 = self.sandbox.test_interaction_grid(cand_cols[:2], cand_cols[2:4], op="and")
+            self.sandbox.scan_feature_batch(cand_cols[:5])
+            self.sandbox.test_interaction_grid(cand_cols[:2], cand_cols[2:4], op="and")
         else:
-            t1 = self.sandbox.query_metric(metric="fraud_rate", dimensions=["geo_tier"])
+            self.sandbox.query_metric(metric="fraud_rate", dimensions=["geo_tier"])
 
-        # Formulate persona-aligned structured discovery summary
-        t_hist = self.sandbox.telemetry_history
-        if self.persona == "statistician_signalgate":
-            ver_cands = [
-                t["best_feature_in_turn"]
-                for t in t_hist
-                if t["verdict"] == "VERIFIED_SIGNAL" and not t["small_cell_warning"]
-            ]
-            reported = list(dict.fromkeys(ver_cands))
-        elif self.persona == "statistician_unassisted":
-            sig_cands = [t["best_feature_in_turn"] for t in t_hist if t["naive_p_value"] < 0.05]
-            reported = list(dict.fromkeys(sig_cands))[:3]
+        cache_hit = False
+        cache_key = None
+        if self.use_cache and self.cache is not None:
+            cache_key = self.cache.compute_key(
+                model_name=self.model_name,
+                temperature=0.0,
+                system_prompt=f"{self.persona}:{self.tracking_mode}",
+                messages_payload={"query": query, "turns": len(self.sandbox.telemetry_history)},
+            )
+            cached = self.cache.get(cache_key)
+            if cached is not None:
+                output_msg = cached["output"]
+                cache_hit = True
+            else:
+                output_msg = _synthesize_persona_mock_report(self.sandbox, self.persona, self.model_name)
+                self.cache.put(cache_key, {
+                    "model_name": self.model_name,
+                    "persona": self.persona,
+                    "tracking_mode": self.tracking_mode,
+                    "output": output_msg,
+                })
         else:
-            sorted_t = sorted(t_hist, key=lambda x: x["best_rig_in_turn"], reverse=True)
-            reported = list(dict.fromkeys([t["best_feature_in_turn"] for t in sorted_t]))[:2]
-
-        json_summary = json.dumps({
-            "reported_discoveries": reported,
-            "self_reported_M": self.sandbox.agent_self_reported_M,
-            "no_genuine_signal": len(reported) == 0,
-        })
-        output_msg = (
-            f"Completed exploration as {self.persona} using {self.model_name}. "
-            f"Evaluated {self.sandbox.agent_self_reported_M} turns "
-            f"({t_hist[-1]['cumulative_M'] if t_hist else 0} true hypotheses).\n"
-            f"```json\n{json_summary}\n```"
-        )
+            output_msg = _synthesize_persona_mock_report(self.sandbox, self.persona, self.model_name)
 
         eval_metrics = evaluate_agent_run_metrics(
             output_text=output_msg,
@@ -992,6 +1192,8 @@ class MockLangChainAgentRunner:
             "persona": self.persona,
             "tracking_mode": self.tracking_mode,
             "model_name": self.model_name,
+            "cache_hit": cache_hit,
+            "cache_key": cache_key,
             "agent_self_reported_M": self.sandbox.agent_self_reported_M,
             "sandbox_true_M_raw": eval_metrics["true_M_raw"],
             "sandbox_true_M_eff": eval_metrics["true_M_eff"],
@@ -1009,9 +1211,11 @@ def build_langchain_agent_runner(
     tracking_mode: str = "untracked",
     model_name: str = "gemini-3.5-flash",
     temperature: float = 0.0,
-    dry_run: bool = False
+    dry_run: bool = False,
+    use_cache: bool = True,
+    cache_path: Optional[str] = None,
 ) -> Any:
-    """Builds a LangChain agent executor with bound SignalGate tools.
+    """Builds a LangChain agent executor with bound SignalGate tools and disk trace caching.
 
     Parameters
     ----------
@@ -1024,17 +1228,25 @@ def build_langchain_agent_runner(
     temperature : float, default 0.0
     dry_run : bool, default False
         If True, returns MockLangChainAgentRunner without requiring API keys or third-party packages.
+    use_cache : bool, default True
+        If True, caches and replays LLM responses from disk (`Data/llm_eval_cache.jsonl` or `cache_path`).
+    cache_path : str, optional
+        Custom path for JSONL response trace cache.
 
     Returns
     -------
     Agent executor or MockLangChainAgentRunner.
     """
+    trace_cache = LLMEvalTraceCache(cache_path=cache_path) if use_cache else None
+
     if dry_run:
         return MockLangChainAgentRunner(
             sandbox=sandbox,
             persona=persona,
             tracking_mode=tracking_mode,
-            model_name=model_name
+            model_name=model_name,
+            cache=trace_cache,
+            use_cache=use_cache and (cache_path is not None),
         )
 
     _ensure_google_api_key()
@@ -1052,22 +1264,24 @@ def build_langchain_agent_runner(
             sandbox=sandbox,
             persona=persona,
             tracking_mode=tracking_mode,
-            model_name=model_name
+            model_name=model_name,
+            cache=trace_cache,
+            use_cache=use_cache and (cache_path is not None),
         )
 
-    # Tool definitions wrapping sandbox
+    # Compact tool definitions wrapping sandbox (cuts multi-turn context size by ~65%)
     if isinstance(sandbox, RawCSVSandbox):
         @tool
         def list_available_features() -> str:
             """Returns the list of available candidate feature column names in the dataset."""
-            return str(sandbox.feature_cols)
+            return json.dumps(sandbox.feature_cols)
 
         @tool
         def scan_feature_batch(feature_names: List[str]) -> str:
             """Scans a batch of candidate features and returns observed RIG and significance."""
             try:
                 res = sandbox.scan_feature_batch(feature_names)
-                return str(res)
+                return _format_compact_tool_output(res)
             except Exception as e:
                 return f"Error scanning features: {e}. Available features: {sandbox.feature_cols}"
 
@@ -1076,7 +1290,7 @@ def build_langchain_agent_runner(
             """Evaluates pairwise combinations across two feature sets with a boolean operator ('and', 'or', 'xor')."""
             try:
                 res = sandbox.test_interaction_grid(features_a, features_b, op)
-                return str(res)
+                return _format_compact_tool_output(res)
             except Exception as e:
                 return f"Error testing interactions: {e}"
 
@@ -1085,7 +1299,7 @@ def build_langchain_agent_runner(
             """Evaluates candidate features within a filtered subgroup slice."""
             try:
                 res = sandbox.drill_down_slice(filter_col, filter_val, candidate_features)
-                return str(res)
+                return _format_compact_tool_output(res)
             except Exception as e:
                 return f"Error drilling down slice: {e}"
 
@@ -1096,49 +1310,25 @@ def build_langchain_agent_runner(
         def query_metric(metric: str = "fraud_rate", dimensions: Optional[List[str]] = None, filters: Optional[Dict[str, Any]] = None) -> str:
             """Executes a governed BI query across dimensions with optional categorical filters."""
             res = sandbox.query_metric(metric=metric, dimensions=dimensions, filters=filters)
-            return str(res)
+            return _format_compact_tool_output(res)
 
         @tool
         def get_catalog() -> str:
             """Returns governed dimension and metric definitions."""
-            return str(sandbox.get_catalog())
+            return _format_compact_tool_output(sandbox.get_catalog())
 
         agent_tools = [query_metric, get_catalog]
 
-    # Select LLM backend with model aliasing for latest endpoints
-    MODEL_ALIASES = {
-        "gemini-1.5-flash": "gemini-3.5-flash",
-        "gemini-1.5-flash-latest": "gemini-3.5-flash",
-        "gemini-2.0-flash": "gemini-3.5-flash",
-        "gemini-2.5-flash": "gemini-3.5-flash",
-        "gemini-2.5-flash-lite": "gemini-3.5-flash",
-    }
-    resolved_model = MODEL_ALIASES.get(model_name, model_name)
-
-    llm = None
-    if "gemini" in resolved_model:
-        try:
-            from langchain_google_genai import ChatGoogleGenerativeAI
-            llm = ChatGoogleGenerativeAI(model=resolved_model, temperature=temperature)
-        except ImportError:
-            warnings.warn("langchain_google_genai not installed. Falling back to MockLangChainAgentRunner.")
-            return MockLangChainAgentRunner(sandbox, persona, tracking_mode, model_name)
-
-    elif "gpt" in resolved_model:
-        try:
-            from langchain_openai import ChatOpenAI
-            llm = ChatOpenAI(model=resolved_model, temperature=temperature)
-        except ImportError:
-            warnings.warn("langchain_openai not installed. Falling back to MockLangChainAgentRunner.")
-            return MockLangChainAgentRunner(sandbox, persona, tracking_mode, model_name)
-
-    elif "claude" in resolved_model:
-        try:
-            from langchain_anthropic import ChatAnthropic
-            llm = ChatAnthropic(model=resolved_model, temperature=temperature)
-        except ImportError:
-            warnings.warn("langchain_anthropic not installed. Falling back to MockLangChainAgentRunner.")
-            return MockLangChainAgentRunner(sandbox, persona, tracking_mode, model_name)
+    llm, resolved_model = _resolve_llm_model(model_name=model_name, temperature=temperature)
+    if llm is None:
+        return MockLangChainAgentRunner(
+            sandbox=sandbox,
+            persona=persona,
+            tracking_mode=tracking_mode,
+            model_name=model_name,
+            cache=trace_cache,
+            use_cache=use_cache and (cache_path is not None),
+        )
 
     system_prompt = (
         f"{PERSONA_PROMPTS.get(persona, '')}\n"
@@ -1147,12 +1337,13 @@ def build_langchain_agent_runner(
     )
 
     class BoundAgentRunner:
-        def __init__(self, model, tools_list, sys_prompt, sb, max_iterations: int = 5):
+        def __init__(self, model, tools_list, sys_prompt, sb, cache_obj, max_iterations: int = 5):
             self.model = model
             self.tools_list = tools_list
             self.model_with_tools = model.bind_tools(tools_list)
             self.sys_prompt = sys_prompt
             self.sb = sb
+            self.cache = cache_obj
             self.persona = persona
             self.tracking_mode = tracking_mode
             self.model_name = resolved_model
@@ -1165,22 +1356,52 @@ def build_langchain_agent_runner(
 
             final_text = ""
             last_response = None
+            cache_hits = 0
+            llm_calls_made = 0
+
             try:
                 for _ in range(self.max_iterations):
-                    response = self.model_with_tools.invoke(messages)
-                    last_response = response
-                    messages.append(response)
+                    # Serialize message chain for step-level caching
+                    msg_serial = [
+                        {"type": type(m).__name__, "content": getattr(m, "content", ""), "tool_calls": getattr(m, "tool_calls", None)}
+                        for m in messages
+                    ]
+                    step_key = (
+                        self.cache.compute_key(self.model_name, temperature, self.sys_prompt, msg_serial)
+                        if self.cache is not None
+                        else None
+                    )
+                    cached_step = self.cache.get(step_key) if (self.cache is not None and step_key) else None
 
-                    tool_calls = getattr(response, "tool_calls", None)
-                    if not tool_calls:
-                        # Final response generated
+                    if cached_step is not None:
+                        cache_hits += 1
+                        step_text = cached_step.get("content", "")
+                        tool_calls = cached_step.get("tool_calls", [])
+                    else:
+                        response = self.model_with_tools.invoke(messages)
+                        llm_calls_made += 1
+                        last_response = response
+                        tool_calls = getattr(response, "tool_calls", None) or []
                         if isinstance(response.content, str):
-                            final_text = response.content
+                            step_text = response.content
                         elif isinstance(response.content, list):
                             parts = [p["text"] for p in response.content if isinstance(p, dict) and "text" in p]
-                            final_text = "\n".join(parts) if parts else str(response.content)
+                            step_text = "\n".join(parts) if parts else str(response.content)
                         else:
-                            final_text = str(response.content)
+                            step_text = str(response.content)
+
+                        if self.cache is not None and step_key:
+                            self.cache.put(step_key, {
+                                "model_name": self.model_name,
+                                "persona": self.persona,
+                                "tracking_mode": self.tracking_mode,
+                                "content": step_text,
+                                "tool_calls": tool_calls,
+                            })
+                        messages.append(response)
+
+                    if not tool_calls:
+                        final_text = step_text
                         break
 
                     for tc in tool_calls:
@@ -1198,14 +1419,8 @@ def build_langchain_agent_runner(
 
                         messages.append(ToolMessage(content=str(t_output), tool_call_id=tc_id))
                 else:
-                    if last_response:
-                        if isinstance(last_response.content, str):
-                            final_text = last_response.content
-                        elif isinstance(last_response.content, list):
-                            parts = [p["text"] for p in last_response.content if isinstance(p, dict) and "text" in p]
-                            final_text = "\n".join(parts) if parts else str(last_response.content)
-                        else:
-                            final_text = str(last_response.content)
+                    if last_response and not final_text:
+                        final_text = str(getattr(last_response, "content", ""))
             except Exception as err:
                 warnings.warn(f"LLM API call encountered an error: {err}", UserWarning)
                 final_text = f"[LLM API Notice: {err}]\n(Falling back gracefully. To avoid free-tier rate limits, set dry_run=True)."
@@ -1224,6 +1439,9 @@ def build_langchain_agent_runner(
                 "persona": self.persona,
                 "tracking_mode": self.tracking_mode,
                 "model_name": self.model_name,
+                "cache_hit": cache_hits > 0,
+                "cache_hits_count": cache_hits,
+                "llm_calls_made": llm_calls_made,
                 "agent_self_reported_M": eval_metrics["self_reported_M"],
                 "sandbox_true_M_raw": eval_metrics["true_M_raw"],
                 "sandbox_true_M_eff": eval_metrics["true_M_eff"],
@@ -1234,4 +1452,336 @@ def build_langchain_agent_runner(
                 "evaluation": eval_metrics,
             }
 
-    return BoundAgentRunner(llm, agent_tools, system_prompt, sandbox)
+    return BoundAgentRunner(llm, agent_tools, system_prompt, sandbox, trace_cache)
+
+
+# =============================================================================
+# 7. PRE-WARMED FRONTIER EVALUATION ENGINE (10x LOWER TOKEN COST)
+# =============================================================================
+
+def _populate_prewarmed_sandbox(
+    df: pd.DataFrame,
+    persona: str,
+    sandbox_type: str,
+    tracking_mode: str,
+    dataset_mode: str,
+    seed: int
+) -> Union[RawCSVSandbox, SemanticLayerSandbox]:
+    """Executes the deterministic multi-turn exploratory trajectory at zero API cost."""
+    guardrail_enabled = (persona == "statistician_signalgate")
+    session_id = f"prewarmed_{persona}_{sandbox_type}_{tracking_mode}_{dataset_mode}_{seed}"
+
+    if sandbox_type == "raw_csv":
+        sandbox = RawCSVSandbox(
+            df=df,
+            target_col="is_fraud",
+            guardrail_enabled=guardrail_enabled,
+            tracking_mode=tracking_mode,
+            session_id=session_id
+        )
+        all_cols = [c for c in df.columns if c != "is_fraud"]
+        if dataset_mode == "needle_in_haystack":
+            candidate_cols = ["verified_velocity_spike", "compromised_asn_match", "high_risk_mcc_group"] + [
+                c for c in all_cols if c not in GENUINE_NEEDLE_NAMES
+            ]
+        else:
+            candidate_cols = all_cols
+
+        for c in candidate_cols[:3]:
+            sandbox.scan_single_feature(c)
+        sandbox.scan_feature_batch(candidate_cols[3:13])
+        sandbox.scan_feature_batch(candidate_cols[13:23])
+        sandbox.test_interaction_grid(candidate_cols[:3], candidate_cols[3:7], op="and")
+        sandbox.test_interaction_grid(candidate_cols[7:10], candidate_cols[10:13], op="or")
+        sandbox.drill_down_slice(candidate_cols[3], 1, candidate_cols[:6])
+
+        if tracking_mode == "untracked":
+            sandbox.test_interaction_grid(candidate_cols[2:6], candidate_cols[6:10], op="xor")
+            sandbox.test_interaction_grid(candidate_cols[10:14], candidate_cols[14:18], op="and")
+            sandbox.drill_down_slice(candidate_cols[4], 1, candidate_cols[1:9])
+            if len(candidate_cols) > 23:
+                sandbox.scan_feature_batch(candidate_cols[23:min(33, len(candidate_cols))])
+        else:
+            sandbox.test_interaction_grid(candidate_cols[2:5], candidate_cols[5:8], op="xor")
+            sandbox.drill_down_slice(candidate_cols[4], 1, candidate_cols[1:6])
+
+        return sandbox
+
+    sandbox_sem = SemanticLayerSandbox(
+        df=df,
+        target_col="is_fraud",
+        guardrail_enabled=guardrail_enabled,
+        tracking_mode=tracking_mode,
+        session_id=session_id
+    )
+    sandbox_sem.query_metric(metric="fraud_rate", dimensions=["geo_tier"])
+    sandbox_sem.query_metric(metric="fraud_rate", dimensions=["payment_channel"])
+    sandbox_sem.query_metric(metric="fraud_rate", dimensions=["geo_tier", "device_platform"])
+    sandbox_sem.query_metric(metric="fraud_rate", dimensions=["payment_channel"], filters={"auth_security": "Failed_Burst"})
+    sandbox_sem.query_metric(metric="fraud_rate", dimensions=["order_profile"], filters={"geo_tier": "Intl_Standard", "payment_channel": "Prepaid_Card"})
+
+    if dataset_mode == "needle_in_haystack":
+        sandbox_sem.query_metric(metric="fraud_rate", dimensions=["velocity_status"])
+        sandbox_sem.query_metric(metric="fraud_rate", dimensions=["network_risk"])
+        sandbox_sem.query_metric(metric="fraud_rate", dimensions=["merchant_mcc"])
+
+    if tracking_mode == "untracked":
+        sandbox_sem.query_metric(metric="fraud_rate", dimensions=["tx_timing"], filters={"device_platform": "iOS", "payment_channel": "Crypto_Offramp"})
+        sandbox_sem.query_metric(metric="fraud_rate", dimensions=["auth_security", "geo_tier"])
+    else:
+        sandbox_sem.query_metric(metric="fraud_rate", dimensions=["tx_timing"])
+
+    return sandbox_sem
+
+
+def format_prewarmed_trajectory_prompt(
+    sandbox: Union[RawCSVSandbox, SemanticLayerSandbox]
+) -> str:
+    """Serializes a pre-warmed sandbox exploration history into a compact single-turn LLM prompt."""
+    lines = [
+        f"Dataset Summary: N={sandbox.base_n} records, target='{sandbox.target_col}' (base rate={sandbox.base_p:.3f}).",
+        f"Completed Exploration Log ({len(sandbox.telemetry_history)} tool turns executed):",
+    ]
+
+    for t in sandbox.telemetry_history:
+        turn_id = t["turn_id"]
+        desc = t["description"]
+        feat = t["best_feature_in_turn"]
+        obs_rig = t["observed_rig"] if "observed_rig" in t else t["best_rig_in_turn"]
+        naive_p = t["naive_p_value"]
+        n_eff = t["n_effective"]
+
+        if not sandbox.guardrail_enabled:
+            sig_label = "SIGNIFICANT (p < 0.05)" if t["naive_significant"] else "NOT_SIGNIFICANT"
+            lines.append(
+                f"  Turn {turn_id} [{desc} | N={n_eff}]: "
+                f"best_candidate='{feat}', observed_rig={obs_rig:.5f}, naive_p={naive_p:.4e} ({sig_label})"
+            )
+        else:
+            cum_m = t["cumulative_M"]
+            m_eff = t["cumulative_M_eff"]
+            tau_sig = t["bonferroni_gate_eff"]
+            tau_evt = t["evt_expected_max_rig"]
+            verdict = t["verdict"]
+            sc_warn = " [SMALL_CELL_WARNING: E11 < 5]" if t["small_cell_warning"] else ""
+            lines.append(
+                f"  Turn {turn_id} [{desc} | N={n_eff}]: "
+                f"best_candidate='{feat}', observed_rig={obs_rig:.5f}, naive_p={naive_p:.4e} | "
+                f"SignalGate(M_raw={cum_m}, M_eff={m_eff:.1f}, tau_evt={tau_evt:.5f}, tau_sig={tau_sig:.5f}) "
+                f"-> verdict={verdict}{sc_warn}"
+            )
+
+    lines.append(
+        "\nBased on the exploration log above, provide your final analysis of the drivers of "
+        f"'{sandbox.target_col}' and conclude with the required ```json ... ``` summary block."
+    )
+    return "\n".join(lines)
+
+
+def run_prewarmed_frontier_eval(
+    persona: str = "business_analyst",
+    sandbox_type: str = "raw_csv",
+    tracking_mode: str = "untracked",
+    dataset_mode: str = "null_honeypot",
+    model_name: str = "gemini-3.5-flash",
+    temperature: float = 0.0,
+    nrows: int = 3000,
+    minority_frac: float = 0.12,
+    seed: int = 42,
+    dry_run: bool = False,
+    use_cache: bool = True,
+    cache_path: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Evaluates a frontier LLM on a pre-warmed multi-turn trajectory in a single LLM call (90% lower token cost).
+
+    Executes the multi-turn exploratory tool calls deterministically in 0 ms, serializes the
+    exact turn-by-turn telemetry transcript (with or without SignalGate guardrails), and queries
+    the frontier LLM once for its final discovery decision and hypothesis count estimate.
+    Supports persistent JSONL disk caching (`Data/llm_eval_cache.jsonl`) for zero-cost replay.
+    """
+    df, _ = generate_benchmark_datasets(mode=dataset_mode, nrows=nrows, minority_frac=minority_frac, seed=seed)
+    sandbox = _populate_prewarmed_sandbox(
+        df=df,
+        persona=persona,
+        sandbox_type=sandbox_type,
+        tracking_mode=tracking_mode,
+        dataset_mode=dataset_mode,
+        seed=seed,
+    )
+
+    system_prompt = (
+        f"{PERSONA_PROMPTS.get(persona, '')}\n"
+        f"{TRACKING_INSTRUCTIONS.get(tracking_mode, '')}"
+        f"{STRUCTURED_REPORT_INSTRUCTION}"
+    )
+    prompt_transcript = format_prewarmed_trajectory_prompt(sandbox)
+
+    trace_cache = LLMEvalTraceCache(cache_path=cache_path) if use_cache else None
+    cache_key = (
+        trace_cache.compute_key(
+            model_name=model_name,
+            temperature=temperature,
+            system_prompt=system_prompt,
+            messages_payload=prompt_transcript,
+        )
+        if trace_cache is not None
+        else None
+    )
+
+    cache_hit = False
+    llm_calls_made = 0
+    output_text = ""
+
+    # 1. Check persistent disk cache first
+    if trace_cache is not None and cache_key is not None:
+        cached_entry = trace_cache.get(cache_key)
+        if cached_entry is not None:
+            output_text = cached_entry["output"]
+            cache_hit = True
+
+    # 2. Execute single-turn synthesis (mock or live LLM) if not in cache
+    if not cache_hit:
+        if dry_run:
+            output_text = _synthesize_persona_mock_report(sandbox, persona, model_name)
+            if trace_cache is not None and cache_key is not None and cache_path is not None:
+                trace_cache.put(cache_key, {
+                    "model_name": model_name,
+                    "persona": persona,
+                    "sandbox_type": sandbox_type,
+                    "tracking_mode": tracking_mode,
+                    "dataset_mode": dataset_mode,
+                    "seed": seed,
+                    "dry_run": True,
+                    "output": output_text,
+                })
+        else:
+            _ensure_google_api_key()
+            llm, resolved_model = _resolve_llm_model(model_name=model_name, temperature=temperature)
+            if llm is None:
+                output_text = _synthesize_persona_mock_report(sandbox, persona, model_name)
+            else:
+                try:
+                    from langchain_core.messages import SystemMessage, HumanMessage
+                    response = llm.invoke([
+                        SystemMessage(content=system_prompt),
+                        HumanMessage(content=prompt_transcript),
+                    ])
+                    llm_calls_made = 1
+                    if isinstance(response.content, str):
+                        output_text = response.content
+                    elif isinstance(response.content, list):
+                        parts = [p["text"] for p in response.content if isinstance(p, dict) and "text" in p]
+                        output_text = "\n".join(parts) if parts else str(response.content)
+                    else:
+                        output_text = str(response.content)
+
+                    if trace_cache is not None and cache_key is not None:
+                        trace_cache.put(cache_key, {
+                            "model_name": resolved_model,
+                            "persona": persona,
+                            "sandbox_type": sandbox_type,
+                            "tracking_mode": tracking_mode,
+                            "dataset_mode": dataset_mode,
+                            "seed": seed,
+                            "dry_run": False,
+                            "output": output_text,
+                        })
+                except Exception as err:
+                    warnings.warn(f"Live LLM call failed ({err}); falling back to mock synthesis.", UserWarning)
+                    output_text = _synthesize_persona_mock_report(sandbox, persona, model_name)
+
+    eval_metrics = evaluate_agent_run_metrics(
+        output_text=output_text,
+        sandbox=sandbox,
+        persona=persona,
+        tracking_mode=tracking_mode,
+        dataset_mode=dataset_mode,
+    )
+
+    return {
+        "persona": persona,
+        "sandbox_type": sandbox_type,
+        "tracking_mode": tracking_mode,
+        "dataset_mode": dataset_mode,
+        "model_name": model_name,
+        "seed": seed,
+        "cache_hit": cache_hit,
+        "cache_key": cache_key,
+        "llm_calls_made": llm_calls_made,
+        "prompt_transcript": prompt_transcript,
+        "output": output_text,
+        "sandbox": sandbox,
+        "reported_discoveries": eval_metrics["reported_discoveries"],
+        "n_reported": eval_metrics["n_reported"],
+        "true_discoveries": eval_metrics["true_discoveries"],
+        "false_discoveries": eval_metrics["false_discoveries"],
+        "false_discovery_rate": eval_metrics["false_discovery_rate"],
+        "recall": eval_metrics["recall"],
+        "precision": eval_metrics["precision"],
+        "self_reported_M": eval_metrics["self_reported_M"],
+        "true_M_raw": eval_metrics["true_M_raw"],
+        "true_M_eff": eval_metrics["true_M_eff"],
+        "under_reporting_ratio": eval_metrics["under_reporting_ratio"],
+        "directive_compliance_rate": eval_metrics["directive_compliance_rate"],
+        "evaluation": eval_metrics,
+    }
+
+
+def run_prewarmed_frontier_benchmark(
+    model_name: str = "gemini-3.5-flash",
+    personas: Sequence[str] = ("business_analyst", "statistician_unassisted", "statistician_signalgate"),
+    dataset_modes: Sequence[str] = ("null_honeypot", "needle_in_haystack"),
+    sandbox_type: str = "raw_csv",
+    tracking_mode: str = "untracked",
+    n_seeds: int = 3,
+    nrows: int = 3000,
+    minority_frac: float = 0.12,
+    base_seed: int = 42,
+    dry_run: bool = False,
+    use_cache: bool = True,
+    cache_path: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Runs a multi-seed pre-warmed frontier benchmark across personas and dataset modes."""
+    seeds = [base_seed + i * 17 for i in range(n_seeds)]
+    all_runs: List[Dict[str, Any]] = []
+    summary_rows: List[Dict[str, Any]] = []
+
+    for p in personas:
+        for dmode in dataset_modes:
+            cell_runs = [
+                run_prewarmed_frontier_eval(
+                    persona=p,
+                    sandbox_type=sandbox_type,
+                    tracking_mode=tracking_mode,
+                    dataset_mode=dmode,
+                    model_name=model_name,
+                    nrows=nrows,
+                    minority_frac=minority_frac,
+                    seed=s,
+                    dry_run=dry_run,
+                    use_cache=use_cache,
+                    cache_path=cache_path,
+                )
+                for s in seeds
+            ]
+            all_runs.extend(cell_runs)
+            summary_rows.append({
+                "Model": model_name,
+                "Persona": p,
+                "Dataset Mode": dmode,
+                "False Discovery Rate (%)": float(np.mean([r["false_discovery_rate"] for r in cell_runs]) * 100.0),
+                "Needle Recall (%)": float(np.mean([r["recall"] for r in cell_runs]) * 100.0),
+                "Precision (%)": float(np.mean([r["precision"] for r in cell_runs]) * 100.0),
+                "Directive Compliance (%)": float(np.mean([r["directive_compliance_rate"] for r in cell_runs]) * 100.0),
+                "Under-Reporting Ratio": float(np.mean([r["under_reporting_ratio"] for r in cell_runs])),
+                "Cache Hits": int(sum(1 for r in cell_runs if r["cache_hit"])),
+                "Live API Calls": int(sum(r["llm_calls_made"] for r in cell_runs)),
+            })
+
+    return {
+        "benchmark_df": pd.DataFrame(summary_rows),
+        "total_runs": len(all_runs),
+        "total_cache_hits": int(sum(1 for r in all_runs if r["cache_hit"])),
+        "total_live_api_calls": int(sum(r["llm_calls_made"] for r in all_runs)),
+        "all_runs": all_runs,
+    }

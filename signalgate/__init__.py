@@ -54,6 +54,10 @@ from .persona_benchmark import (
     build_langchain_agent_runner,
     parse_agent_discovery_report,
     evaluate_agent_run_metrics,
+    LLMEvalTraceCache,
+    format_prewarmed_trajectory_prompt,
+    run_prewarmed_frontier_eval,
+    run_prewarmed_frontier_benchmark,
 )
 from .automl_utils import (
     operational_log_number_of_features,
@@ -107,6 +111,10 @@ __all__ = [
     "build_langchain_agent_runner",
     "parse_agent_discovery_report",
     "evaluate_agent_run_metrics",
+    "LLMEvalTraceCache",
+    "format_prewarmed_trajectory_prompt",
+    "run_prewarmed_frontier_eval",
+    "run_prewarmed_frontier_benchmark",
     "operational_log_number_of_features",
     "get_regression_bins",
     "get_binned_target",

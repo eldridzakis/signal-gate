@@ -1,5 +1,7 @@
 """Unit tests for Persona Benchmark, The Hawthorne Effect, and Data Modality Engine."""
 
+import tempfile
+import os
 import unittest
 import numpy as np
 import pandas as pd
@@ -15,6 +17,10 @@ from signalgate.persona_benchmark import (
     build_langchain_agent_runner,
     parse_agent_discovery_report,
     evaluate_agent_run_metrics,
+    LLMEvalTraceCache,
+    format_prewarmed_trajectory_prompt,
+    run_prewarmed_frontier_eval,
+    run_prewarmed_frontier_benchmark,
 )
 from signalgate.agent_sandbox import generate_benchmark_datasets
 
@@ -159,6 +165,55 @@ class TestPersonaBenchmark(unittest.TestCase):
         self.assertEqual(metrics["false_discoveries"], 0)
         self.assertEqual(metrics["false_discovery_rate"], 0.0)
         self.assertEqual(metrics["under_reporting_ratio"], 3.0)
+
+    def test_prewarmed_frontier_eval_and_jsonl_cache(self):
+        """Test 8: Verify pre-warmed frontier evaluation and persistent JSONL trace caching."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            cache_file = os.path.join(tmpdir, "test_llm_cache.jsonl")
+
+            # 1st call: populates cache on miss
+            r1 = run_prewarmed_frontier_eval(
+                persona="statistician_signalgate",
+                dataset_mode="needle_in_haystack",
+                nrows=3000,
+                seed=42,
+                dry_run=True,
+                use_cache=True,
+                cache_path=cache_file,
+            )
+            self.assertFalse(r1["cache_hit"])
+            self.assertTrue(os.path.exists(cache_file))
+            self.assertEqual(r1["false_discovery_rate"], 0.0)
+            self.assertEqual(r1["directive_compliance_rate"], 1.0)
+            self.assertGreaterEqual(r1["recall"], 0.66)
+            self.assertIn("SignalGate(M_raw=", r1["prompt_transcript"])
+
+            # 2nd call with identical parameters: must hit JSONL disk cache
+            r2 = run_prewarmed_frontier_eval(
+                persona="statistician_signalgate",
+                dataset_mode="needle_in_haystack",
+                nrows=3000,
+                seed=42,
+                dry_run=True,
+                use_cache=True,
+                cache_path=cache_file,
+            )
+            self.assertTrue(r2["cache_hit"])
+            self.assertEqual(r1["cache_key"], r2["cache_key"])
+            self.assertEqual(r1["reported_discoveries"], r2["reported_discoveries"])
+
+            # Multi-seed prewarmed benchmark
+            bench = run_prewarmed_frontier_benchmark(
+                personas=("business_analyst", "statistician_signalgate"),
+                dataset_modes=("null_honeypot",),
+                n_seeds=2,
+                nrows=500,
+                dry_run=True,
+                use_cache=True,
+                cache_path=cache_file,
+            )
+            self.assertIn("benchmark_df", bench)
+            self.assertEqual(len(bench["benchmark_df"]), 2)
 
 
 if __name__ == "__main__":
