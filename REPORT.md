@@ -134,18 +134,18 @@ Because $F = \frac{SS_{\text{between}} / (K - 1)}{SS_{\text{within}} / (N - K)}$
 
 | SQL Mart & Metric Gate | Frontier Model | Persona | Holdout Replication (%) | Real FDR (%) | Mean Train RIG | Mean Holdout RIG | SQL Under-Reporting Ratio |
 | :--- | :--- | :--- | :---: | :---: | :---: | :---: | :---: |
-| **`king_county_continuous`** *(ANOVA $F \to \text{RIG}$)* | `claude-opus-5-5` | `business_analyst` | 48.6% | **51.4%** | 0.2972 | 0.2729 | 2.42x |
-| **`king_county_continuous`** *(ANOVA $F \to \text{RIG}$)* | `claude-opus-5-5` | `statistician_unassisted` | 62.2% | **37.8%** | 0.2417 | 0.2455 | 1.48x |
-| **`king_county_continuous`** *(ANOVA $F \to \text{RIG}$)* | `claude-opus-5-5` | **`statistician_signalgate`** | **100.0%** | **0.0%** | **0.2357** | **0.2394** | **1.00x** |
-| **`king_county_continuous`** *(ANOVA $F \to \text{RIG}$)* | `claude-sonnet-5-5` | `business_analyst` | 53.2% | **46.8%** | 0.3554 | 0.3332 | 4.22x |
-| **`king_county_continuous`** *(ANOVA $F \to \text{RIG}$)* | `claude-sonnet-5-5` | `statistician_unassisted` | 60.0% | **40.0%** | 0.2557 | 0.2593 | 3.45x |
-| **`king_county_continuous`** *(ANOVA $F \to \text{RIG}$)* | `claude-sonnet-5-5` | **`statistician_signalgate`** | **100.0%** | **0.0%** | **0.2357** | **0.2394** | **1.00x** |
-| **`king_county_continuous`** *(ANOVA $F \to \text{RIG}$)* | `gpt-6.1-sol` | `business_analyst` | 17.9% | **82.1%** | 0.2336 | 0.2067 | 4.22x |
-| **`king_county_continuous`** *(ANOVA $F \to \text{RIG}$)* | `gpt-6.1-sol` | `statistician_unassisted` | 60.0% | **40.0%** | 0.2557 | 0.2593 | 4.22x |
-| **`king_county_continuous`** *(ANOVA $F \to \text{RIG}$)* | `gpt-6.1-sol` | **`statistician_signalgate`** | **100.0%** | **0.0%** | **0.2357** | **0.2394** | **1.00x** |
-| **`king_county_continuous`** *(ANOVA $F \to \text{RIG}$)* | `gemini-3.5-flash-lite` | `business_analyst` | 30.0% | **70.0%** | 0.4013 | 0.3785 | 8.87x |
-| **`king_county_continuous`** *(ANOVA $F \to \text{RIG}$)* | `gemini-3.5-flash-lite` | `statistician_unassisted` | 50.0% | **50.0%** | 0.4388 | 0.4418 | 4.22x |
-| **`king_county_continuous`** *(ANOVA $F \to \text{RIG}$)* | `gemini-3.5-flash-lite` | **`statistician_signalgate`** | **100.0%** | **0.0%** | **0.1568** | **0.1603** | **2.41x** |
+| **`king_county_continuous`** *(ANOVA F → RIG)* | `claude-opus-5-5` | `business_analyst` | 48.6% | **51.4%** | 0.2972 | 0.2729 | 2.42x |
+| **`king_county_continuous`** *(ANOVA F → RIG)* | `claude-opus-5-5` | `statistician_unassisted` | 62.2% | **37.8%** | 0.2417 | 0.2455 | 1.48x |
+| **`king_county_continuous`** *(ANOVA F → RIG)* | `claude-opus-5-5` | **`statistician_signalgate`** | **100.0%** | **0.0%** | **0.2357** | **0.2394** | **1.00x** |
+| **`king_county_continuous`** *(ANOVA F → RIG)* | `claude-sonnet-5-5` | `business_analyst` | 53.2% | **46.8%** | 0.3554 | 0.3332 | 4.22x |
+| **`king_county_continuous`** *(ANOVA F → RIG)* | `claude-sonnet-5-5` | `statistician_unassisted` | 60.0% | **40.0%** | 0.2557 | 0.2593 | 3.45x |
+| **`king_county_continuous`** *(ANOVA F → RIG)* | `claude-sonnet-5-5` | **`statistician_signalgate`** | **100.0%** | **0.0%** | **0.2357** | **0.2394** | **1.00x** |
+| **`king_county_continuous`** *(ANOVA F → RIG)* | `gpt-6.1-sol` | `business_analyst` | 17.9% | **82.1%** | 0.2336 | 0.2067 | 4.22x |
+| **`king_county_continuous`** *(ANOVA F → RIG)* | `gpt-6.1-sol` | `statistician_unassisted` | 60.0% | **40.0%** | 0.2557 | 0.2593 | 4.22x |
+| **`king_county_continuous`** *(ANOVA F → RIG)* | `gpt-6.1-sol` | **`statistician_signalgate`** | **100.0%** | **0.0%** | **0.2357** | **0.2394** | **1.00x** |
+| **`king_county_continuous`** *(ANOVA F → RIG)* | `gemini-3.5-flash-lite` | `business_analyst` | 30.0% | **70.0%** | 0.4013 | 0.3785 | 8.87x |
+| **`king_county_continuous`** *(ANOVA F → RIG)* | `gemini-3.5-flash-lite` | `statistician_unassisted` | 50.0% | **50.0%** | 0.4388 | 0.4418 | 4.22x |
+| **`king_county_continuous`** *(ANOVA F → RIG)* | `gemini-3.5-flash-lite` | **`statistician_signalgate`** | **100.0%** | **0.0%** | **0.1568** | **0.1603** | **2.41x** |
 | **`lending_club`** *(Binary SQL Mart)* | All 4 Models Pooled | `business_analyst` | 95.8% | **4.2%** *(up to 16.7%)* | 0.0551 | 0.0494 | 5.97x |
 | **`lending_club`** *(Binary SQL Mart)* | All 4 Models Pooled | `statistician_unassisted` | 100.0% | 0.0% | 0.0541 | 0.0493 | 5.27x |
 | **`lending_club`** *(Binary SQL Mart)* | All 4 Models Pooled | **`statistician_signalgate`** | **100.0%** | **0.0%** | **0.0496** | **0.0455** | **1.00x** |
