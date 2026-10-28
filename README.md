@@ -8,6 +8,40 @@
 > **Stateful statistical guardrails and Model Context Protocol (MCP) server for autonomous LLM data agents, Text-to-SQL semantic layers, and AutoML. Quantifying the Winner's Curse, estimating closed-form noise ceilings (both discrete contingency & continuous SQL ANOVA), and filtering out spurious insights.**
 >
 > 📄 **[Read the Full Standalone Technical & Empirical Report (`REPORT.md`)](REPORT.md)** — *Featuring 216 live frontier LLM evaluations (`claude-opus-5-5`, `claude-sonnet-5-5`, `gpt-6.1-sol`, `gemini-3.5-flash-lite`) and the 3,000-candidate AutoML benchmark across Lending Club, King County Housing, and UCI Bank Marketing.*
+>
+> 👔 **[Read the Executive Brief for Non-Data Scientists (`EXECUTIVE_SUMMARY.md`)](EXECUTIVE_SUMMARY.md)** — *A 3-minute guide for Engineering Directors, VPs of Operations, and Finance Leaders on preventing costly AI hallucinations.*
+
+---
+
+## ⚡ Executive TL;DR: Why Non-Data Scientists Care
+
+If your organization connects autonomous LLM agents (Claude Code, Cursor, LangChain, Text-to-SQL assistants) to your SQL database or data warehouse to "automatically discover business insights," **your team faces a silent reliability crisis**:
+
+```
+           WHAT THE BUSINESS SEES                           WHAT ACTUALLY HAPPENED
+┌──────────────────────────────────────────┐    ┌──────────────────────────────────────────┐
+│  AI Agent Prompt Response:               │    │  Hidden SQL Session Behind the Scenes:   │
+│  "We found that customer segment X has   │    │  • Query 1: region = 'East' (p=0.42, no) │
+│   a 42% higher default rate (p < 0.05)!  │ ◄──┼─ • Query 2: age > 50 (p=0.18, no)        │
+│   Recommendation: Halt lending to X."    │    │  • ...                                   │
+└──────────────────────────────────────────┘    │  • Query 38: region='West' AND tenure<1  │
+                                                │    (N=35, p=0.03 by pure random chance!) │
+                                                └──────────────────────────────────────────┘
+```
+
+1. **The Silent Multi-Testing Problem:** An LLM agent rarely executes a single query. To answer a high-level question, it iteratively slices, dices, and filters data across dozens of unseen tool calls.
+2. **51%–82% False Discoveries in Production:** By pure random chance, testing 40 candidate segments on small cohorts ($N < 50$) will *always* produce what looks like a massive anomaly. In our benchmark of **216 live frontier LLM evaluations**, unassisted frontier agents (`claude-opus-5-5`, `gpt-6.1-sol`, `claude-sonnet-5-5`) suffered a **51.4% to 82.1% False Discovery Rate**—reporting phantom correlations as genuine business drivers.
+3. **The Business Fallout:**
+   * 💰 **Finance & FP&A:** Capital allocated to phantom market opportunities; pricing models altered for trends that collapse out-of-sample.
+   * ⚙️ **Operations:** Workflows restructured to solve operational "bottlenecks" that were small-sample statistical mirages.
+   * 🛠️ **Engineering:** Data engineers waste sprints building dbt models, tables, and production pipelines around features that provide zero real lift.
+
+**What SignalGate Does:**  
+Think of SignalGate as a **real-time statistical firewall** (via MCP or Python decorator). It sits between your AI agents and your SQL warehouse, statefully tracks the agent's hidden query budget ($M$), and mathematically rejects small-slice noise before it reaches executive decision-makers.
+
+> **The Result:** Drops autonomous AI false discovery rate from **51%–82% down to 0.0%**, with **zero database scanning overhead** and **<0.1ms latency**.
+
+👉 *Want the full executive context with cost-of-error case studies? Read [`EXECUTIVE_SUMMARY.md`](EXECUTIVE_SUMMARY.md).*
 
 ---
 
