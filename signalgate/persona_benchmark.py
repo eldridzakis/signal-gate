@@ -1176,21 +1176,99 @@ class NativeClaudeModel:
         return _SimpleResp(text)
 
 
+class NativeOpenAIModel:
+    """Lightweight zero-install OpenAI caller using Chat Completions REST API and standard library urllib."""
+
+    def __init__(self, model_name: str = "gpt-6.1-sol", temperature: float = 0.0):
+        self.model_name = model_name
+        self.temperature = temperature
+
+    def invoke(self, messages: Any) -> Any:
+        key = os.environ.get("OPENAI_API_KEY")
+        if not key:
+            raise ValueError("OPENAI_API_KEY not found in environment.")
+        url = "https://api.openai.com/v1/chat/completions"
+
+        msg_list = []
+        if isinstance(messages, list):
+            for m in messages:
+                c = getattr(m, "content", str(m))
+                t = type(m).__name__
+                if "System" in t:
+                    msg_list.append({"role": "system", "content": str(c)})
+                else:
+                    msg_list.append({"role": "user", "content": str(c)})
+        else:
+            msg_list.append({"role": "user", "content": str(messages)})
+
+        body: Dict[str, Any] = {
+            "model": self.model_name,
+            "messages": msg_list,
+        }
+        if not (self.model_name.startswith("o1") or self.model_name.startswith("o3")):
+            body["temperature"] = self.temperature
+
+        req = urllib.request.Request(
+            url,
+            data=json.dumps(body).encode("utf-8"),
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {key}",
+            },
+        )
+        with urllib.request.urlopen(req) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            choices = data.get("choices", [{}])
+            text = choices[0].get("message", {}).get("content", "").strip()
+
+        class _SimpleResp:
+            def __init__(self, t: str):
+                self.content = t
+
+        return _SimpleResp(text)
+
+
 def _resolve_llm_model(model_name: str, temperature: float = 0.0) -> Tuple[Any, str]:
     """Resolves model aliases and initializes the LangChain or native chat model."""
     MODEL_ALIASES = {
+        # Gemini 2026 & Legacy Aliases
+        "gemini-4-argon": "gemini-4-argon",
+        "gemini-3.8-flash": "gemini-3.8-flash",
+        "gemini-3.6-flash": "gemini-3.6-flash",
         "gemini-1.5-flash": "gemini-3.5-flash-lite",
         "gemini-1.5-flash-latest": "gemini-3.5-flash-lite",
         "gemini-2.0-flash": "gemini-3.5-flash-lite",
         "gemini-2.5-flash": "gemini-3.5-flash-lite",
         "gemini-2.5-flash-lite": "gemini-3.5-flash-lite",
         "gemini-3.5-flash": "gemini-3.5-flash-lite",
+        # Claude 5.x (2026 Frontier) & 3.x Aliases
+        "claude-fable-5.1": "claude-fable-5-1",
+        "claude-fable-5-1": "claude-fable-5-1",
+        "claude-fable": "claude-fable-5-1",
+        "claude-opus-5.5": "claude-opus-5-5",
+        "claude-opus-5-5": "claude-opus-5-5",
+        "claude-opus": "claude-opus-5-5",
+        "claude-sonnet-5.5": "claude-sonnet-5-5",
+        "claude-sonnet-5-5": "claude-sonnet-5-5",
+        "claude-sonnet": "claude-sonnet-5-5",
+        "claude-haiku-5.5": "claude-haiku-5-5",
+        "claude-haiku-5-5": "claude-haiku-5-5",
+        "claude-haiku": "claude-haiku-5-5",
+        "claude-3-7-sonnet": "claude-3-7-sonnet-20250219",
+        "claude-3.7-sonnet": "claude-3-7-sonnet-20250219",
         "claude-3-5-sonnet": "claude-3-5-sonnet-20241022",
         "claude-3.5-sonnet": "claude-3-5-sonnet-20241022",
         "claude-3-5-haiku": "claude-3-5-haiku-20241022",
         "claude-3.5-haiku": "claude-3-5-haiku-20241022",
-        "claude-haiku": "claude-3-5-haiku-20241022",
-        "claude-sonnet": "claude-3-5-sonnet-20241022",
+        # OpenAI GPT-6 (2026 Frontier) & Reasoning Aliases
+        "gpt-6-astra": "gpt-6-astra",
+        "gpt-6.1-sol": "gpt-6.1-sol",
+        "gpt-6-sol": "gpt-6.1-sol",
+        "gpt-6.1-terra": "gpt-6.1-terra",
+        "gpt-6-terra": "gpt-6.1-terra",
+        "gpt-6-luna": "gpt-6-luna",
+        "o3-mini": "o3-mini",
+        "o1-mini": "o1-mini",
     }
     resolved_model = MODEL_ALIASES.get(model_name, model_name)
     llm = None
@@ -1210,7 +1288,11 @@ def _resolve_llm_model(model_name: str, temperature: float = 0.0) -> Tuple[Any, 
             from langchain_openai import ChatOpenAI
             llm = ChatOpenAI(model=resolved_model, temperature=temperature)
         except ImportError:
-            warnings.warn("langchain_openai not installed. Falling back to MockLangChainAgentRunner.")
+            # Native REST fallback: allows live calls with zero pip installs if OPENAI_API_KEY is present
+            if os.environ.get("OPENAI_API_KEY"):
+                llm = NativeOpenAIModel(model_name=resolved_model, temperature=temperature)
+            else:
+                warnings.warn("langchain_openai not installed and no OPENAI_API_KEY. Falling back to MockLangChainAgentRunner.")
     elif "claude" in resolved_model:
         try:
             from langchain_anthropic import ChatAnthropic
