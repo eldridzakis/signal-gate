@@ -21,6 +21,7 @@ from signalgate.persona_benchmark import (
     format_prewarmed_trajectory_prompt,
     run_prewarmed_frontier_eval,
     run_prewarmed_frontier_benchmark,
+    DailyBudgetExhausted,
 )
 from signalgate.agent_sandbox import generate_benchmark_datasets
 
@@ -214,6 +215,36 @@ class TestPersonaBenchmark(unittest.TestCase):
             )
             self.assertIn("benchmark_df", bench)
             self.assertEqual(len(bench["benchmark_df"]), 2)
+
+            # Test daily budget enforcement: when daily limit is 0 on un-cached run
+            fresh_cache_file = os.path.join(tmpdir, "empty_cache.jsonl")
+            with self.assertRaises(DailyBudgetExhausted):
+                run_prewarmed_frontier_eval(
+                    persona="business_analyst",
+                    dataset_mode="null_honeypot",
+                    nrows=200,
+                    seed=999,
+                    dry_run=False,
+                    use_cache=True,
+                    cache_path=fresh_cache_file,
+                    max_live_calls_remaining=0,
+                )
+
+            # Test multi-day benchmark pausing on budget limit
+            paused_bench = run_prewarmed_frontier_benchmark(
+                personas=("business_analyst", "statistician_signalgate"),
+                dataset_modes=("null_honeypot",),
+                n_seeds=2,
+                nrows=200,
+                dry_run=False,
+                use_cache=True,
+                cache_path=fresh_cache_file,
+                daily_call_limit=0,
+            )
+            self.assertTrue(paused_bench["paused_for_daily_budget"])
+            self.assertEqual(paused_bench["total_completed"], 0)
+            self.assertEqual(paused_bench["total_remaining"], 4)
+            self.assertEqual(paused_bench["total_live_api_calls"], 0)
 
 
 if __name__ == "__main__":

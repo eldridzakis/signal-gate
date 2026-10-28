@@ -10,6 +10,7 @@ import hashlib
 import json
 import os
 import re
+import urllib.request
 import warnings
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
@@ -18,17 +19,28 @@ import pandas as pd
 from scipy import stats
 
 
-def _ensure_google_api_key() -> None:
-    """Lazily hydrates GOOGLE_API_KEY from Windows User registry when running live Gemini models."""
-    if "GOOGLE_API_KEY" not in os.environ:
+def _ensure_api_keys() -> None:
+    """Lazily hydrates API keys (GOOGLE_API_KEY, ANTHROPIC_API_KEY, OPENAI_API_KEY)
+    from Windows User registry when running live frontier models.
+    """
+    keys = ("GOOGLE_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY")
+    missing = [k for k in keys if k not in os.environ]
+    if missing:
         try:
             import winreg
             _key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Environment")
-            _val, _ = winreg.QueryValueEx(_key, "GOOGLE_API_KEY")
-            if _val:
-                os.environ["GOOGLE_API_KEY"] = _val
+            for k in missing:
+                try:
+                    _val, _ = winreg.QueryValueEx(_key, k)
+                    if _val:
+                        os.environ[k] = str(_val)
+                except Exception:
+                    pass
         except Exception:
             pass
+
+
+_ensure_google_api_key = _ensure_api_keys
 
 from .metrics import fast_entropy_from_marginals, rig
 from .threshold import FeatureNoiseThreshold, estimate_effective_tests
@@ -1058,14 +1070,127 @@ def _format_compact_tool_output(res: Any) -> str:
         return str(compacted)
 
 
+class NativeGeminiModel:
+    """Lightweight zero-install Gemini caller using standard library urllib."""
+
+    def __init__(self, model_name: str = "gemini-3.5-flash-lite", temperature: float = 0.0):
+        self.model_name = model_name.replace("models/", "") if "models/" in model_name else model_name
+        self.temperature = temperature
+
+    def invoke(self, messages: Any) -> Any:
+        key = os.environ.get("GOOGLE_API_KEY")
+        if not key:
+            raise ValueError("GOOGLE_API_KEY not found in environment.")
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model_name}:generateContent?key={key}"
+
+        sys_instruction = None
+        contents = []
+        if isinstance(messages, list):
+            for m in messages:
+                c = getattr(m, "content", str(m))
+                t = type(m).__name__
+                if "System" in t:
+                    sys_instruction = {"parts": [{"text": str(c)}]}
+                else:
+                    contents.append({"role": "user", "parts": [{"text": str(c)}]})
+        else:
+            contents.append({"role": "user", "parts": [{"text": str(messages)}]})
+
+        body = {
+            "contents": contents,
+            "generationConfig": {"temperature": self.temperature}
+        }
+        if sys_instruction:
+            body["systemInstruction"] = sys_instruction
+
+        req = urllib.request.Request(
+            url,
+            data=json.dumps(body).encode("utf-8"),
+            headers={"Content-Type": "application/json"}
+        )
+        with urllib.request.urlopen(req) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            candidate = data.get("candidates", [{}])[0]
+            text = candidate.get("content", {}).get("parts", [{}])[0].get("text", "").strip()
+
+        class _SimpleResp:
+            def __init__(self, t: str):
+                self.content = t
+
+        return _SimpleResp(text)
+
+
+class NativeClaudeModel:
+    """Lightweight zero-install Claude caller using Anthropic Messages REST API and standard library urllib."""
+
+    def __init__(self, model_name: str = "claude-3-5-haiku-20241022", temperature: float = 0.0):
+        self.model_name = model_name
+        self.temperature = temperature
+
+    def invoke(self, messages: Any) -> Any:
+        key = os.environ.get("ANTHROPIC_API_KEY")
+        if not key:
+            raise ValueError("ANTHROPIC_API_KEY not found in environment.")
+        url = "https://api.anthropic.com/v1/messages"
+
+        system_instruction = None
+        user_content = []
+        if isinstance(messages, list):
+            for m in messages:
+                c = getattr(m, "content", str(m))
+                t = type(m).__name__
+                if "System" in t:
+                    system_instruction = str(c)
+                else:
+                    user_content.append({"type": "text", "text": str(c)})
+        else:
+            user_content.append({"type": "text", "text": str(messages)})
+
+        body: Dict[str, Any] = {
+            "model": self.model_name,
+            "max_tokens": 1024,
+            "temperature": self.temperature,
+            "messages": [{"role": "user", "content": user_content}],
+        }
+        if system_instruction:
+            body["system"] = system_instruction
+
+        req = urllib.request.Request(
+            url,
+            data=json.dumps(body).encode("utf-8"),
+            headers={
+                "Content-Type": "application/json",
+                "x-api-key": key,
+                "anthropic-version": "2023-06-01",
+            },
+        )
+        with urllib.request.urlopen(req) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            content_blocks = data.get("content", [])
+            text = "".join([b.get("text", "") for b in content_blocks if b.get("type") == "text"]).strip()
+
+        class _SimpleResp:
+            def __init__(self, t: str):
+                self.content = t
+
+        return _SimpleResp(text)
+
+
 def _resolve_llm_model(model_name: str, temperature: float = 0.0) -> Tuple[Any, str]:
-    """Resolves model aliases and initializes the LangChain chat model if installed."""
+    """Resolves model aliases and initializes the LangChain or native chat model."""
     MODEL_ALIASES = {
-        "gemini-1.5-flash": "gemini-3.5-flash",
-        "gemini-1.5-flash-latest": "gemini-3.5-flash",
-        "gemini-2.0-flash": "gemini-3.5-flash",
-        "gemini-2.5-flash": "gemini-3.5-flash",
-        "gemini-2.5-flash-lite": "gemini-3.5-flash",
+        "gemini-1.5-flash": "gemini-3.5-flash-lite",
+        "gemini-1.5-flash-latest": "gemini-3.5-flash-lite",
+        "gemini-2.0-flash": "gemini-3.5-flash-lite",
+        "gemini-2.5-flash": "gemini-3.5-flash-lite",
+        "gemini-2.5-flash-lite": "gemini-3.5-flash-lite",
+        "gemini-3.5-flash": "gemini-3.5-flash-lite",
+        "claude-3-5-sonnet": "claude-3-5-sonnet-20241022",
+        "claude-3.5-sonnet": "claude-3-5-sonnet-20241022",
+        "claude-3-5-haiku": "claude-3-5-haiku-20241022",
+        "claude-3.5-haiku": "claude-3-5-haiku-20241022",
+        "claude-haiku": "claude-3-5-haiku-20241022",
+        "claude-sonnet": "claude-3-5-sonnet-20241022",
     }
     resolved_model = MODEL_ALIASES.get(model_name, model_name)
     llm = None
@@ -1075,7 +1200,11 @@ def _resolve_llm_model(model_name: str, temperature: float = 0.0) -> Tuple[Any, 
             from langchain_google_genai import ChatGoogleGenerativeAI
             llm = ChatGoogleGenerativeAI(model=resolved_model, temperature=temperature)
         except ImportError:
-            warnings.warn("langchain_google_genai not installed. Falling back to MockLangChainAgentRunner.")
+            # Native REST fallback: allows live calls with zero pip installs if GOOGLE_API_KEY is present
+            if os.environ.get("GOOGLE_API_KEY"):
+                llm = NativeGeminiModel(model_name=resolved_model, temperature=temperature)
+            else:
+                warnings.warn("langchain_google_genai not installed and no GOOGLE_API_KEY. Falling back to MockLangChainAgentRunner.")
     elif "gpt" in resolved_model or resolved_model.startswith("o1") or resolved_model.startswith("o3"):
         try:
             from langchain_openai import ChatOpenAI
@@ -1087,7 +1216,11 @@ def _resolve_llm_model(model_name: str, temperature: float = 0.0) -> Tuple[Any, 
             from langchain_anthropic import ChatAnthropic
             llm = ChatAnthropic(model=resolved_model, temperature=temperature)
         except ImportError:
-            warnings.warn("langchain_anthropic not installed. Falling back to MockLangChainAgentRunner.")
+            # Native REST fallback: allows live calls with zero pip installs if ANTHROPIC_API_KEY is present
+            if os.environ.get("ANTHROPIC_API_KEY"):
+                llm = NativeClaudeModel(model_name=resolved_model, temperature=temperature)
+            else:
+                warnings.warn("langchain_anthropic not installed and no ANTHROPIC_API_KEY. Falling back to MockLangChainAgentRunner.")
 
     return llm, resolved_model
 
@@ -1578,12 +1711,17 @@ def format_prewarmed_trajectory_prompt(
     return "\n".join(lines)
 
 
+class DailyBudgetExhausted(RuntimeError):
+    """Raised when the daily live API call quota has been reached during incremental frontier eval."""
+    pass
+
+
 def run_prewarmed_frontier_eval(
     persona: str = "business_analyst",
     sandbox_type: str = "raw_csv",
     tracking_mode: str = "untracked",
     dataset_mode: str = "null_honeypot",
-    model_name: str = "gemini-3.5-flash",
+    model_name: str = "gemini-3.5-flash-lite",
     temperature: float = 0.0,
     nrows: int = 3000,
     minority_frac: float = 0.12,
@@ -1591,13 +1729,16 @@ def run_prewarmed_frontier_eval(
     dry_run: bool = False,
     use_cache: bool = True,
     cache_path: Optional[str] = None,
+    trace_cache: Optional[LLMEvalTraceCache] = None,
+    max_live_calls_remaining: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Evaluates a frontier LLM on a pre-warmed multi-turn trajectory in a single LLM call (90% lower token cost).
 
     Executes the multi-turn exploratory tool calls deterministically in 0 ms, serializes the
     exact turn-by-turn telemetry transcript (with or without SignalGate guardrails), and queries
     the frontier LLM once for its final discovery decision and hypothesis count estimate.
-    Supports persistent JSONL disk caching (`Data/llm_eval_cache.jsonl`) for zero-cost replay.
+    Supports persistent JSONL disk caching (`Data/llm_eval_cache.jsonl`) for zero-cost replay
+    and daily API budget enforcement across multiple days.
     """
     df, _ = generate_benchmark_datasets(mode=dataset_mode, nrows=nrows, minority_frac=minority_frac, seed=seed)
     sandbox = _populate_prewarmed_sandbox(
@@ -1616,7 +1757,9 @@ def run_prewarmed_frontier_eval(
     )
     prompt_transcript = format_prewarmed_trajectory_prompt(sandbox)
 
-    trace_cache = LLMEvalTraceCache(cache_path=cache_path) if use_cache else None
+    if trace_cache is None and use_cache:
+        trace_cache = LLMEvalTraceCache(cache_path=cache_path)
+
     cache_key = (
         trace_cache.compute_key(
             model_name=model_name,
@@ -1632,18 +1775,27 @@ def run_prewarmed_frontier_eval(
     llm_calls_made = 0
     output_text = ""
 
-    # 1. Check persistent disk cache first
+    # 1. Check persistent disk cache first (costs 0 API calls)
     if trace_cache is not None and cache_key is not None:
         cached_entry = trace_cache.get(cache_key)
         if cached_entry is not None:
-            output_text = cached_entry["output"]
-            cache_hit = True
+            # Prevent mock dry-run traces from masquerading as real frontier LLM outputs
+            if dry_run or not cached_entry.get("dry_run", False):
+                output_text = cached_entry["output"]
+                cache_hit = True
 
-    # 2. Execute single-turn synthesis (mock or live LLM) if not in cache
+    # 2. Check daily budget ceiling before invoking un-cached live frontier LLM
+    if not cache_hit and not dry_run:
+        if max_live_calls_remaining is not None and max_live_calls_remaining <= 0:
+            raise DailyBudgetExhausted(
+                f"Daily live API quota limit reached. Pausing eval before {persona}/{dataset_mode}/seed={seed}."
+            )
+
+    # 3. Execute single-turn synthesis (mock or live LLM) if not in cache
     if not cache_hit:
         if dry_run:
             output_text = _synthesize_persona_mock_report(sandbox, persona, model_name)
-            if trace_cache is not None and cache_key is not None and cache_path is not None:
+            if trace_cache is not None and cache_key is not None:
                 trace_cache.put(cache_key, {
                     "model_name": model_name,
                     "persona": persona,
@@ -1728,7 +1880,7 @@ def run_prewarmed_frontier_eval(
 
 
 def run_prewarmed_frontier_benchmark(
-    model_name: str = "gemini-3.5-flash",
+    model_name: str = "gemini-3.5-flash-lite",
     personas: Sequence[str] = ("business_analyst", "statistician_unassisted", "statistician_signalgate"),
     dataset_modes: Sequence[str] = ("null_honeypot", "needle_in_haystack"),
     sandbox_type: str = "raw_csv",
@@ -1740,48 +1892,95 @@ def run_prewarmed_frontier_benchmark(
     dry_run: bool = False,
     use_cache: bool = True,
     cache_path: Optional[str] = None,
+    daily_call_limit: Optional[int] = 12,
 ) -> Dict[str, Any]:
-    """Runs a multi-seed pre-warmed frontier benchmark across personas and dataset modes."""
+    """Runs a multi-seed pre-warmed frontier benchmark across personas and dataset modes.
+
+    Enforces `daily_call_limit` so runs can be scheduled or executed incrementally across multiple
+    days without exceeding strict daily API quotas (e.g. Gemini 15 calls/day free tier).
+    Cached traces are replayed at zero token cost and do not count against `daily_call_limit`.
+    """
     seeds = [base_seed + i * 17 for i in range(n_seeds)]
+    trace_cache = LLMEvalTraceCache(cache_path=cache_path) if use_cache else None
+
     all_runs: List[Dict[str, Any]] = []
-    summary_rows: List[Dict[str, Any]] = []
+    total_live_api_calls = 0
+    paused_for_daily_budget = False
+    pause_reason: Optional[str] = None
+
+    total_planned = len(personas) * len(dataset_modes) * len(seeds)
 
     for p in personas:
+        if paused_for_daily_budget:
+            break
         for dmode in dataset_modes:
-            cell_runs = [
-                run_prewarmed_frontier_eval(
-                    persona=p,
-                    sandbox_type=sandbox_type,
-                    tracking_mode=tracking_mode,
-                    dataset_mode=dmode,
-                    model_name=model_name,
-                    nrows=nrows,
-                    minority_frac=minority_frac,
-                    seed=s,
-                    dry_run=dry_run,
-                    use_cache=use_cache,
-                    cache_path=cache_path,
+            if paused_for_daily_budget:
+                break
+            for s in seeds:
+                calls_remaining = (
+                    (daily_call_limit - total_live_api_calls)
+                    if daily_call_limit is not None
+                    else None
                 )
-                for s in seeds
-            ]
-            all_runs.extend(cell_runs)
-            summary_rows.append({
-                "Model": model_name,
-                "Persona": p,
-                "Dataset Mode": dmode,
-                "False Discovery Rate (%)": float(np.mean([r["false_discovery_rate"] for r in cell_runs]) * 100.0),
-                "Needle Recall (%)": float(np.mean([r["recall"] for r in cell_runs]) * 100.0),
-                "Precision (%)": float(np.mean([r["precision"] for r in cell_runs]) * 100.0),
-                "Directive Compliance (%)": float(np.mean([r["directive_compliance_rate"] for r in cell_runs]) * 100.0),
-                "Under-Reporting Ratio": float(np.mean([r["under_reporting_ratio"] for r in cell_runs])),
-                "Cache Hits": int(sum(1 for r in cell_runs if r["cache_hit"])),
-                "Live API Calls": int(sum(r["llm_calls_made"] for r in cell_runs)),
-            })
+                try:
+                    run_result = run_prewarmed_frontier_eval(
+                        persona=p,
+                        sandbox_type=sandbox_type,
+                        tracking_mode=tracking_mode,
+                        dataset_mode=dmode,
+                        model_name=model_name,
+                        nrows=nrows,
+                        minority_frac=minority_frac,
+                        seed=s,
+                        dry_run=dry_run,
+                        use_cache=use_cache,
+                        cache_path=cache_path,
+                        trace_cache=trace_cache,
+                        max_live_calls_remaining=calls_remaining,
+                    )
+                    all_runs.append(run_result)
+                    if run_result.get("llm_calls_made", 0) > 0:
+                        total_live_api_calls += run_result["llm_calls_made"]
+                except DailyBudgetExhausted as budget_err:
+                    paused_for_daily_budget = True
+                    pause_reason = str(budget_err)
+                    break
+
+    # Aggregate completed runs by Persona and Dataset Mode
+    grouped: Dict[Tuple[str, str], List[Dict[str, Any]]] = {}
+    for r in all_runs:
+        key = (r["persona"], r["dataset_mode"])
+        grouped.setdefault(key, []).append(r)
+
+    summary_rows: List[Dict[str, Any]] = []
+    for (p, dmode), cell_runs in grouped.items():
+        summary_rows.append({
+            "Model": model_name,
+            "Persona": p,
+            "Dataset Mode": dmode,
+            "Completed Seeds": len(cell_runs),
+            "False Discovery Rate (%)": float(np.mean([r["false_discovery_rate"] for r in cell_runs]) * 100.0),
+            "Needle Recall (%)": float(np.mean([r["recall"] for r in cell_runs]) * 100.0),
+            "Precision (%)": float(np.mean([r["precision"] for r in cell_runs]) * 100.0),
+            "Directive Compliance (%)": float(np.mean([r["directive_compliance_rate"] for r in cell_runs]) * 100.0),
+            "Under-Reporting Ratio": float(np.mean([r["under_reporting_ratio"] for r in cell_runs])),
+            "Cache Hits": int(sum(1 for r in cell_runs if r["cache_hit"])),
+            "Live API Calls": int(sum(r["llm_calls_made"] for r in cell_runs)),
+        })
+
+    total_cache_hits = int(sum(1 for r in all_runs if r.get("cache_hit", False)))
+    total_completed = len(all_runs)
+    total_remaining = total_planned - total_completed
 
     return {
-        "benchmark_df": pd.DataFrame(summary_rows),
-        "total_runs": len(all_runs),
-        "total_cache_hits": int(sum(1 for r in all_runs if r["cache_hit"])),
-        "total_live_api_calls": int(sum(r["llm_calls_made"] for r in all_runs)),
+        "benchmark_df": pd.DataFrame(summary_rows) if summary_rows else pd.DataFrame(),
+        "total_planned": total_planned,
+        "total_completed": total_completed,
+        "total_remaining": total_remaining,
+        "total_cache_hits": total_cache_hits,
+        "total_live_api_calls": total_live_api_calls,
+        "paused_for_daily_budget": paused_for_daily_budget,
+        "pause_reason": pause_reason,
+        "daily_call_limit": daily_call_limit,
         "all_runs": all_runs,
     }
