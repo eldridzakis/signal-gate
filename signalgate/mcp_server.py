@@ -10,7 +10,12 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 import numpy as np
 import pandas as pd
 
-from .metrics import fast_entropy_from_marginals, fast_mutual_info_from_contingency, rig
+from .metrics import (
+    fast_entropy_from_marginals,
+    fast_mutual_info_from_contingency,
+    rig,
+    anova_rig_from_group_stats,
+)
 from .threshold import FeatureNoiseThreshold, estimate_effective_tests
 from .debias import FeatureDebiaser
 
@@ -233,8 +238,11 @@ class NoiseGateSessionLedger:
         effective_M: Optional[float] = None,
         feature_values: Optional[Sequence[float]] = None,
         candidate_df: Optional[Union[pd.DataFrame, np.ndarray]] = None,
+        group_counts: Optional[Sequence[Union[int, float]]] = None,
+        group_means: Optional[Sequence[float]] = None,
+        group_stds: Optional[Sequence[float]] = None,
     ) -> Dict[str, Any]:
-        """Evaluates whether an observed RIG or R x C slice clears statistical noise gates.
+        """Evaluates whether an observed RIG, R x C slice, or continuous SQL group aggregation clears statistical noise gates.
 
         Parameters
         ----------
@@ -274,11 +282,37 @@ class NoiseGateSessionLedger:
             Evaluated feature vector to log in the session store for Frobenius M_eff calculation.
         candidate_df : pd.DataFrame or np.ndarray, optional
             Batch matrix of evaluated candidate features for Frobenius M_eff calculation.
+        group_counts : sequence of int or float, optional
+            SQL COUNT(*) per group for continuous metric ANOVA evaluation.
+        group_means : sequence of float, optional
+            SQL AVG(y) per group for continuous metric ANOVA evaluation.
+        group_stds : sequence of float, optional
+            SQL STDDEV(y) per group for continuous metric ANOVA evaluation.
         """
         session = self.get_or_create_session(session_id=session_id)
 
         small_cell_warning = False
         e11 = None
+        anova_details = None
+
+        # 0. Parse continuous SQL group statistics if provided
+        if group_counts is not None and group_means is not None:
+            stds = group_stds if group_stds is not None else [0.0] * len(group_counts)
+            anova_res = anova_rig_from_group_stats(counts=group_counts, means=group_means, stds=stds)
+            anova_details = anova_res
+            if observed_rig is None:
+                observed_rig = anova_res["observed_rig"]
+            if nrows is None:
+                nrows = anova_res["total_nrows"]
+            if n_feature_categories == 2:
+                n_feature_categories = len(group_counts)
+            if df is None:
+                df = anova_res["df_between"]
+            if target_distribution is None and minority_frac is None:
+                minority_frac = 0.5
+            if anova_res["min_cell_count"] < 20:
+                small_cell_warning = True
+            e11 = float(anova_res["min_cell_count"])
 
         # 1. Parse contingency counts if provided
         if contingency_counts is not None:
@@ -453,10 +487,66 @@ class NoiseGateSessionLedger:
             "slice_description": slice_description,
             "agent_directive": agent_directive,
             "session_id": session_id,
+            "anova_details": anova_details,
         }
 
         session.history.append(result)
         return result
+
+    def evaluate_continuous_group_aggregation(
+        self,
+        group_counts: Sequence[Union[int, float]],
+        group_means: Sequence[float],
+        group_stds: Optional[Sequence[float]] = None,
+        hypotheses_in_batch: int = 1,
+        alpha: float = 0.05,
+        session_id: str = "default",
+        feature_name: Optional[str] = None,
+        slice_description: Optional[str] = None,
+        effective_M: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        """Evaluates whether an observed continuous group aggregation (e.g., from SQL GROUP BY)
+        statistically clears dynamic multi-testing noise gates.
+
+        Uses the exact Gaussian/ANOVA information identity:
+            SS_between = sum(n_r * (mean_r - grand_mean)^2)
+            SS_within  = sum((n_r - 1) * std_r^2)
+            eta^2 = SS_between / SS_total
+            I(X; Y) = -0.5 * log2(1 - eta^2)
+            Deviance = -N * ln(1 - eta^2) ~ Chi2_{R-1}
+
+        Parameters
+        ----------
+        group_counts : Sequence of int or float
+            SQL COUNT(*) per group.
+        group_means : Sequence of float
+            SQL AVG(y) per group.
+        group_stds : Sequence of float, optional
+            SQL STDDEV(y) per group.
+        hypotheses_in_batch : int, default 1
+            Hypotheses evaluated in this step.
+        alpha : float, default 0.05
+            Significance level.
+        session_id : str, default 'default'
+            Session tracking identifier.
+        feature_name : str, optional
+            Group column or expression.
+        slice_description : str, optional
+            SQL WHERE filter or slice predicate.
+        effective_M : float, optional
+            Optional collinearity-adjusted effective tests M_eff.
+        """
+        return self.evaluate_feature_or_slice(
+            group_counts=group_counts,
+            group_means=group_means,
+            group_stds=group_stds,
+            hypotheses_in_batch=hypotheses_in_batch,
+            alpha=alpha,
+            session_id=session_id,
+            feature_name=feature_name,
+            slice_description=slice_description,
+            effective_M=effective_M,
+        )
 
     def audit_dataframe(
         self,

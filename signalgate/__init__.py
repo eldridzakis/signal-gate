@@ -10,6 +10,8 @@ from .metrics import (
     rig_all_columns,
     fast_contingency_matrix,
     fast_mutual_info_from_contingency,
+    anova_rig_from_group_stats,
+    fast_continuous_rig,
 )
 from .threshold import (
     FeatureNoiseThreshold,
@@ -89,6 +91,8 @@ __all__ = [
     "rig_all_columns",
     "fast_contingency_matrix",
     "fast_mutual_info_from_contingency",
+    "anova_rig_from_group_stats",
+    "fast_continuous_rig",
     "FeatureNoiseThreshold",
     "SignalNoiseThreshold",
     "estimate_noise_threshold",
