@@ -2,7 +2,7 @@
 
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Tests](https://img.shields.io/badge/tests-48%20passed-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/tests-47%20passed-brightgreen.svg)]()
 [![MCP Server](https://img.shields.io/badge/MCP-Protocol%20Ready-purple.svg)](https://modelcontextprotocol.io)
 
 > **Stateful statistical guardrails and Model Context Protocol (MCP) server for autonomous LLM data agents, Text-to-SQL, and AutoML. Quantifying the Winner's Curse, estimating closed-form noise ceilings, and filtering out spurious insights.**
@@ -247,14 +247,12 @@ signal-gate/
 │   ├── agent_tools.py            # OpenAI/Anthropic tool schemas & callable dispatchers
 │   ├── agent_sandbox.py          # Synthetic benchmarks & agent simulation telemetry
 │   └── persona_benchmark.py      # LLM personas, Hawthorne self-tracking, & live LLM evals
-├── feature_noise_gate/           # Backward-compatibility alias
-├── sampling_toolbox/             # Backward-compatibility alias
 ├── notebooks/                    # Self-contained walkthroughs
 │   ├── 01_feature_noise_thresholds.ipynb
 │   ├── 02_selection_bias_and_debiasing.ipynb
 │   ├── 03_agent_phacking_benchmark.ipynb
 │   └── 04_llm_persona_and_modality_benchmark.ipynb
-├── tests/                        # Automated unit tests (46 test suites)
+├── tests/                        # Automated unit tests (47 test suites)
 │   ├── test_metrics.py
 │   ├── test_threshold.py
 │   ├── test_effective_tests.py
@@ -265,7 +263,6 @@ signal-gate/
 │   ├── test_multiclass.py
 │   └── test_persona_benchmark.py
 ├── Data/                         # Benchmark datasets (King County, Lending Club)
-├── integrations/                 # Connectors for MCP server & AutoML log parsing
 ├── archive/                      # Historical notebooks preserved for reference
 ├── pyproject.toml                # Modern package configuration (with CLI scripts)
 └── README.md

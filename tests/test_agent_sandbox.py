@@ -10,8 +10,6 @@ from signalgate.agent_sandbox import (
     InstrumentedAgentSandbox,
     run_exploratory_agent_simulation,
 )
-import feature_noise_gate.agent_sandbox as fng_sandbox
-import sampling_toolbox.agent_sandbox as stb_sandbox
 
 
 class TestAgentSandbox(unittest.TestCase):
@@ -133,13 +131,6 @@ class TestAgentSandbox(unittest.TestCase):
         # On pure noise, SignalGate must not verify any feature as VERIFIED_SIGNAL
         verified_count = (telemetry["verdict"] == "VERIFIED_SIGNAL").sum()
         self.assertEqual(verified_count, 0)
-
-    def test_backward_compatibility_imports(self):
-        """Verifies that the sandbox classes can be imported from feature_noise_gate and sampling_toolbox."""
-        self.assertTrue(hasattr(fng_sandbox, "InstrumentedAgentSandbox"))
-        self.assertTrue(hasattr(fng_sandbox, "generate_benchmark_datasets"))
-        self.assertTrue(hasattr(stb_sandbox, "InstrumentedAgentSandbox"))
-        self.assertTrue(hasattr(stb_sandbox, "generate_benchmark_datasets"))
 
 
 if __name__ == "__main__":

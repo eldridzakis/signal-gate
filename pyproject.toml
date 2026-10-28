@@ -61,7 +61,6 @@ dev = [
 
 [project.scripts]
 signalgate-mcp = "signalgate.mcp_server:main"
-feature-noise-gate-mcp = "signalgate.mcp_server:main"
 
 [tool.setuptools.packages.find]
-include = ["signalgate*", "feature_noise_gate*", "sampling_toolbox*", "integrations*"]
+include = ["signalgate*"]
