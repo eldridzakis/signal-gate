@@ -17,7 +17,7 @@ Automated Machine Learning (AutoML) engines and autonomous LLM data agents (e.g.
 
 Selecting features or reporting insights that maximize sample metrics introduces **selection bias (The Winner's Curse)**:
 1. **Spurious Discoveries Pass as Genuine:** Random noise slices and features inevitably achieve high sample metric scores purely by chance.
-2. **Optimistic Overestimation:** Genuine features exhibit inflated scores on training data compared to test and production data ($`\text{Bias} = \text{Metric}_{\text{train}} - \text{Metric}_{\text{unseen}} > 0`$).
+2. **Optimistic Overestimation:** Genuine features exhibit inflated scores on training data compared to test and production data ($\text{Bias} = \text{Metric}_{\text{train}} - \text{Metric}_{\text{unseen}} > 0$).
 3. **Compounded by Large Search Budgets:** As the search space ($M$) expands, the noise floor and overestimation bias increase systematically.
 4. **Agentic $p$-Hacking:** High-velocity autonomous agents that iteratively hypothesize, slice, and test patterns without stateful tracking quickly flood downstream models with multiple-testing artifacts.
 
@@ -39,7 +39,7 @@ For arbitrary $R$-category features ($R \ge 2$) and $C$-class targets ($C \ge 2$
 $$H(Y) = -\sum_{c=1}^{C} p_c \log_2(p_c) \in (0, \log_2 C] \text{ bits}$$
 
 Under the null hypothesis $H_0$ that candidate feature $X$ and target $Y$ are independent, Wilks' Theorem establishes that the deviance statistic asymptotically follows a Chi-squared distribution with $k = df = (R - 1)(C - 1)$ degrees of freedom:
-$$2 N \ln(2) \cdot I(X; Y) \xrightarrow{d} \chi^2_k$$
+$$2 N \ln(2) \cdot I(X; Y) \sim \chi^2_k \quad (H_0)$$
 which reduces identically to $df = (2-1)(2-1) = 1$ for boolean features and binary targets.
 
 Dividing by the target prior entropy $H(Y)$ gives the asymptotic distribution of null RIG:
@@ -77,10 +77,10 @@ When candidate features are collinear (e.g., interaction grids sharing parent co
 SignalGate estimates the **Effective Number of Independent Hypotheses ($M_{\text{eff}} \le M_{\text{raw}}$)** in milliseconds using the Cheverud–Nyholt / Li–Ji eigenvalue variance scaling:
 $$\text{Var}(\lambda) = \frac{\sum_{i=1}^M \lambda_i^2 - M}{M}, \quad M_{\text{eff}} = 1 + (M - 1)\left(1 - \frac{\text{Var}(\lambda)}{M}\right)$$
 
-Rather than computing an expensive $\mathcal{O}(M^3)$ eigendecomposition, SignalGate evaluates the sum of squared eigenvalues via the Frobenius norm trace identity:
+Rather than computing an expensive $O(M^3)$ eigendecomposition, SignalGate evaluates the sum of squared eigenvalues via the Frobenius norm trace identity:
 $$\sum_{i=1}^M \lambda_i^2 = \text{Tr}(\mathbf{R}^2) = \|\mathbf{R}\|_F^2$$
-* **Primal Formulation ($M \le N$):** Computes sample correlation matrix $\mathbf{R} = \mathbf{Z}^T \mathbf{Z}$ ($M \times M$) in $\mathcal{O}(M^2 N)$.
-* **Dual Gram Trick ($M > N$):** Computes $\mathbf{G}_{\text{dual}} = \mathbf{Z} \mathbf{Z}^T$ ($N \times N$), which possesses the identical non-zero eigenvalues and computes in $\mathcal{O}(N^2 M)$ time!
+* **Primal Formulation ($M \le N$):** Computes sample correlation matrix $\mathbf{R} = \mathbf{Z}^T \mathbf{Z}$ ($M \times M$) in $O(M^2 N)$.
+* **Dual Gram Trick ($M > N$):** Computes $\mathbf{G}_{\text{dual}} = \mathbf{Z} \mathbf{Z}^T$ ($N \times N$), which possesses the identical non-zero eigenvalues and computes in $O(N^2 M)$ time!
 
 ### 4. Closed-Form Continuous Metric Gate (`ANOVA F -> RIG`) for SQL `GROUP BY` Queries
 For continuous business targets (e.g., revenue, house prices, latency) where SQL `GROUP BY` queries return only sufficient statistics `COUNT(*)`, `AVG(y)`, and `STDDEV(y)` across $K$ groups $\{ (n_g, \bar{y}_g, s_g) \}_{g=1}^K$, SignalGate avoids arbitrary target binning by using the exact Gaussian / one-way ANOVA mutual information identity:

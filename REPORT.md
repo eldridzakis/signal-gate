@@ -24,11 +24,11 @@ Why do rule-of-thumb lift thresholds ("promote any segment with $\text{RIG} > 2\
 
 By Wilks' Theorem, under the null hypothesis of independence $H_0: X \perp Y$, the sample mutual information $\hat{I}(X; Y)$ (in bits) between a $K$-category feature $X$ and a $C$-class target $Y$ over $N$ rows scales asymptotically as a scaled Chi-square random variable with $k = (K-1)(C-1)$ degrees of freedom:
 
-$$\hat{I}(X; Y) \xrightarrow{d} \frac{\chi^2_k}{2 N \ln 2}, \qquad \text{RIG}(X \mid Y) = \frac{\hat{I}(X; Y)}{H(Y)} \xrightarrow{d} \frac{\chi^2_k}{2 N \ln(2) \, H(Y)}$$
+$$\hat{I}(X; Y) \sim \frac{\chi^2_k}{2 N \ln 2}, \qquad \text{RIG}(X \mid Y) = \frac{\hat{I}(X; Y)}{H(Y)} \sim \frac{\chi^2_k}{2 N \ln(2) \, H(Y)}$$
 
-Consequently, the expected noise floor scales inversely with sample size ($\mathcal{O}(k / N)$) and grows logarithmically with the cumulative number of evaluated hypotheses $M$ via the Gumbel Extreme Value Theory (EVT) maximum:
+Consequently, the expected noise floor scales inversely with sample size ($O(k / N)$) and grows logarithmically with the cumulative number of evaluated hypotheses $M$ via the Gumbel Extreme Value Theory (EVT) maximum:
 
-$$\tau_{\text{EVT}}(N, k, M) = \frac{F^{-1}_{\chi^2_k}\!\left(1 - \frac{1}{M}\right)}{2 N \ln(2) \, H(Y)}, \qquad \tau_{\text{sig}}(N, k, M_{\text{eff}}, \alpha) = \frac{F^{-1}_{\chi^2_k}\!\left((1 - \alpha)^{1/M_{\text{eff}}}\right)}{2 N \ln(2) \, H(Y)}$$
+$$\tau_{\text{EVT}}(N, k, M) = \frac{F^{-1}_{\chi^2_k}\left(1 - \frac{1}{M}\right)}{2 N \ln(2) \, H(Y)}, \qquad \tau_{\text{sig}}(N, k, M_{\text{eff}}, \alpha) = \frac{F^{-1}_{\chi^2_k}\left((1 - \alpha)^{1/M_{\text{eff}}}\right)}{2 N \ln(2) \, H(Y)}$$
 
 ![Figure 1: Asymptotic Scaling Laws of Spurious RIG](notebooks/figures/fig1_scaling_laws.png)
 
@@ -121,7 +121,7 @@ $$SS_{\text{between}} = \sum_{g=1}^K n_g (\bar{y}_g - \bar{y}_{\text{grand}})^2,
 
 $$I_{\text{ANOVA}}(X; Y) = -\frac{1}{2} \log_2(1 - \eta^2) \text{ bits}, \qquad \text{RIG}_{\text{ANOVA}} = -\frac{1}{2} \log_2(1 - \eta^2)$$
 
-Because $F = \frac{SS_{\text{between}} / (K - 1)}{SS_{\text{within}} / (N - K)}$ satisfies $(K - 1) F \xrightarrow{d} \chi^2_{K-1}$ under $H_0$, $\text{RIG}_{\text{ANOVA}}$ obeys the **exact same asymptotic $\chi^2_{K-1} / (2 N \ln 2)$ scaling law** as discrete mutual information with unit reference entropy $H_{\text{ref}} = 1.0\text{ bit}$. This enables [`NoiseGateSessionLedger.evaluate_continuous_group_aggregation()`](file:///c:/Users/eldri/Code/sampling_toolbox/signalgate/ledger.py) to gate any continuous SQL `GROUP BY` query without accessing raw rows!
+Because $F = \frac{SS_{\text{between}} / (K - 1)}{SS_{\text{within}} / (N - K)}$ satisfies $(K - 1) F \sim \chi^2_{K-1}$ under $H_0$, $\text{RIG}_{\text{ANOVA}}$ obeys the **exact same asymptotic $\chi^2_{K-1} / (2 N \ln 2)$ scaling law** as discrete mutual information with unit reference entropy $H_{\text{ref}} = 1.0\text{ bit}$. This enables [`NoiseGateSessionLedger.evaluate_continuous_group_aggregation()`](file:///c:/Users/eldri/Code/sampling_toolbox/signalgate/ledger.py) to gate any continuous SQL `GROUP BY` query without accessing raw rows!
 
 ![Figure 7: Local SQLite Warehouse + Semantic Layer + Closed-Form Continuous ANOVA Gate](notebooks/figures/fig7_sql_semantic_layer_benchmark.png)
 
