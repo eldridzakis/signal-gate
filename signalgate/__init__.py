@@ -65,6 +65,17 @@ from .automl_utils import (
     get_binned_target,
     clean_enriched_data,
 )
+from .real_world_benchmark import (
+    load_real_world_benchmark_dataset,
+    RealWorldAgentSandbox,
+    populate_real_world_agent_trajectory,
+    evaluate_real_world_holdout_replication,
+    run_real_world_frontier_eval,
+)
+from .agentune_benchmark import (
+    AgentuneFeatureSynthesizer,
+    run_agentune_overfitting_benchmark,
+)
 
 # Convenient top-level aliases
 SignalGateSessionLedger = NoiseGateSessionLedger
@@ -119,4 +130,11 @@ __all__ = [
     "get_regression_bins",
     "get_binned_target",
     "clean_enriched_data",
+    "load_real_world_benchmark_dataset",
+    "RealWorldAgentSandbox",
+    "populate_real_world_agent_trajectory",
+    "evaluate_real_world_holdout_replication",
+    "run_real_world_frontier_eval",
+    "AgentuneFeatureSynthesizer",
+    "run_agentune_overfitting_benchmark",
 ]
