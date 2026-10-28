@@ -1087,6 +1087,14 @@ class NativeGeminiModel:
         contents = []
         if isinstance(messages, list):
             for m in messages:
+                if isinstance(m, dict):
+                    role = m.get("role", "")
+                    content = m.get("content", "")
+                    if role == "system":
+                        sys_instruction = {"parts": [{"text": str(content)}]}
+                    else:
+                        contents.append({"role": "user", "parts": [{"text": str(content)}]})
+                    continue
                 c = getattr(m, "content", str(m))
                 t = type(m).__name__
                 if "System" in t:
@@ -1137,6 +1145,14 @@ class NativeClaudeModel:
         user_content = []
         if isinstance(messages, list):
             for m in messages:
+                if isinstance(m, dict):
+                    role = m.get("role", "")
+                    content = m.get("content", "")
+                    if role == "system":
+                        system_instruction = str(content)
+                    else:
+                        user_content.append({"type": "text", "text": str(content)})
+                    continue
                 c = getattr(m, "content", str(m))
                 t = type(m).__name__
                 if "System" in t:
@@ -1149,9 +1165,11 @@ class NativeClaudeModel:
         body: Dict[str, Any] = {
             "model": self.model_name,
             "max_tokens": 1024,
-            "temperature": self.temperature,
             "messages": [{"role": "user", "content": user_content}],
         }
+        # In modern Claude 5.x/reasoning models, temperature is deprecated
+        if self.temperature is not None and self.temperature > 0.0 and "5" not in self.model_name:
+            body["temperature"] = self.temperature
         if system_instruction:
             body["system"] = system_instruction
 
@@ -1164,10 +1182,14 @@ class NativeClaudeModel:
                 "anthropic-version": "2023-06-01",
             },
         )
-        with urllib.request.urlopen(req) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-            content_blocks = data.get("content", [])
-            text = "".join([b.get("text", "") for b in content_blocks if b.get("type") == "text"]).strip()
+        try:
+            with urllib.request.urlopen(req) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                content_blocks = data.get("content", [])
+                text = "".join([b.get("text", "") for b in content_blocks if b.get("type") == "text"]).strip()
+        except urllib.error.HTTPError as http_err:
+            error_body = http_err.read().decode("utf-8")
+            raise RuntimeError(f"Anthropic API Error {http_err.code}: {error_body}")
 
         class _SimpleResp:
             def __init__(self, t: str):
@@ -1216,10 +1238,14 @@ class NativeOpenAIModel:
                 "Authorization": f"Bearer {key}",
             },
         )
-        with urllib.request.urlopen(req) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-            choices = data.get("choices", [{}])
-            text = choices[0].get("message", {}).get("content", "").strip()
+        try:
+            with urllib.request.urlopen(req) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                choices = data.get("choices", [{}])
+                text = choices[0].get("message", {}).get("content", "").strip()
+        except urllib.error.HTTPError as http_err:
+            error_body = http_err.read().decode("utf-8")
+            raise RuntimeError(f"OpenAI API Error {http_err.code}: {error_body}")
 
         class _SimpleResp:
             def __init__(self, t: str):
@@ -1895,19 +1921,33 @@ def run_prewarmed_frontier_eval(
                 output_text = _synthesize_persona_mock_report(sandbox, persona, model_name)
             else:
                 try:
-                    from langchain_core.messages import SystemMessage, HumanMessage
-                    response = llm.invoke([
-                        SystemMessage(content=system_prompt),
-                        HumanMessage(content=prompt_transcript),
-                    ])
+                    # Prefer LangChain message objects if langchain_core is installed
+                    try:
+                        from langchain_core.messages import SystemMessage, HumanMessage
+                        msgs_payload = [
+                            SystemMessage(content=system_prompt),
+                            HumanMessage(content=prompt_transcript),
+                        ]
+                    except ImportError:
+                        msgs_payload = [
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": prompt_transcript},
+                        ]
+
+                    response = llm.invoke(msgs_payload)
                     llm_calls_made = 1
-                    if isinstance(response.content, str):
-                        output_text = response.content
-                    elif isinstance(response.content, list):
-                        parts = [p["text"] for p in response.content if isinstance(p, dict) and "text" in p]
-                        output_text = "\n".join(parts) if parts else str(response.content)
+                    if hasattr(response, "content"):
+                        raw_c = response.content
                     else:
-                        output_text = str(response.content)
+                        raw_c = response
+
+                    if isinstance(raw_c, str):
+                        output_text = raw_c
+                    elif isinstance(raw_c, list):
+                        parts = [p["text"] for p in raw_c if isinstance(p, dict) and "text" in p]
+                        output_text = "\n".join(parts) if parts else str(raw_c)
+                    else:
+                        output_text = str(raw_c)
 
                     if trace_cache is not None and cache_key is not None:
                         trace_cache.put(cache_key, {
