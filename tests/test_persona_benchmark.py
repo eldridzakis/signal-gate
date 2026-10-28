@@ -13,6 +13,8 @@ from signalgate.persona_benchmark import (
     simulate_persona_run,
     run_persona_modality_benchmark,
     build_langchain_agent_runner,
+    parse_agent_discovery_report,
+    evaluate_agent_run_metrics,
 )
 from signalgate.agent_sandbox import generate_benchmark_datasets
 
@@ -117,13 +119,46 @@ class TestPersonaBenchmark(unittest.TestCase):
         self.assertEqual(len(summary["modality_df"]), 2)   # 2 modalities
 
     def test_langchain_agent_runner_fallback(self):
-        """Test 6: Verify build_langchain_agent_runner dry-run fallback."""
+        """Test 6: Verify build_langchain_agent_runner dry-run fallback and structured evaluation."""
         sb = RawCSVSandbox(self.df_null, session_id="test_runner")
         runner = build_langchain_agent_runner(sb, persona="business_analyst", dry_run=True)
         res = runner.invoke({"input": "Find top fraud drivers"})
         self.assertIn("output", res)
         self.assertEqual(res["persona"], "business_analyst")
         self.assertGreater(res["sandbox_true_M_raw"], 0)
+        self.assertIn("evaluation", res)
+        self.assertIn("directive_compliance_rate", res)
+        self.assertEqual(res["false_discovery_rate"], 1.0)
+        self.assertEqual(res["directive_compliance_rate"], 0.0)
+
+        # SignalGate persona must achieve 100% directive compliance and 0% FDR on null honeypot
+        sb_sg = RawCSVSandbox(self.df_null, guardrail_enabled=True, session_id="test_runner_sg")
+        runner_sg = build_langchain_agent_runner(sb_sg, persona="statistician_signalgate", dry_run=True)
+        res_sg = runner_sg.invoke({"input": "Find top fraud drivers"})
+        self.assertEqual(res_sg["false_discovery_rate"], 0.0)
+        self.assertEqual(res_sg["directive_compliance_rate"], 1.0)
+        self.assertEqual(len(res_sg["reported_discoveries"]), 0)
+
+    def test_parse_and_evaluate_agent_run_metrics(self):
+        """Test 7: Verify structured JSON and natural language parsing of LLM discovery reports."""
+        sb = RawCSVSandbox(self.df_needle, guardrail_enabled=True, session_id="test_parse")
+        sb.scan_feature_batch(["verified_velocity_spike", "is_international_ip", "weekend_tx_flag"])
+
+        llm_json_reply = (
+            "After testing the features, only verified_velocity_spike cleared the gate.\n"
+            '```json\n{"reported_discoveries": ["verified_velocity_spike"], "self_reported_M": 1, "no_genuine_signal": false}\n```'
+        )
+        metrics = evaluate_agent_run_metrics(
+            output_text=llm_json_reply,
+            sandbox=sb,
+            persona="statistician_signalgate",
+            dataset_mode="needle_in_haystack"
+        )
+        self.assertEqual(metrics["reported_discoveries"], ["verified_velocity_spike"])
+        self.assertEqual(metrics["true_discoveries"], 1)
+        self.assertEqual(metrics["false_discoveries"], 0)
+        self.assertEqual(metrics["false_discovery_rate"], 0.0)
+        self.assertEqual(metrics["under_reporting_ratio"], 3.0)
 
 
 if __name__ == "__main__":

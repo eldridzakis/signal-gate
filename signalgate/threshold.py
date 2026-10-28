@@ -345,7 +345,7 @@ def estimate_effective_tests(
     # Standardize non-constant columns to zero mean and unit L2 norm in-place
     means = np.mean(arr, axis=0)
     arr -= means
-    norms = np.linalg.norm(arr, axis=0)
+    norms = np.sqrt(np.einsum("ij,ij->j", arr, arr))
     valid_cols = norms > 1e-12
     n_valid = int(np.sum(valid_cols))
 
@@ -357,15 +357,19 @@ def estimate_effective_tests(
             "mean_abs_correlation": 0.0
         }
 
-    z = arr[:, valid_cols]
-    z /= norms[valid_cols]
+    if n_valid == m_raw:
+        z = arr
+        z /= norms
+    else:
+        z = arr[:, valid_cols]
+        z /= norms[valid_cols]
     m_valid = n_valid
 
     # Frobenius-norm trace identity: Tr(R^2) = ||R||_F^2
     if m_valid <= n_samples:
         # Primal: M x M
         gram = z.T @ z
-        sum_lambda_sq = float(np.sum(gram * gram))
+        sum_lambda_sq = float(np.einsum("ij,ij->", gram, gram))
         if m_valid <= max_m_corr:
             abs_gram = np.abs(gram)
             mean_abs_corr = float((np.sum(abs_gram) - m_valid) / (m_valid * (m_valid - 1)))
@@ -374,7 +378,7 @@ def estimate_effective_tests(
     else:
         # Dual trick: N x N
         gram_dual = z @ z.T
-        sum_lambda_sq = float(np.sum(gram_dual * gram_dual))
+        sum_lambda_sq = float(np.einsum("ij,ij->", gram_dual, gram_dual))
         if m_valid <= max_m_corr:
             r = z.T @ z
             abs_r = np.abs(r)

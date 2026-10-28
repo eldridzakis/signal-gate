@@ -52,6 +52,14 @@ from .persona_benchmark import (
     simulate_persona_run,
     run_persona_modality_benchmark,
     build_langchain_agent_runner,
+    parse_agent_discovery_report,
+    evaluate_agent_run_metrics,
+)
+from .automl_utils import (
+    operational_log_number_of_features,
+    get_regression_bins,
+    get_binned_target,
+    clean_enriched_data,
 )
 
 # Convenient top-level aliases
@@ -97,4 +105,10 @@ __all__ = [
     "simulate_persona_run",
     "run_persona_modality_benchmark",
     "build_langchain_agent_runner",
+    "parse_agent_discovery_report",
+    "evaluate_agent_run_metrics",
+    "operational_log_number_of_features",
+    "get_regression_bins",
+    "get_binned_target",
+    "clean_enriched_data",
 ]

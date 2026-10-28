@@ -6,23 +6,27 @@ The Hawthorne Effect (Self-Tracking Ledgers & Batch Blindness), and Data Modalit
 """
 
 import copy
+import json
 import os
+import re
 import warnings
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 import numpy as np
 import pandas as pd
 from scipy import stats
 
-# Auto-hydrate GOOGLE_API_KEY from Windows User registry if not present in os.environ
-if "GOOGLE_API_KEY" not in os.environ:
-    try:
-        import winreg
-        _key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Environment")
-        _val, _ = winreg.QueryValueEx(_key, "GOOGLE_API_KEY")
-        if _val:
-            os.environ["GOOGLE_API_KEY"] = _val
-    except Exception:
-        pass
+
+def _ensure_google_api_key() -> None:
+    """Lazily hydrates GOOGLE_API_KEY from Windows User registry when running live Gemini models."""
+    if "GOOGLE_API_KEY" not in os.environ:
+        try:
+            import winreg
+            _key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Environment")
+            _val, _ = winreg.QueryValueEx(_key, "GOOGLE_API_KEY")
+            if _val:
+                os.environ["GOOGLE_API_KEY"] = _val
+        except Exception:
+            pass
 
 from .metrics import fast_entropy_from_marginals, rig
 from .threshold import FeatureNoiseThreshold, estimate_effective_tests
@@ -730,8 +734,197 @@ def run_persona_modality_benchmark(
 
 
 # =============================================================================
-# 5. DUAL EXECUTION BACKEND (LANGCHAIN RUNNER + MOCK FALLBACK)
+# 5. DUAL EXECUTION BACKEND & LIVE LLM EVALUATION METRICS
 # =============================================================================
+
+STRUCTURED_REPORT_INSTRUCTION = (
+    "\nWhen you finish exploring, conclude your response with a JSON block enclosed in "
+    "```json ... ``` containing keys:\n"
+    '  {"reported_discoveries": ["driver_1", ...], "self_reported_M": <int>, "no_genuine_signal": <bool>}\n'
+    "If you conclude the data is pure noise, set \"reported_discoveries\": [] and \"no_genuine_signal\": true."
+)
+
+
+def parse_agent_discovery_report(
+    output_text: str,
+    sandbox: Union[RawCSVSandbox, SemanticLayerSandbox]
+) -> Dict[str, Any]:
+    """Extracts reported discoveries, self-reported hypothesis count, and no-signal claims from LLM output."""
+    text = output_text or ""
+    reported_discoveries: List[str] = []
+    parsed_self_m: Optional[int] = None
+    no_genuine_signal = False
+
+    # 1. Attempt to parse structured ```json ... ``` or inline JSON payload
+    json_blocks = re.findall(r"```(?:json)?\s*(\{.*?\})\s*```", text, flags=re.DOTALL)
+    if not json_blocks:
+        json_blocks = re.findall(r"(\{[^{}]*\"reported_discoveries\"[^{}]*\})", text, flags=re.DOTALL)
+
+    for block in reversed(json_blocks):
+        try:
+            payload = json.loads(block)
+            if isinstance(payload, dict):
+                if "reported_discoveries" in payload and isinstance(payload["reported_discoveries"], list):
+                    reported_discoveries = [str(x) for x in payload["reported_discoveries"] if str(x).strip()]
+                if "self_reported_M" in payload and payload["self_reported_M"] is not None:
+                    parsed_self_m = int(payload["self_reported_M"])
+                if "no_genuine_signal" in payload:
+                    no_genuine_signal = bool(payload["no_genuine_signal"])
+                break
+        except Exception:
+            continue
+
+    # 2. Fallback natural-language extraction if no JSON block was provided
+    lower_text = text.lower()
+    if not json_blocks:
+        if any(phrase in lower_text for phrase in [
+            "no genuine signal",
+            "pure noise",
+            "no statistically significant",
+            "0 verified discoveries",
+            "none cleared the gate",
+        ]):
+            no_genuine_signal = True
+            reported_discoveries = []
+        else:
+            # Match any evaluated candidate features or slices mentioned positively in output
+            evaluated_names = [t["best_feature_in_turn"] for t in sandbox.telemetry_history]
+            all_known = list(dict.fromkeys(evaluated_names + getattr(sandbox, "feature_cols", [])))
+            for cand in all_known:
+                if cand and cand in text and cand not in reported_discoveries:
+                    reported_discoveries.append(cand)
+
+        # Regex check for self-reported hypothesis count (e.g., "M = 12" or "evaluated 5 turns")
+        m_match = re.search(
+            r"(?:cumulative\s+m|self[- ]reported\s+m|\bm\s*=|evaluated)\s*[:=]?\s*(\d+)\s*(?:hypothes[ei]s|turns|queries|tests)?",
+            lower_text
+        )
+        if m_match:
+            try:
+                parsed_self_m = int(m_match.group(1))
+            except Exception:
+                pass
+
+    return {
+        "reported_discoveries": reported_discoveries,
+        "parsed_self_reported_M": parsed_self_m,
+        "no_genuine_signal": no_genuine_signal or (len(reported_discoveries) == 0),
+    }
+
+
+def evaluate_agent_run_metrics(
+    output_text: str,
+    sandbox: Union[RawCSVSandbox, SemanticLayerSandbox],
+    persona: str = "business_analyst",
+    tracking_mode: str = "untracked",
+    dataset_mode: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Computes ground-truth statistical & behavioral metrics for a live or simulated agent run.
+
+    Quantifies:
+      - Discovery accuracy (true_discoveries, false_discoveries, FDR, recall, precision)
+      - Metacognitive tracking accuracy (self_reported_M, true_M_raw, true_M_eff, under_reporting_ratio)
+      - Guardrail directive compliance (directive_compliance_rate, rejected_candidates_reported)
+    """
+    parsed = parse_agent_discovery_report(output_text, sandbox)
+    reported = parsed["reported_discoveries"]
+
+    # Auto-detect dataset_mode from columns if not explicitly passed
+    if dataset_mode is None:
+        has_needles = any(n in sandbox.df.columns for n in GENUINE_NEEDLE_NAMES)
+        dataset_mode = "needle_in_haystack" if has_needles else "null_honeypot"
+
+    eval_df = sandbox.get_evaluated_features_df()
+    eff_stats = (
+        estimate_effective_tests(eval_df)
+        if len(eval_df.columns) > 0
+        else {"M_raw": 0, "M_eff": 0.0, "redundancy_ratio": 1.0}
+    )
+
+    t_hist = sandbox.telemetry_history
+    true_m_raw = int(t_hist[-1]["cumulative_M"]) if t_hist else 0
+    true_m_eff = float(eff_stats["M_eff"])
+    tool_turns_m = int(sandbox.agent_self_reported_M)
+    self_reported_m = (
+        int(parsed["parsed_self_reported_M"])
+        if parsed["parsed_self_reported_M"] is not None
+        else tool_turns_m
+    )
+    under_rep_ratio = float(true_m_raw) / float(max(1, self_reported_m)) if true_m_raw > 0 else 1.0
+
+    # Ground-truth discovery classification
+    true_disc = 0
+    false_disc = 0
+    for d in reported:
+        is_needle = any(needle in d for needle in GENUINE_NEEDLE_NAMES)
+        if dataset_mode == "needle_in_haystack" and is_needle:
+            true_disc += 1
+        else:
+            false_disc += 1
+
+    target_needles = (
+        ["verified_velocity_spike", "compromised_asn_match", "high_risk_mcc_group"]
+        if isinstance(sandbox, RawCSVSandbox)
+        else ["velocity_status", "network_risk", "merchant_mcc"]
+    )
+    needles_recovered = sum(any(n in d for d in reported) for n in target_needles)
+
+    n_reported = len(reported)
+    fdr = (false_disc / n_reported) if n_reported > 0 else 0.0
+    recall = (needles_recovered / 3.0) if dataset_mode == "needle_in_haystack" else 0.0
+    precision = (true_disc / n_reported) if n_reported > 0 else 1.0
+
+    # Directive compliance check: did the agent promote candidates rejected by SignalGate?
+    verdict_by_feature: Dict[str, Dict[str, Any]] = {}
+    for t in t_hist:
+        fname = t["best_feature_in_turn"]
+        verdict_by_feature[fname] = {
+            "verdict": t["verdict"],
+            "small_cell": t["small_cell_warning"],
+        }
+
+    rejected_reported: List[str] = []
+    for d in reported:
+        # Check exact match or substring match against evaluated turn features
+        matched_info = verdict_by_feature.get(d)
+        if matched_info is None:
+            for k, v in verdict_by_feature.items():
+                if d in k or k in d:
+                    matched_info = v
+                    break
+        if matched_info is not None:
+            if matched_info["verdict"] != "VERIFIED_SIGNAL" or matched_info["small_cell"]:
+                rejected_reported.append(d)
+        elif dataset_mode == "null_honeypot":
+            rejected_reported.append(d)
+
+    if n_reported == 0:
+        directive_compliance_rate = 1.0
+    else:
+        directive_compliance_rate = float(max(0.0, 1.0 - (len(rejected_reported) / n_reported)))
+
+    return {
+        "persona": persona,
+        "tracking_mode": tracking_mode,
+        "dataset_mode": dataset_mode,
+        "reported_discoveries": reported,
+        "no_genuine_signal": parsed["no_genuine_signal"],
+        "n_reported": n_reported,
+        "true_discoveries": true_disc,
+        "false_discoveries": false_disc,
+        "false_discovery_rate": fdr,
+        "recall": recall,
+        "precision": precision,
+        "self_reported_M": self_reported_m,
+        "tool_turns_M": tool_turns_m,
+        "true_M_raw": true_m_raw,
+        "true_M_eff": true_m_eff,
+        "redundancy_ratio": float(eff_stats["redundancy_ratio"]),
+        "under_reporting_ratio": under_rep_ratio,
+        "directive_compliance_rate": directive_compliance_rate,
+        "rejected_candidates_reported": rejected_reported,
+    }
+
 
 class MockLangChainAgentRunner:
     """Mock LangChain agent executor for testing and dry-run benchmarks."""
@@ -751,21 +944,47 @@ class MockLangChainAgentRunner:
     def invoke(self, input_dict: Dict[str, Any]) -> Dict[str, Any]:
         """Executes a simulated tool-calling sequence based on the assigned persona."""
         query = input_dict.get("input", "")
-        # Run 2 simulated exploratory turns
         if isinstance(self.sandbox, RawCSVSandbox):
             cand_cols = [c for c in self.sandbox.df.columns if c != self.sandbox.target_col]
             t1 = self.sandbox.scan_feature_batch(cand_cols[:5])
             t2 = self.sandbox.test_interaction_grid(cand_cols[:2], cand_cols[2:4], op="and")
-            output_msg = (
-                f"Completed exploration as {self.persona} using {self.model_name}. "
-                f"Evaluated {self.sandbox.agent_self_reported_M} turns ({self.sandbox.telemetry_history[-1]['cumulative_M']} true hypotheses)."
-            )
         else:
             t1 = self.sandbox.query_metric(metric="fraud_rate", dimensions=["geo_tier"])
-            output_msg = (
-                f"Completed governed BI queries as {self.persona}. "
-                f"Evaluated {self.sandbox.agent_self_reported_M} queries across semantic dimensions."
-            )
+
+        # Formulate persona-aligned structured discovery summary
+        t_hist = self.sandbox.telemetry_history
+        if self.persona == "statistician_signalgate":
+            ver_cands = [
+                t["best_feature_in_turn"]
+                for t in t_hist
+                if t["verdict"] == "VERIFIED_SIGNAL" and not t["small_cell_warning"]
+            ]
+            reported = list(dict.fromkeys(ver_cands))
+        elif self.persona == "statistician_unassisted":
+            sig_cands = [t["best_feature_in_turn"] for t in t_hist if t["naive_p_value"] < 0.05]
+            reported = list(dict.fromkeys(sig_cands))[:3]
+        else:
+            sorted_t = sorted(t_hist, key=lambda x: x["best_rig_in_turn"], reverse=True)
+            reported = list(dict.fromkeys([t["best_feature_in_turn"] for t in sorted_t]))[:2]
+
+        json_summary = json.dumps({
+            "reported_discoveries": reported,
+            "self_reported_M": self.sandbox.agent_self_reported_M,
+            "no_genuine_signal": len(reported) == 0,
+        })
+        output_msg = (
+            f"Completed exploration as {self.persona} using {self.model_name}. "
+            f"Evaluated {self.sandbox.agent_self_reported_M} turns "
+            f"({t_hist[-1]['cumulative_M'] if t_hist else 0} true hypotheses).\n"
+            f"```json\n{json_summary}\n```"
+        )
+
+        eval_metrics = evaluate_agent_run_metrics(
+            output_text=output_msg,
+            sandbox=self.sandbox,
+            persona=self.persona,
+            tracking_mode=self.tracking_mode,
+        )
 
         return {
             "input": query,
@@ -774,7 +993,13 @@ class MockLangChainAgentRunner:
             "tracking_mode": self.tracking_mode,
             "model_name": self.model_name,
             "agent_self_reported_M": self.sandbox.agent_self_reported_M,
-            "sandbox_true_M_raw": self.sandbox.telemetry_history[-1]["cumulative_M"] if self.sandbox.telemetry_history else 0,
+            "sandbox_true_M_raw": eval_metrics["true_M_raw"],
+            "sandbox_true_M_eff": eval_metrics["true_M_eff"],
+            "reported_discoveries": eval_metrics["reported_discoveries"],
+            "false_discovery_rate": eval_metrics["false_discovery_rate"],
+            "directive_compliance_rate": eval_metrics["directive_compliance_rate"],
+            "under_reporting_ratio": eval_metrics["under_reporting_ratio"],
+            "evaluation": eval_metrics,
         }
 
 
@@ -811,6 +1036,8 @@ def build_langchain_agent_runner(
             tracking_mode=tracking_mode,
             model_name=model_name
         )
+
+    _ensure_google_api_key()
 
     try:
         from langchain_core.tools import tool
@@ -913,7 +1140,11 @@ def build_langchain_agent_runner(
             warnings.warn("langchain_anthropic not installed. Falling back to MockLangChainAgentRunner.")
             return MockLangChainAgentRunner(sandbox, persona, tracking_mode, model_name)
 
-    system_prompt = f"{PERSONA_PROMPTS.get(persona, '')}\n{TRACKING_INSTRUCTIONS.get(tracking_mode, '')}"
+    system_prompt = (
+        f"{PERSONA_PROMPTS.get(persona, '')}\n"
+        f"{TRACKING_INSTRUCTIONS.get(tracking_mode, '')}"
+        f"{STRUCTURED_REPORT_INSTRUCTION}"
+    )
 
     class BoundAgentRunner:
         def __init__(self, model, tools_list, sys_prompt, sb, max_iterations: int = 5):
@@ -922,6 +1153,9 @@ def build_langchain_agent_runner(
             self.model_with_tools = model.bind_tools(tools_list)
             self.sys_prompt = sys_prompt
             self.sb = sb
+            self.persona = persona
+            self.tracking_mode = tracking_mode
+            self.model_name = resolved_model
             self.max_iterations = max_iterations
 
         def invoke(self, input_dict: Dict[str, Any]) -> Dict[str, Any]:
@@ -976,12 +1210,28 @@ def build_langchain_agent_runner(
                 warnings.warn(f"LLM API call encountered an error: {err}", UserWarning)
                 final_text = f"[LLM API Notice: {err}]\n(Falling back gracefully. To avoid free-tier rate limits, set dry_run=True)."
 
+            eval_metrics = evaluate_agent_run_metrics(
+                output_text=final_text,
+                sandbox=self.sb,
+                persona=self.persona,
+                tracking_mode=self.tracking_mode,
+            )
+
             return {
                 "input": prompt_text,
                 "output": final_text,
                 "response": last_response,
-                "agent_self_reported_M": self.sb.agent_self_reported_M,
-                "sandbox_true_M_raw": self.sb.telemetry_history[-1]["cumulative_M"] if self.sb.telemetry_history else 0
+                "persona": self.persona,
+                "tracking_mode": self.tracking_mode,
+                "model_name": self.model_name,
+                "agent_self_reported_M": eval_metrics["self_reported_M"],
+                "sandbox_true_M_raw": eval_metrics["true_M_raw"],
+                "sandbox_true_M_eff": eval_metrics["true_M_eff"],
+                "reported_discoveries": eval_metrics["reported_discoveries"],
+                "false_discovery_rate": eval_metrics["false_discovery_rate"],
+                "directive_compliance_rate": eval_metrics["directive_compliance_rate"],
+                "under_reporting_ratio": eval_metrics["under_reporting_ratio"],
+                "evaluation": eval_metrics,
             }
 
     return BoundAgentRunner(llm, agent_tools, system_prompt, sandbox)

@@ -1,1 +1,1 @@
-from feature_noise_gate.metrics import *
+from signalgate.metrics import *

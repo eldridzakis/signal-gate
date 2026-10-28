@@ -44,10 +44,14 @@ venv.bak/
 .coverage
 htmlcov/
 
-# OS-specific
+# OS-specific & IDE
 .DS_Store
 Thumbs.db
 desktop.ini
+.idea/
+.vscode/
 
 # Jupyter Notebooks
+05_Peter_Testing.ipynb
 ./notebooks/05_Peter_Testing.ipynb
+./archive/05_Peter_Testing.ipynb

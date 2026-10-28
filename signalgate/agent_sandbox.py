@@ -290,7 +290,19 @@ class InstrumentedAgentSandbox:
         """Updates ledger, computes noise gates, and logs turn telemetry."""
         self.turn_counter += 1
 
-        # Evaluate against stateful ledger (increments M by batch_k)
+        # Effective tests M_eff estimation from all evaluated candidate features
+        eval_df = self.get_evaluated_features_df()
+        if len(eval_df.columns) > 0:
+            eff_stats = estimate_effective_tests(eval_df)
+            m_eff = float(eff_stats["M_eff"])
+            redundancy_ratio = float(eff_stats["redundancy_ratio"])
+            mean_abs_corr = float(eff_stats["mean_abs_correlation"])
+        else:
+            m_eff = None
+            redundancy_ratio = 1.0
+            mean_abs_corr = 0.0
+
+        # Evaluate against stateful ledger (increments M by batch_k and records M_eff)
         guard_res = self.ledger.evaluate_feature_or_slice(
             observed_rig=best_eval["observed_rig"],
             nrows=n_eff,
@@ -304,22 +316,13 @@ class InstrumentedAgentSandbox:
             alpha=self.alpha,
             session_id=self.session_id,
             feature_name=best_eval["feature_name"],
-            slice_description=description
+            slice_description=description,
+            effective_M=m_eff
         )
 
         cum_m = guard_res["cumulative_session_tests_M"]
-
-        # Effective tests M_eff estimation from all evaluated candidate features
-        eval_df = self.get_evaluated_features_df()
-        if len(eval_df.columns) > 0:
-            eff_stats = estimate_effective_tests(eval_df)
-            m_eff = float(eff_stats["M_eff"])
-            redundancy_ratio = float(eff_stats["redundancy_ratio"])
-            mean_abs_corr = float(eff_stats["mean_abs_correlation"])
-        else:
+        if m_eff is None:
             m_eff = float(cum_m)
-            redundancy_ratio = 1.0
-            mean_abs_corr = 0.0
 
         # Calculate noise thresholds for raw M and effective M
         estimator = FeatureNoiseThreshold(

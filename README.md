@@ -2,7 +2,7 @@
 
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Tests](https://img.shields.io/badge/tests-46%20passed-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/tests-48%20passed-brightgreen.svg)]()
 [![MCP Server](https://img.shields.io/badge/MCP-Protocol%20Ready-purple.svg)](https://modelcontextprotocol.io)
 
 > **Stateful statistical guardrails and Model Context Protocol (MCP) server for autonomous LLM data agents, Text-to-SQL, and AutoML. Quantifying the Winner's Curse, estimating closed-form noise ceilings, and filtering out spurious insights.**
@@ -242,10 +242,11 @@ signal-gate/
 │   ├── threshold.py              # Analytical Chi-squared, EVT, & Frobenius M_eff estimators
 │   ├── permutation.py            # Vectorized Monte-Carlo permutation tester
 │   ├── debias.py                 # Out-of-Fold (OOF) & Bootstrap de-biasing engine
-│   ├── mcp_server.py             # Stateful MCP statistical guardrail server
+│   ├── automl_utils.py           # AutoML operational log parsing & regression target binning
+│   ├── mcp_server.py             # Stateful MCP statistical guardrail server (with M_eff tracking)
 │   ├── agent_tools.py            # OpenAI/Anthropic tool schemas & callable dispatchers
 │   ├── agent_sandbox.py          # Synthetic benchmarks & agent simulation telemetry
-│   └── persona_benchmark.py      # LLM personas, Hawthorne self-tracking, & semantic layer
+│   └── persona_benchmark.py      # LLM personas, Hawthorne self-tracking, & live LLM evals
 ├── feature_noise_gate/           # Backward-compatibility alias
 ├── sampling_toolbox/             # Backward-compatibility alias
 ├── notebooks/                    # Self-contained walkthroughs

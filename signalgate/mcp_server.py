@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 
 from .metrics import fast_entropy_from_marginals, fast_mutual_info_from_contingency, rig
-from .threshold import FeatureNoiseThreshold
+from .threshold import FeatureNoiseThreshold, estimate_effective_tests
 from .debias import FeatureDebiaser
 
 
@@ -21,6 +21,10 @@ class SessionState:
     session_id: str
     target_name: Optional[str] = None
     cumulative_hypotheses_M: int = 0
+    cumulative_effective_M: float = 0.0
+    redundancy_ratio: float = 1.0
+    mean_abs_correlation: float = 0.0
+    evaluated_features_store: Dict[str, np.ndarray] = field(default_factory=dict)
     history: List[Dict[str, Any]] = field(default_factory=list)
     initial_tau_sig: Optional[float] = None
     initial_tau_evt: Optional[float] = None
@@ -31,6 +35,8 @@ class NoiseGateSessionLedger:
 
     Designed to guard against multiple-testing bias (the Winner's Curse) when
     autonomous agents explore slices, feature transformations, or EDA patterns.
+    Supports both raw hypothesis tracking (M_raw) and Frobenius eigenvalue
+    collinearity-adjusted effective hypothesis tracking (M_eff <= M_raw).
     """
 
     def __init__(self):
@@ -52,10 +58,98 @@ class NoiseGateSessionLedger:
             self._sessions[session_id].target_name = target_name
         return self._sessions[session_id]
 
+    def _log_session_vectors(
+        self,
+        session: SessionState,
+        candidate_df: Optional[Union[pd.DataFrame, np.ndarray]] = None,
+        feature_values: Optional[Sequence[float]] = None,
+        feature_name: Optional[str] = None,
+    ) -> None:
+        """Logs evaluated candidate feature vectors into the session store for M_eff calculation."""
+        target_len = None
+        if session.evaluated_features_store:
+            first_vec = next(iter(session.evaluated_features_store.values()))
+            target_len = len(first_vec)
+
+        def _store_vec(name: str, vec: np.ndarray):
+            nonlocal target_len
+            arr = np.asarray(vec, dtype=float).ravel()
+            if target_len is None:
+                target_len = len(arr)
+            elif len(arr) != target_len:
+                padded = np.zeros(target_len, dtype=float)
+                n_copy = min(len(arr), target_len)
+                padded[:n_copy] = arr[:n_copy]
+                arr = padded
+            key = name
+            if key in session.evaluated_features_store:
+                key = f"{name}_m{session.cumulative_hypotheses_M}_{len(session.evaluated_features_store)}"
+            session.evaluated_features_store[key] = arr
+
+        if feature_values is not None:
+            fname = feature_name or f"feat_{len(session.evaluated_features_store)}"
+            _store_vec(fname, np.asarray(feature_values, dtype=float))
+
+        if candidate_df is not None:
+            if isinstance(candidate_df, pd.DataFrame):
+                for col in candidate_df.columns:
+                    col_series = candidate_df[col]
+                    if not pd.api.types.is_numeric_dtype(col_series):
+                        codes, _ = pd.factorize(col_series)
+                        _store_vec(str(col), codes.astype(float))
+                    else:
+                        _store_vec(str(col), col_series.to_numpy(dtype=float))
+            else:
+                mat = np.asarray(candidate_df, dtype=float)
+                if mat.ndim == 1:
+                    mat = mat[:, None]
+                for idx in range(mat.shape[1]):
+                    _store_vec(f"cand_{idx}", mat[:, idx])
+
+    def _update_session_effective_m(
+        self,
+        session: SessionState,
+        explicit_effective_m: Optional[float] = None
+    ) -> Tuple[float, float, float]:
+        """Computes or updates session M_eff, redundancy_ratio, and mean_abs_correlation."""
+        m_raw = max(1, session.cumulative_hypotheses_M)
+        if explicit_effective_m is not None:
+            m_eff = float(np.clip(explicit_effective_m, 1.0, float(m_raw)))
+            red_ratio = float(m_eff / m_raw)
+            session.cumulative_effective_M = m_eff
+            session.redundancy_ratio = red_ratio
+            return m_eff, red_ratio, session.mean_abs_correlation
+
+        n_logged = len(session.evaluated_features_store)
+        if n_logged >= 2:
+            mat = np.column_stack(list(session.evaluated_features_store.values()))
+            eff_stats = estimate_effective_tests(mat)
+            logged_m_eff = float(eff_stats["M_eff"])
+            red_ratio = float(eff_stats["redundancy_ratio"])
+            mean_corr = float(eff_stats["mean_abs_correlation"])
+            if n_logged == m_raw:
+                m_eff = logged_m_eff
+            else:
+                m_eff = float(np.clip(red_ratio * m_raw, 1.0, float(m_raw)))
+            session.cumulative_effective_M = m_eff
+            session.redundancy_ratio = float(m_eff / m_raw)
+            session.mean_abs_correlation = mean_corr
+            return m_eff, session.redundancy_ratio, mean_corr
+
+        m_eff = float(m_raw)
+        session.cumulative_effective_M = m_eff
+        session.redundancy_ratio = 1.0
+        session.mean_abs_correlation = 0.0
+        return m_eff, 1.0, 0.0
+
     def reset_session_budget(self, session_id: str = "default") -> Dict[str, Any]:
         """Resets the search budget and test counter for a session."""
         if session_id in self._sessions:
             self._sessions[session_id].cumulative_hypotheses_M = 0
+            self._sessions[session_id].cumulative_effective_M = 0.0
+            self._sessions[session_id].redundancy_ratio = 1.0
+            self._sessions[session_id].mean_abs_correlation = 0.0
+            self._sessions[session_id].evaluated_features_store.clear()
             self._sessions[session_id].history.clear()
             self._sessions[session_id].initial_tau_sig = None
             self._sessions[session_id].initial_tau_evt = None
@@ -64,6 +158,7 @@ class NoiseGateSessionLedger:
             "session_id": session_id,
             "status": "RESET",
             "cumulative_hypotheses_M": 0,
+            "cumulative_effective_M": 0.0,
             "message": f"Search budget and test counter reset for session '{session_id}'."
         }
 
@@ -77,35 +172,42 @@ class NoiseGateSessionLedger:
         """Inspects current hypothesis budget, noise ceiling, and gate inflation."""
         session = self.get_or_create_session(session_id=session_id)
         m = max(1, session.cumulative_hypotheses_M)
+        m_eff = session.cumulative_effective_M if session.cumulative_effective_M >= 1.0 else float(m)
 
         res = {
             "session_id": session_id,
             "target_name": session.target_name,
             "cumulative_hypotheses_M": session.cumulative_hypotheses_M,
+            "cumulative_effective_M": float(session.cumulative_effective_M),
+            "redundancy_ratio": float(session.redundancy_ratio),
+            "mean_abs_correlation": float(session.mean_abs_correlation),
         }
 
         if nrows is not None and minority_frac is not None:
             p = float(minority_frac)
             n = int(nrows)
             estimator = FeatureNoiseThreshold(nrows=n, target_distribution=p)
-            current_tau_sig = estimator.analytical_threshold(n_features_evaluated=m, alpha=alpha)
-            current_tau_evt = estimator.evt_expected_max(n_features_evaluated=m)
+            current_tau_sig_raw = estimator.analytical_threshold(n_features_evaluated=m, alpha=alpha)
+            current_tau_evt_raw = estimator.evt_expected_max(n_features_evaluated=m)
+            current_tau_sig = estimator.analytical_threshold(effective_features_evaluated=m_eff, alpha=alpha)
+            current_tau_evt = estimator.evt_expected_max(effective_features_evaluated=m_eff)
 
             base_tau_sig = estimator.analytical_threshold(n_features_evaluated=1, alpha=alpha)
-            base_tau_evt = estimator.evt_expected_max(n_features_evaluated=1)
 
             inflation_sig = current_tau_sig / base_tau_sig if base_tau_sig > 0 else 1.0
 
             res.update({
                 "current_noise_floor_evt": float(current_tau_evt),
                 "current_significance_gate": float(current_tau_sig),
+                "current_raw_noise_floor_evt": float(current_tau_evt_raw),
+                "current_raw_significance_gate": float(current_tau_sig_raw),
                 "base_single_test_gate": float(base_tau_sig),
                 "gate_inflation_factor": float(inflation_sig),
                 "gate_penalty_increase": float(current_tau_sig - base_tau_sig),
                 "stopping_recommendation": (
                     "STOP_HIGH_PENALTY: Significance gate has increased substantially. "
                     "Further search without holdout validation carries high risk of false discoveries."
-                    if inflation_sig > 3.0 and m >= 1000
+                    if inflation_sig > 3.0 and m_eff >= 1000
                     else "CONTINUE: Search budget remains viable."
                 )
             })
@@ -128,6 +230,9 @@ class NoiseGateSessionLedger:
         n_classes: int = 2,
         n_feature_categories: int = 2,
         df: Optional[int] = None,
+        effective_M: Optional[float] = None,
+        feature_values: Optional[Sequence[float]] = None,
+        candidate_df: Optional[Union[pd.DataFrame, np.ndarray]] = None,
     ) -> Dict[str, Any]:
         """Evaluates whether an observed RIG or R x C slice clears statistical noise gates.
 
@@ -163,6 +268,12 @@ class NoiseGateSessionLedger:
             Number of distinct categories in the candidate feature (R).
         df : int, optional
             Explicit degrees of freedom k = (R-1)*(C-1).
+        effective_M : float, optional
+            Explicit effective number of independent hypotheses (M_eff <= M_raw).
+        feature_values : sequence of float, optional
+            Evaluated feature vector to log in the session store for Frobenius M_eff calculation.
+        candidate_df : pd.DataFrame or np.ndarray, optional
+            Batch matrix of evaluated candidate features for Frobenius M_eff calculation.
         """
         session = self.get_or_create_session(session_id=session_id)
 
@@ -234,12 +345,24 @@ class NoiseGateSessionLedger:
         n = int(nrows)
         r = float(np.clip(observed_rig, 0.0, 1.0))
 
-        # 2. Update session hypothesis budget
+        # 2. Update session hypothesis budget and Frobenius M_eff
         batch_size = max(1, int(hypotheses_in_batch))
         session.cumulative_hypotheses_M += batch_size
         m = session.cumulative_hypotheses_M
 
-        # 3. Calculate analytical noise gates
+        if feature_values is not None or candidate_df is not None:
+            self._log_session_vectors(
+                session=session,
+                candidate_df=candidate_df,
+                feature_values=feature_values,
+                feature_name=feature_name,
+            )
+        m_eff, red_ratio, mean_corr = self._update_session_effective_m(
+            session=session,
+            explicit_effective_m=effective_M,
+        )
+
+        # 3. Calculate analytical noise gates (both raw M and collinearity-adjusted M_eff)
         estimator = FeatureNoiseThreshold(
             nrows=n,
             target_distribution=dist,
@@ -247,8 +370,10 @@ class NoiseGateSessionLedger:
             n_feature_categories=n_feature_categories,
             df=df
         )
-        tau_sig = estimator.analytical_threshold(n_features_evaluated=m, alpha=alpha)
-        tau_evt = estimator.evt_expected_max(n_features_evaluated=m)
+        tau_sig_raw = estimator.analytical_threshold(n_features_evaluated=m, alpha=alpha)
+        tau_evt_raw = estimator.evt_expected_max(n_features_evaluated=m)
+        tau_sig = estimator.analytical_threshold(effective_features_evaluated=m_eff, alpha=alpha)
+        tau_evt = estimator.evt_expected_max(effective_features_evaluated=m_eff)
         k_df = estimator.df
 
         # 4. Small-cell condition check (Cochran's rule for non-contingency calls)
@@ -277,25 +402,26 @@ class NoiseGateSessionLedger:
                 e11 = min_e
 
         # 5. Formulate verdict and agent directive
+        m_label = f"effective M={m_eff:.1f} (raw M={m})" if abs(m_eff - m) > 1e-3 else f"cumulative M={m}"
         if r >= tau_sig:
             verdict = "VERIFIED_SIGNAL"
             agent_directive = (
                 f"PROCEED: Feature/slice observed RIG ({r:.5f}) clears the multiple-testing "
-                f"significance gate (tau={tau_sig:.5f}, df={k_df}) at cumulative M={m} tests and alpha={alpha}. "
+                f"significance gate (tau={tau_sig:.5f}, df={k_df}) at {m_label} tests and alpha={alpha}. "
                 "Statistically confirmed to be genuine signal beyond random search noise."
             )
         elif r >= tau_evt:
             verdict = "BORDERLINE_WARNING"
             agent_directive = (
                 f"BORDERLINE: Feature/slice observed RIG ({r:.5f}) exceeds expected maximum noise (tau_evt={tau_evt:.5f}, df={k_df}), "
-                f"but fails the strict Bonferroni significance gate (tau={tau_sig:.5f}) for M={m} tests. "
+                f"but fails the strict Bonferroni significance gate (tau={tau_sig:.5f}) for {m_label} tests. "
                 "High risk of selection bias / Winner's Curse. Do NOT deploy without out-of-fold cross-validation or holdout verification."
             )
         else:
             verdict = "REJECT_SPURIOUS_NOISE"
             agent_directive = (
                 f"DISCARD: Feature/slice observed RIG ({r:.5f}) is below the expected noise ceiling (tau_evt={tau_evt:.5f}, df={k_df}) "
-                f"for M={m} evaluated tests. Consistent with pure random sampling variance. "
+                f"for {m_label} evaluated tests. Consistent with pure random sampling variance. "
                 "Do NOT promote, report, or select this feature/slice."
             )
 
@@ -311,7 +437,12 @@ class NoiseGateSessionLedger:
             "observed_rig": r,
             "evt_expected_noise_max": float(tau_evt),
             "bonferroni_significance_gate": float(tau_sig),
+            "evt_expected_noise_max_raw": float(tau_evt_raw),
+            "bonferroni_significance_gate_raw": float(tau_sig_raw),
             "cumulative_session_tests_M": int(m),
+            "cumulative_effective_tests_M_eff": float(m_eff),
+            "redundancy_ratio": float(red_ratio),
+            "mean_abs_correlation": float(mean_corr),
             "batch_tests_added": int(batch_size),
             "degrees_of_freedom_k": int(k_df),
             "n_classes": int(estimator.cardinality_y),
@@ -345,9 +476,11 @@ class NoiseGateSessionLedger:
         if not candidate_cols:
             raise ValueError("No valid candidate feature columns found in df_train.")
 
-        # 1. Update hypothesis count
+        # 1. Update hypothesis count and compute Frobenius M_eff across logged candidate features
         session.cumulative_hypotheses_M += len(candidate_cols)
         m = session.cumulative_hypotheses_M
+        self._log_session_vectors(session=session, candidate_df=df_train[candidate_cols])
+        m_eff, red_ratio, mean_corr = self._update_session_effective_m(session=session)
 
         n = len(df_train)
         target_series = df_train[target_col]
@@ -361,15 +494,24 @@ class NoiseGateSessionLedger:
             target_distribution=target_dist if n_classes > 2 else minority_p,
             n_classes=n_classes
         )
-        current_tau_sig = estimator.analytical_threshold(n_features_evaluated=m, alpha=alpha)
-        current_tau_evt = estimator.evt_expected_max(n_features_evaluated=m)
+        raw_tau_sig = estimator.analytical_threshold(n_features_evaluated=m, alpha=alpha)
+        raw_tau_evt = estimator.evt_expected_max(n_features_evaluated=m)
+        current_tau_sig = estimator.analytical_threshold(effective_features_evaluated=m_eff, alpha=alpha)
+        current_tau_evt = estimator.evt_expected_max(effective_features_evaluated=m_eff)
 
         # Feature-specific degrees of freedom and noise thresholds
         feature_df_k = {}
         feature_bonferroni = {}
         feature_evt = {}
         for feat in candidate_cols:
-            r_j = max(2, int(df_train[feat].nunique()))
+            col_s = df_train[feat]
+            raw_nunique = int(col_s.nunique())
+            # Guard against continuous float columns exploding degrees of freedom
+            if pd.api.types.is_float_dtype(col_s) and raw_nunique > 20:
+                binned = pd.qcut(col_s, q=10, labels=False, duplicates="drop")
+                r_j = max(2, int(binned.nunique()))
+            else:
+                r_j = max(2, raw_nunique)
             k_j = (r_j - 1) * (n_classes - 1)
             f_est = FeatureNoiseThreshold(
                 nrows=n,
@@ -379,8 +521,8 @@ class NoiseGateSessionLedger:
                 df=k_j
             )
             feature_df_k[feat] = k_j
-            feature_bonferroni[feat] = float(f_est.analytical_threshold(n_features_evaluated=m, alpha=alpha))
-            feature_evt[feat] = float(f_est.evt_expected_max(n_features_evaluated=m))
+            feature_bonferroni[feat] = float(f_est.analytical_threshold(effective_features_evaluated=m_eff, alpha=alpha))
+            feature_evt[feat] = float(f_est.evt_expected_max(effective_features_evaluated=m_eff))
 
         # 2. Bias estimation bounded by feature-specific EVT noise ceiling
         feature_biases = {}
@@ -439,8 +581,13 @@ class NoiseGateSessionLedger:
             "target_distribution": target_dist.tolist() if hasattr(target_dist, "tolist") else list(target_dist),
             "features_audited_in_batch": len(candidate_cols),
             "cumulative_session_tests_M": m,
+            "cumulative_effective_tests_M_eff": float(m_eff),
+            "redundancy_ratio": float(red_ratio),
+            "mean_abs_correlation": float(mean_corr),
             "current_bonferroni_gate": float(current_tau_sig),
             "current_evt_noise_floor": float(current_tau_evt),
+            "raw_bonferroni_gate": float(raw_tau_sig),
+            "raw_evt_noise_floor": float(raw_tau_evt),
             "estimated_optimism_bias": estimated_optimism_bias,
             "promoted_2_sigma_features": promoted_2_sigma,
             "marginal_1_sigma_features": marginal_1_sigma,
@@ -449,7 +596,8 @@ class NoiseGateSessionLedger:
             "audit_table": df_stab.to_dict(orient="records"),
             "agent_directive": (
                 f"AUDIT COMPLETE: Promoted {len(promoted_2_sigma)} / {len(candidate_cols)} candidate features "
-                f"clearing 2-Sigma stability after subtracting optimism bias ({estimated_optimism_bias:.5f}). "
+                f"clearing 2-Sigma stability after subtracting optimism bias ({estimated_optimism_bias:.5f}) "
+                f"at effective M={m_eff:.1f} (raw M={m}, redundancy ratio={red_ratio:.2f}). "
                 f"Discard {len(rejected_noise)} features identified as statistical noise."
             )
         }
@@ -530,7 +678,9 @@ def create_mcp_server(ledger: Optional[NoiseGateSessionLedger] = None):
         alpha: float = 0.05,
         session_id: str = "default",
         feature_name: Optional[str] = None,
-        slice_description: Optional[str] = None
+        slice_description: Optional[str] = None,
+        effective_M: Optional[float] = None,
+        feature_values: Optional[List[float]] = None,
     ) -> Dict[str, Any]:
         """Evaluates whether an observed RIG or 2x2 slice clears statistical noise gates."""
         return active_ledger.evaluate_feature_or_slice(
@@ -543,7 +693,9 @@ def create_mcp_server(ledger: Optional[NoiseGateSessionLedger] = None):
             alpha=alpha,
             session_id=session_id,
             feature_name=feature_name,
-            slice_description=slice_description
+            slice_description=slice_description,
+            effective_M=effective_M,
+            feature_values=feature_values,
         )
 
     @mcp_app.tool()
@@ -596,7 +748,7 @@ def main():
         import sys
         sys.stderr.write(
             "Error: The 'mcp' package is required to run the MCP server.\n"
-            "Install it via: pip install \"feature-noise-gate[mcp]\" or pip install mcp\n"
+            "Install it via: pip install \"signalgate[mcp]\" or pip install mcp\n"
         )
         sys.exit(1)
 

@@ -67,6 +67,15 @@ def get_openai_tools() -> List[Dict[str, Any]]:
                         "slice_description": {
                             "type": "string",
                             "description": "Predicate defining the slice (e.g., 'country == US and tenure > 12')."
+                        },
+                        "effective_M": {
+                            "type": "number",
+                            "description": "Optional effective number of independent hypotheses (M_eff <= M_raw) when testing collinear features."
+                        },
+                        "feature_values": {
+                            "type": "array",
+                            "items": {"type": "number"},
+                            "description": "Optional evaluated feature vector to automatically compute Frobenius collinearity-adjusted M_eff."
                         }
                     },
                     "required": []

@@ -205,6 +205,32 @@ class TestMCPGuardrail(unittest.TestCase):
         )
         self.assertIn("verdict", eval_res)
 
+    def test_frob_effective_m_in_ledger_and_audit(self):
+        """Verifies Frobenius M_eff tracking inside NoiseGateSessionLedger."""
+        rng = np.random.default_rng(101)
+        n = 400
+        base_vec = rng.integers(0, 2, size=n).astype(float)
+        # 20 identical columns -> M_raw = 20, M_eff ~= 1.0
+        collinear_mat = np.column_stack([base_vec for _ in range(20)])
+
+        res = self.ledger.evaluate_feature_or_slice(
+            observed_rig=0.008,
+            nrows=n,
+            minority_frac=0.20,
+            hypotheses_in_batch=20,
+            candidate_df=collinear_mat,
+            session_id="test_ledger_meff"
+        )
+        self.assertEqual(res["cumulative_session_tests_M"], 20)
+        self.assertAlmostEqual(res["cumulative_effective_tests_M_eff"], 1.0, places=4)
+        self.assertLess(res["bonferroni_significance_gate"], res["bonferroni_significance_gate_raw"])
+
+        status = self.ledger.get_search_budget_status(
+            session_id="test_ledger_meff", nrows=n, minority_frac=0.20
+        )
+        self.assertAlmostEqual(status["cumulative_effective_M"], 1.0, places=4)
+        self.assertAlmostEqual(status["redundancy_ratio"], 1.0 / 20.0, places=4)
+
 
 if __name__ == "__main__":
     unittest.main()

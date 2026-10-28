@@ -1,1 +1,1 @@
-from feature_noise_gate.permutation import *
+from signalgate.permutation import *
