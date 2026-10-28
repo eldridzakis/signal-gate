@@ -44,8 +44,8 @@ def main():
     parser.add_argument(
         "--daily-limit",
         type=int,
-        default=12,
-        help="Maximum live API calls to make today (default: 12, safe for 15 calls/day quota)",
+        default=None,
+        help="Maximum live API calls to make today (auto-defaults to 12 for Gemini free tier, unlimited for Claude/OpenAI)",
     )
     parser.add_argument(
         "--n-seeds",
@@ -79,10 +79,19 @@ def main():
         else args.cache_path
     )
 
+    # Auto-detect daily limit: 12 for Gemini free tier unless specified; unlimited for prepaid credit APIs (Claude/OpenAI)
+    if args.daily_limit is not None:
+        effective_daily_limit = args.daily_limit if args.daily_limit > 0 else None
+    elif "gemini" in args.model_name.lower():
+        effective_daily_limit = 12
+    else:
+        effective_daily_limit = None
+
     cache = LLMEvalTraceCache(cache_path=actual_cache_path)
     personas = ("business_analyst", "statistician_unassisted", "statistician_signalgate")
     dataset_modes = ("null_honeypot", "needle_in_haystack")
     total_planned = len(personas) * len(dataset_modes) * args.n_seeds
+    limit_display = f"{effective_daily_limit} calls (Free-tier safety cap)" if effective_daily_limit else "Unlimited (Prepaid credit API)"
 
     print("=" * 72)
     print("  SignalGate Frontier Benchmark -- Daily Incremental Runner")
@@ -91,7 +100,7 @@ def main():
     print(f"  Personas          : {', '.join(personas)}")
     print(f"  Dataset Modes     : {', '.join(dataset_modes)}")
     print(f"  Seeds per Cell    : {args.n_seeds} ({total_planned} total planned runs)")
-    print(f"  Daily Call Limit  : {args.daily_limit} calls")
+    print(f"  Daily Call Limit  : {limit_display}")
     print(f"  Cache File        : {actual_cache_path}")
     print(f"  Cached Traces     : {len(cache._store)} entries on disk")
     print("=" * 72)
@@ -123,7 +132,7 @@ def main():
         dry_run=args.dry_run,
         use_cache=True,
         cache_path=actual_cache_path,
-        daily_call_limit=args.daily_limit,
+        daily_call_limit=effective_daily_limit,
     )
 
     print("\n" + "-" * 72)
