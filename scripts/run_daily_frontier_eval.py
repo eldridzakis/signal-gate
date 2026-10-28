@@ -1,4 +1,4 @@
-"""Daily Frontier Model Evaluation Runner for SignalGate.
+"""Daily Frontier Model Evaluation Runner for SignalGuard.
 
 Enforces strict daily API quota budgets (e.g. Gemini free tier 15 calls/day)
 using persistent JSONL disk caching (`Data/llm_eval_cache.jsonl`).
@@ -21,10 +21,10 @@ import os
 from pathlib import Path
 import pandas as pd
 
-# Ensure signalgate package is on python path
+# Ensure signalguard package is on python path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from signalgate.persona_benchmark import (
+from signalguard.persona_benchmark import (
     run_prewarmed_frontier_benchmark,
     LLMEvalTraceCache,
     DEFAULT_LLM_CACHE_PATH,
@@ -103,7 +103,7 @@ def main():
         effective_daily_limit = None
 
     cache = LLMEvalTraceCache(cache_path=actual_cache_path)
-    personas = ("business_analyst", "statistician_unassisted", "statistician_signalgate")
+    personas = ("business_analyst", "statistician_unassisted", "statistician_signalguard")
     dataset_modes = tuple(args.dataset_modes)
     blind_unassisted = not args.unblind_counts
     total_planned = len(personas) * len(dataset_modes) * args.n_seeds
@@ -111,7 +111,7 @@ def main():
     telemetry_display = "Batch Blindness (Realistic)" if blind_unassisted else "Unblinded (Denominator Hints)"
 
     print("=" * 72)
-    print("  SignalGate Frontier Benchmark -- Daily Incremental Runner")
+    print("  SignalGuard Frontier Benchmark -- Daily Incremental Runner")
     print("=" * 72)
     print(f"  Target Model      : {args.model_name}")
     print(f"  Personas          : {', '.join(personas)}")

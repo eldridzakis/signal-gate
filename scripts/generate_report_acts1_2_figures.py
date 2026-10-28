@@ -4,7 +4,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy import stats
-from signalgate.agent_sandbox import generate_benchmark_datasets, InstrumentedAgentSandbox, run_exploratory_agent_simulation
+from signalguard.agent_sandbox import generate_benchmark_datasets, InstrumentedAgentSandbox, run_exploratory_agent_simulation
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 FIG_DIR = REPO_ROOT / "notebooks" / "figures"
@@ -101,7 +101,7 @@ def generate_fig2_agentic_trajectory():
         t, m = turns[i], cum_m[i]
         ax1.annotate(f"Turn {t}\nM={m}", (t, m), textcoords="offset points", xytext=(0, 6), ha="center", fontsize=8.5, fontweight="bold")
 
-    # Panel B: Dynamic SignalGate Escalation vs Naive Static Alpha
+    # Panel B: Dynamic SignalGuard Escalation vs Naive Static Alpha
     n_base = 3000
     p_base = float(df["is_fraud"].mean())
     h_y = float(stats.entropy([1 - p_base, p_base], base=2))
@@ -110,14 +110,14 @@ def generate_fig2_agentic_trajectory():
 
     ax2.axhline(tau_naive, color="#e74c3c", linestyle="--", lw=2, label=f"Naive Single-Test Cutoff ($\\alpha=0.05, M=1$): $\\tau={tau_naive:.5f}$")
     ax2.plot(turns, evt_ceil, color="#f39c12", linestyle="--", lw=2, marker="s", markersize=6, label=r"Dynamic EVT Expected Noise Max $\tau_{\mathrm{EVT}}(M)$")
-    ax2.plot(turns, bonf_gate, color="#27ae60", linestyle="-", lw=2.5, marker="^", markersize=7, label=r"SignalGate Bonferroni Gate $\tau_{\mathrm{sig}}(M_{\mathrm{eff}}, \alpha=0.05)$")
+    ax2.plot(turns, bonf_gate, color="#27ae60", linestyle="-", lw=2.5, marker="^", markersize=7, label=r"SignalGuard Bonferroni Gate $\tau_{\mathrm{sig}}(M_{\mathrm{eff}}, \alpha=0.05)$")
     ax2.plot(turns, cum_best_rig, color="#2980b9", linestyle="-", lw=2.2, marker="o", markersize=7, label="Candidate Discovered by Agent in Turn")
 
     ax2.fill_between(turns, tau_naive, evt_ceil, color="#f39c12", alpha=0.18, label="Agentic Hallucination Zone (Winner's Curse Trap)")
 
     ax2.set_xlabel("Agent Exploratory Turn")
     ax2.set_ylabel("Relative Information Gain (RIG)")
-    ax2.set_title("(B) Dynamic Threshold Escalation:\nSignalGate Closes the Hallucination Trap as $M$ Grows", fontweight="bold")
+    ax2.set_title("(B) Dynamic Threshold Escalation:\nSignalGuard Closes the Hallucination Trap as $M$ Grows", fontweight="bold")
     ax2.grid(True, ls=":", alpha=0.5)
     ax2.legend(loc="upper left", fontsize=9, frameon=True)
 

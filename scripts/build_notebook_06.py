@@ -50,7 +50,7 @@ def build_notebook():
 
 In earlier notebooks (`01` through `05`), we demonstrated that unassisted LLM exploratory agents suffer from **Search Space Amnesia**, **Batch Blindness**, and **Multiplicity Paralysis** on synthetic control datasets (`null_honeypot`, `needle_in_haystack`, `correlated_blocks`).
 
-To prove that SignalGate generalizes to production enterprise workflows, this notebook presents four comprehensive real-world extensions (also captured in standalone executive format in **[`REPORT.md`](../REPORT.md)**):
+To prove that SignalGuard generalizes to production enterprise workflows, this notebook presents four comprehensive real-world extensions (also captured in standalone executive format in **[`REPORT.md`](../REPORT.md)**):
 
 1. **Part 1: Real-World Production Datasets Evaluated Across 4 Frontier LLMs (108 Tabular Runs)**
    - **Lending Club Loan Defaults** ($N = 54,636$ loans, 42 columns, target: `bad_loans`).
@@ -66,13 +66,13 @@ To prove that SignalGate generalizes to production enterprise workflows, this no
 2. **Part 2: Closed-Form Continuous Metric Gating (`ANOVA F -> RIG`)**
    - Using the exact Gaussian / ANOVA mutual information identity:
      $$\\eta^2 = \\frac{SS_{\\text{between}}}{SS_{\\text{total}}}, \\qquad I(X;Y) = -\\frac{1}{2}\\log_2(1 - \\eta^2), \\qquad G_{\\text{equiv}} = -N \\ln(1 - \\eta^2)$$
-   - SignalGate gates continuous SQL `GROUP BY` aggregate queries returning `COUNT(*)`, `AVG(y)`, and `STDDEV(y)` directly from summary statistics without raw row access or arbitrary target binarization.
+   - SignalGuard gates continuous SQL `GROUP BY` aggregate queries returning `COUNT(*)`, `AVG(y)`, and `STDDEV(y)` directly from summary statistics without raw row access or arbitrary target binarization.
 
 3. **Part 3: End-to-End Local SQLite Warehouse + Governed Semantic Layer Benchmark (108 Live SQL Runs)**
    - Loads `king_county_continuous` (continuous `log_price`), `lending_club`, and `bank_marketing` into a local SQLite database governed by a semantic catalog (`RealWorldSQLSemanticWarehouse`) and benchmarks all 4 frontier LLMs executing multi-turn SQL `GROUP BY`, `CUBE`, and `WHERE` slice queries.
 
 4. **Part 4: SparkBeyond Agentune AutoML Overfitting Benchmark ($M = 1,000$ Candidates)**
-   - Benchmarks **Unassisted Agentune (Greedy AutoML)** vs. **SignalGate-Governed Selection** on holdout replication rate, out-of-sample decay, and downstream classifier generalization (ROC AUC).
+   - Benchmarks **Unassisted Agentune (Greedy AutoML)** vs. **SignalGuard-Governed Selection** on holdout replication rate, out-of-sample decay, and downstream classifier generalization (ROC AUC).
 """)
 
     # Section 1: Real-World Frontier LLM Audit
@@ -80,9 +80,9 @@ To prove that SignalGate generalizes to production enterprise workflows, this no
 ---
 ## Part 1: Real-World Empirical Holdout Audit Across 4 Frontier LLMs (108 Tabular Runs)
 
-We benchmark three agent archetypes (`business_analyst`, `statistician_unassisted`, `statistician_signalgate`) across 3 real-world datasets and 4 frontier models (36 persona-model-dataset configurations $\\times$ 3 seeds = **108 live frontier evaluations**).
+We benchmark three agent archetypes (`business_analyst`, `statistician_unassisted`, `statistician_signalguard`) across 3 real-world datasets and 4 frontier models (36 persona-model-dataset configurations $\\times$ 3 seeds = **108 live frontier evaluations**).
 
-When unassisted agents drill into small subgroup slices or interaction cubes, finite-sample contingency noise inflates observed training RIG. SignalGate's stateful `NoiseGateSessionLedger` enforces both **session multiple-testing thresholds** $\\tau_{\\text{sig}}(M_{\\text{eff}})$ and **Cochran's small-cell sparsity guard** ($E_{rc} < 5$).
+When unassisted agents drill into small subgroup slices or interaction cubes, finite-sample contingency noise inflates observed training RIG. SignalGuard's stateful `NoiseGateSessionLedger` enforces both **session multiple-testing thresholds** $\\tau_{\\text{sig}}(M_{\\text{eff}})$ and **Cochran's small-cell sparsity guard** ($E_{rc} < 5$).
 """)
 
     code("""
@@ -126,16 +126,16 @@ display(Image(filename='figures/fig4_real_world_frontier_replication.png'))
 ---
 ## Part 2: Closed-Form Continuous Metric Gate (`ANOVA F -> RIG`)
 
-Real-world enterprise tables frequently store continuous metrics (e.g., `log_price` in King County Housing, revenue, latency). Rather than forcing arbitrary target binarization, SignalGate directly gates SQL `GROUP BY` aggregate outputs (`COUNT(*)`, `AVG(y)`, `STDDEV(y)`) via one-way ANOVA variance decomposition:
+Real-world enterprise tables frequently store continuous metrics (e.g., `log_price` in King County Housing, revenue, latency). Rather than forcing arbitrary target binarization, SignalGuard directly gates SQL `GROUP BY` aggregate outputs (`COUNT(*)`, `AVG(y)`, `STDDEV(y)`) via one-way ANOVA variance decomposition:
 
 $$SS_{\\text{between}} = \\sum_{k=1}^{K} n_k (\\bar{y}_k - \\bar{y})^2, \\qquad SS_{\\text{within}} = \\sum_{k=1}^{K} (n_k - 1) s_k^2, \\qquad \\eta^2 = \\frac{SS_{\\text{between}}}{SS_{\\text{between}} + SS_{\\text{within}}}$$
 
-Under the Gaussian mutual information equivalence, Wilks' likelihood ratio statistic maps directly to SignalGate's $\\chi^2_{K-1}$ Extreme Value Theory envelope:
+Under the Gaussian mutual information equivalence, Wilks' likelihood ratio statistic maps directly to SignalGuard's $\\chi^2_{K-1}$ Extreme Value Theory envelope:
 $$G_{\\text{equiv}} = -N \\ln(1 - \\eta^2) \\xrightarrow{d} \\chi^2_{K-1} \\text{ under } H_0$$
 """)
 
     code("""
-from signalgate import anova_rig_from_group_stats, NoiseGateSessionLedger
+from signalguard import anova_rig_from_group_stats, NoiseGateSessionLedger
 
 # Example: Gating a SQL GROUP BY query on continuous King County Home Prices
 # SELECT grade_tier, COUNT(*), AVG(log_price), STDDEV(log_price) FROM king_county GROUP BY grade_tier
@@ -185,7 +185,7 @@ print(f"   eta^2 = {res_spurious_slice['anova_metrics']['eta_squared']:.4f} | mi
 ---
 ## Part 3: End-to-End Local SQLite Warehouse + Governed Semantic Layer Benchmark (108 Live SQL Runs)
 
-To test SignalGate in a realistic BI / Text-to-SQL architecture, `RealWorldSQLSemanticWarehouse` loads our three production datasets into an in-memory/local SQLite database paired with a governed semantic catalog (`dimensions`, `metrics`, and SQL tool dispatchers `sql_scan_all_dimensions`, `sql_query_group_by`, `sql_query_cube`, `sql_query_slice`).
+To test SignalGuard in a realistic BI / Text-to-SQL architecture, `RealWorldSQLSemanticWarehouse` loads our three production datasets into an in-memory/local SQLite database paired with a governed semantic catalog (`dimensions`, `metrics`, and SQL tool dispatchers `sql_scan_all_dimensions`, `sql_query_group_by`, `sql_query_cube`, `sql_query_slice`).
 """)
 
     code("""
@@ -243,7 +243,7 @@ display(agentune_downstream)
     ])
 
     md("""
-### Figure 5: Feature Holdout Decay Curves (Unassisted Agentune vs. SignalGate)
+### Figure 5: Feature Holdout Decay Curves (Unassisted Agentune vs. SignalGuard)
 """)
 
     code("""
@@ -262,11 +262,11 @@ display(Image(filename='figures/fig6_agentune_downstream_overfitting_gap.png'))
 ---
 ## Quantitative Summary Across All 216 Live Frontier Runs & AutoML Benchmark
 
-| Benchmark Dimension | Unassisted Baseline / Agentune | SignalGate-Governed Selection | SignalGate Advantage |
+| Benchmark Dimension | Unassisted Baseline / Agentune | SignalGuard-Governed Selection | SignalGuard Advantage |
 | :--- | :---: | :---: | :---: |
 | **Tabular Frontier LLM Real FDR (108 Runs)** | **Up to 30.2% – 44.8%** (`business_analyst`) | **0.0%** (All 4 Frontier LLMs) | **100.0% Holdout Replication** |
 | **SQL Semantic Continuous ANOVA Real FDR** | **46.8% – 82.1%** (`business_analyst`) / **37.8% – 50.0%** (`statistician`) | **0.0%** (All 4 Frontier LLMs) | **Closed-Form SQL `AVG`/`STDDEV` Gate** |
-| **King County Holdout Signal Power** | **0.1676** (`statistician_unassisted` on Opus/GPT) | **0.2184** (`statistician_signalgate`) | **+30% Higher Verified Signal Power** |
+| **King County Holdout Signal Power** | **0.1676** (`statistician_unassisted` on Opus/GPT) | **0.2184** (`statistician_signalguard`) | **+30% Higher Verified Signal Power** |
 | **Agentune AutoML Replication ($M=1,000$)** | **73.3%** (26.7% Real FDR) | **100.0%** (0.0% Real FDR) | **Zero Spurious Interactions** |
 | **Agentune Out-of-Sample Decay %** | **39.2%** | **21.9%** | **1.8x Lower Decay** |
 | **Downstream Holdout ROC AUC** | **0.6993** (Degraded vs raw baseline) | **0.7028** (Beat raw baseline) | **Eliminates Interaction Overfitting** |
@@ -276,7 +276,7 @@ display(Image(filename='figures/fig6_agentune_downstream_overfitting_gap.png'))
         "cells": cells,
         "metadata": {
             "kernelspec": {
-                "display_name": "Python 3 (signalgate-llm)",
+                "display_name": "Python 3 (signalguard-llm)",
                 "language": "python",
                 "name": "python3"
             },

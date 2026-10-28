@@ -1,8 +1,8 @@
 """Agentune-Style Automated Feature Engineering & Overfitting Benchmark.
 
 Benchmarks unassisted automated feature generation and driver selection (e.g., SparkBeyond Agentune)
-against SignalGate-governed selection. Demonstrates how unassisted greedy selection overfits
-high-dimensional interaction candidates out-of-sample, and how SignalGate eliminates spurious
+against SignalGuard-governed selection. Demonstrates how unassisted greedy selection overfits
+high-dimensional interaction candidates out-of-sample, and how SignalGuard eliminates spurious
 drivers through stateful Extreme Value Theory (EVT) noise ceilings and small-cell gating.
 """
 
@@ -200,7 +200,7 @@ def run_agentune_overfitting_benchmark(
     sample_test: int = 2500,
     seed: int = 42
 ) -> Dict[str, Any]:
-    """Runs a complete empirical benchmark comparing unassisted Agentune vs SignalGate-governed selection.
+    """Runs a complete empirical benchmark comparing unassisted Agentune vs SignalGuard-governed selection.
 
     Parameters
     ----------
@@ -211,7 +211,7 @@ def run_agentune_overfitting_benchmark(
     top_k : int
         Number of top features to select for holdout evaluation and downstream models
     min_cell_size : int
-        Minimum contingency cell count required by SignalGate to reject small-cell artifacts
+        Minimum contingency cell count required by SignalGuard to reject small-cell artifacts
     alpha : float
         Statistical significance level for multiple testing
     sample_train : int
@@ -254,7 +254,7 @@ def run_agentune_overfitting_benchmark(
         noise_feature_ratio=0.25
     )
 
-    # 3. Evaluate Candidates in SignalGate Session Ledger
+    # 3. Evaluate Candidates in SignalGuard Session Ledger
     ledger = NoiseGateSessionLedger()
     session_id = f"agentune_eval_{dataset_name}_{seed}"
     ledger.reset_session_budget(session_id)
@@ -275,7 +275,7 @@ def run_agentune_overfitting_benchmark(
         min_cell = min(n00, n01, n10, n11)
         small_cell_artifact = bool(min_cell < min_cell_size)
 
-        # SignalGate stateful multi-testing ledger evaluation
+        # SignalGuard stateful multi-testing ledger evaluation
         gate_res = ledger.evaluate_feature_or_slice(
             observed_rig=obs_rig,
             nrows=n_train,
@@ -316,20 +316,20 @@ def run_agentune_overfitting_benchmark(
     # Greedily ranks all M generated features by train_rig (Search Space Amnesia)
     unassisted_top = eval_df.sort_values(by="train_rig", ascending=False).head(top_k).copy()
 
-    # Strategy 2: SignalGate-Governed Selection
+    # Strategy 2: SignalGuard-Governed Selection
     # Requires clearing dynamic noise ceiling tau_sig AND passing small-cell guardrails
-    signalgate_pool = eval_df[
+    signalguard_pool = eval_df[
         (eval_df["passed_noise_gate"]) & (~eval_df["small_cell_artifact"])
     ].copy()
 
-    if len(signalgate_pool) > 0:
-        signalgate_top = signalgate_pool.sort_values(by="train_rig", ascending=False).head(top_k).copy()
+    if len(signalguard_pool) > 0:
+        signalguard_top = signalguard_pool.sort_values(by="train_rig", ascending=False).head(top_k).copy()
     else:
         # Fallback to features beating tau_evt if strict tau_sig yielded fewer than top_k
-        signalgate_fallback = eval_df[
+        signalguard_fallback = eval_df[
             (eval_df["train_rig"] > eval_df["tau_evt"]) & (~eval_df["small_cell_artifact"])
         ].copy()
-        signalgate_top = signalgate_fallback.sort_values(by="train_rig", ascending=False).head(top_k).copy()
+        signalguard_top = signalguard_fallback.sort_values(by="train_rig", ascending=False).head(top_k).copy()
 
     # 5. Out-of-Sample Holdout Verification
     def _evaluate_top_set(df_subset: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, float]]:
@@ -384,7 +384,7 @@ def run_agentune_overfitting_benchmark(
         return res_df, summary
 
     unassisted_verified_df, unassisted_summary = _evaluate_top_set(unassisted_top)
-    signalgate_verified_df, signalgate_summary = _evaluate_top_set(signalgate_top)
+    signalguard_verified_df, signalguard_summary = _evaluate_top_set(signalguard_top)
 
     # 6. Downstream ML Model Evaluation (Overfitting Gap)
     from sklearn.linear_model import LogisticRegression
@@ -406,14 +406,14 @@ def run_agentune_overfitting_benchmark(
     else:
         X_unassisted_tr, X_unassisted_te = X_base_tr, X_base_te
 
-    # Construct SignalGate Augmented Matrix
-    signalgate_tr_feats = [r["cand_obj"].train_vector for _, r in signalgate_top.iterrows()]
-    signalgate_te_feats = [r["cand_obj"].test_vector for _, r in signalgate_top.iterrows()]
-    if signalgate_tr_feats:
-        X_signalgate_tr = np.column_stack([X_base_tr] + signalgate_tr_feats)
-        X_signalgate_te = np.column_stack([X_base_te] + signalgate_te_feats)
+    # Construct SignalGuard Augmented Matrix
+    signalguard_tr_feats = [r["cand_obj"].train_vector for _, r in signalguard_top.iterrows()]
+    signalguard_te_feats = [r["cand_obj"].test_vector for _, r in signalguard_top.iterrows()]
+    if signalguard_tr_feats:
+        X_signalguard_tr = np.column_stack([X_base_tr] + signalguard_tr_feats)
+        X_signalguard_te = np.column_stack([X_base_te] + signalguard_te_feats)
     else:
-        X_signalgate_tr, X_signalgate_te = X_base_tr, X_base_te
+        X_signalguard_tr, X_signalguard_te = X_base_tr, X_base_te
 
     def _fit_eval_model(X_tr: np.ndarray, X_te: np.ndarray) -> Dict[str, float]:
         clf = LogisticRegression(max_iter=1000, random_state=seed, solver='lbfgs')
@@ -431,7 +431,7 @@ def run_agentune_overfitting_benchmark(
 
     model_base = _fit_eval_model(X_base_tr, X_base_te)
     model_unassisted = _fit_eval_model(X_unassisted_tr, X_unassisted_te)
-    model_signalgate = _fit_eval_model(X_signalgate_tr, X_signalgate_te)
+    model_signalguard = _fit_eval_model(X_signalguard_tr, X_signalguard_te)
 
     downstream_df = pd.DataFrame([
         {
@@ -449,11 +449,11 @@ def run_agentune_overfitting_benchmark(
             "Overfitting_Gap": model_unassisted["overfitting_gap"]
         },
         {
-            "Pipeline": "Baseline + SignalGate-Governed Top-K",
-            "N_Features": X_signalgate_tr.shape[1],
-            "Train_AUC": model_signalgate["train_auc"],
-            "Holdout_Test_AUC": model_signalgate["holdout_test_auc"],
-            "Overfitting_Gap": model_signalgate["overfitting_gap"]
+            "Pipeline": "Baseline + SignalGuard-Governed Top-K",
+            "N_Features": X_signalguard_tr.shape[1],
+            "Train_AUC": model_signalguard["train_auc"],
+            "Holdout_Test_AUC": model_signalguard["holdout_test_auc"],
+            "Overfitting_Gap": model_signalguard["overfitting_gap"]
         }
     ])
 
@@ -470,15 +470,15 @@ def run_agentune_overfitting_benchmark(
             "Decay (%)": unassisted_summary["mean_decay_pct"]
         },
         {
-            "Approach": "SignalGate-Governed Selection",
+            "Approach": "SignalGuard-Governed Selection",
             "Total_Generated_M": max_candidates,
-            "Selected_Features": signalgate_summary["selected_features_count"],
-            "Holdout_Replication_Rate (%)": signalgate_summary["holdout_replication_rate_pct"],
-            "Real_FDR (%)": signalgate_summary["real_fdr_pct"],
-            "Mean_Train_RIG": signalgate_summary["mean_train_rig"],
-            "Mean_Holdout_RIG": signalgate_summary["mean_holdout_rig"],
-            "Generalization_Bias": signalgate_summary["generalization_bias"],
-            "Decay (%)": signalgate_summary["mean_decay_pct"]
+            "Selected_Features": signalguard_summary["selected_features_count"],
+            "Holdout_Replication_Rate (%)": signalguard_summary["holdout_replication_rate_pct"],
+            "Real_FDR (%)": signalguard_summary["real_fdr_pct"],
+            "Mean_Train_RIG": signalguard_summary["mean_train_rig"],
+            "Mean_Holdout_RIG": signalguard_summary["mean_holdout_rig"],
+            "Generalization_Bias": signalguard_summary["generalization_bias"],
+            "Decay (%)": signalguard_summary["mean_decay_pct"]
         }
     ])
 
@@ -488,7 +488,7 @@ def run_agentune_overfitting_benchmark(
         "n_test": len(y_test),
         "total_generated_candidates_M": max_candidates,
         "unassisted_verified_df": unassisted_verified_df,
-        "signalgate_verified_df": signalgate_verified_df,
+        "signalguard_verified_df": signalguard_verified_df,
         "summary_df": summary_df,
         "downstream_df": downstream_df
     }

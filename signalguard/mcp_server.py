@@ -750,7 +750,7 @@ def create_mcp_server(ledger: Optional[NoiseGateSessionLedger] = None):
 
     active_ledger = ledger or GLOBAL_LEDGER
     mcp_app = FastMCP(
-        "SignalGate",
+        "SignalGuard",
         instructions=(
             "Stateful statistical guardrail server preventing automated p-hacking, "
             "the Winner's Curse, and spurious feature/slice selection in autonomous data science agents."
@@ -838,7 +838,7 @@ def main():
         import sys
         sys.stderr.write(
             "Error: The 'mcp' package is required to run the MCP server.\n"
-            "Install it via: pip install \"signalgate[mcp]\" or pip install mcp\n"
+            "Install it via: pip install \"signalguard[mcp]\" or pip install mcp\n"
         )
         sys.exit(1)
 

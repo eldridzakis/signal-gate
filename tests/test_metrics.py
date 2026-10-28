@@ -3,8 +3,8 @@
 import unittest
 import numpy as np
 import pandas as pd
-from signalgate.metrics import entropy, rig, rig_all_columns, fast_contingency_matrix
-import signalgate
+from signalguard.metrics import entropy, rig, rig_all_columns, fast_contingency_matrix
+import signalguard
 
 
 class TestMetrics(unittest.TestCase):
@@ -51,14 +51,14 @@ class TestMetrics(unittest.TestCase):
 
 
     def test_public_api(self):
-        # signalgate core exports
-        self.assertTrue(hasattr(signalgate, 'rig'))
-        self.assertTrue(hasattr(signalgate, 'PermutationObject'))
-        self.assertTrue(hasattr(signalgate, 'FeatureNoiseThreshold'))
-        self.assertTrue(hasattr(signalgate, 'FeatureDebiaser'))
-        self.assertTrue(hasattr(signalgate, 'NoiseGateSessionLedger'))
-        self.assertTrue(hasattr(signalgate, 'SignalGateSessionLedger'))
-        self.assertTrue(hasattr(signalgate, 'run_prewarmed_frontier_eval'))
+        # signalguard core exports
+        self.assertTrue(hasattr(signalguard, 'rig'))
+        self.assertTrue(hasattr(signalguard, 'PermutationObject'))
+        self.assertTrue(hasattr(signalguard, 'FeatureNoiseThreshold'))
+        self.assertTrue(hasattr(signalguard, 'FeatureDebiaser'))
+        self.assertTrue(hasattr(signalguard, 'NoiseGateSessionLedger'))
+        self.assertTrue(hasattr(signalguard, 'SignalGuardSessionLedger'))
+        self.assertTrue(hasattr(signalguard, 'run_prewarmed_frontier_eval'))
 
 
 if __name__ == '__main__':

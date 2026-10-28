@@ -1,4 +1,4 @@
-# SignalGate
+# SignalGuard
 
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -36,8 +36,8 @@ If your organization connects autonomous LLM agents (Claude Code, Cursor, LangCh
    * ⚙️ **Operations:** Workflows restructured to solve operational "bottlenecks" that were small-sample statistical mirages.
    * 🛠️ **Engineering:** Data engineers waste sprints building dbt models, tables, and production pipelines around features that provide zero real lift.
 
-**What SignalGate Does:**  
-Think of SignalGate as a **real-time statistical firewall** (via MCP or Python decorator). It sits between your AI agents and your SQL warehouse, statefully tracks the agent's hidden query budget ($M$), and mathematically rejects small-slice noise before it reaches executive decision-makers.
+**What SignalGuard Does:**  
+Think of SignalGuard as a **real-time statistical firewall** (via MCP or Python decorator). It sits between your AI agents and your SQL warehouse, statefully tracks the agent's hidden query budget ($M$), and mathematically rejects small-slice noise before it reaches executive decision-makers.
 
 > **The Result:** Drops autonomous AI false discovery rate from **51%–82% down to 0.0%**, with **zero database scanning overhead** and **<0.1ms latency**.
 
@@ -55,7 +55,7 @@ Selecting features or reporting insights that maximize sample metrics introduces
 3. **Compounded by Large Search Budgets:** As the search space ($M$) expands, the noise floor and overestimation bias increase systematically.
 4. **Agentic $p$-Hacking:** High-velocity autonomous agents that iteratively hypothesize, slice, and test patterns without stateful tracking quickly flood downstream models with multiple-testing artifacts.
 
-**SignalGate** provides an information-theoretic framework and a **Stateful Model Context Protocol (MCP) Guardrail Server** to:
+**SignalGuard** provides an information-theoretic framework and a **Stateful Model Context Protocol (MCP) Guardrail Server** to:
 * **Instantly calculate closed-form noise thresholds** given dataset size ($N$), target distribution ($p$), and search space size ($M$).
 * **Act as an active statistical guardrail for LLM agents**, statefully tracking cumulative hypotheses ($M$) and preventing agents from hallucinating spurious correlations as genuine insights.
 * **Run vectorized Monte-Carlo permutation tests** (100x faster than traditional dataframe shuffling).
@@ -108,22 +108,22 @@ When an AutoML engine or LLM agent evaluates $M$ candidate features:
 ### 3. Correlation-Aware Noise Gates & Effective Hypotheses ($M_{\text{eff}} \le M_{\text{raw}}$)
 When candidate features are collinear (e.g., interaction grids sharing parent columns, sliding windows, or dense quantile splits), plugging raw $M_{\text{raw}}$ into Bonferroni or EVT over-inflates the noise gate ($\tau(M_{\text{raw}}) > \tau(M_{\text{eff}})$), risking Type II false rejections of moderate genuine signals.
 
-SignalGate estimates the **Effective Number of Independent Hypotheses ($M_{\text{eff}} \le M_{\text{raw}}$)** in milliseconds using the Cheverud–Nyholt / Li–Ji eigenvalue variance scaling:
+SignalGuard estimates the **Effective Number of Independent Hypotheses ($M_{\text{eff}} \le M_{\text{raw}}$)** in milliseconds using the Cheverud–Nyholt / Li–Ji eigenvalue variance scaling:
 $$\text{Var}(\lambda) = \frac{\sum_{i=1}^M \lambda_i^2 - M}{M}, \quad M_{\text{eff}} = 1 + (M - 1)\left(1 - \frac{\text{Var}(\lambda)}{M}\right)$$
 
-Rather than computing an expensive $O(M^3)$ eigendecomposition, SignalGate evaluates the sum of squared eigenvalues via the Frobenius norm trace identity:
+Rather than computing an expensive $O(M^3)$ eigendecomposition, SignalGuard evaluates the sum of squared eigenvalues via the Frobenius norm trace identity:
 $$\sum_{i=1}^M \lambda_i^2 = \text{Tr}(\mathbf{R}^2) = \|\mathbf{R}\|_F^2$$
 * **Primal Formulation ($M \le N$):** Computes sample correlation matrix $\mathbf{R} = \mathbf{Z}^T \mathbf{Z}$ ($M \times M$) in $O(M^2 N)$.
 * **Dual Gram Trick ($M > N$):** Computes $\mathbf{G}_{\text{dual}} = \mathbf{Z} \mathbf{Z}^T$ ($N \times N$), which possesses the identical non-zero eigenvalues and computes in $O(N^2 M)$ time!
 
 ### 4. Closed-Form Continuous Metric Gate (`ANOVA F -> RIG`) for SQL `GROUP BY` Queries
-For continuous business targets (e.g., revenue, house prices, latency) where SQL `GROUP BY` queries return only sufficient statistics `COUNT(*)`, `AVG(y)`, and `STDDEV(y)` across $K$ groups $`\{(n_g, \bar{y}_g, s_g)\}_{g=1}^K`$, SignalGate avoids arbitrary target binning by using the exact Gaussian / one-way ANOVA mutual information identity:
+For continuous business targets (e.g., revenue, house prices, latency) where SQL `GROUP BY` queries return only sufficient statistics `COUNT(*)`, `AVG(y)`, and `STDDEV(y)` across $K$ groups $`\{(n_g, \bar{y}_g, s_g)\}_{g=1}^K`$, SignalGuard avoids arbitrary target binning by using the exact Gaussian / one-way ANOVA mutual information identity:
 
 $$SS_{\text{between}} = \sum_{g=1}^K n_g (\bar{y}_g - \bar{y}_{\text{grand}})^2, \qquad SS_{\text{within}} = \sum_{g=1}^K (n_g - 1) s_g^2, \qquad \eta^2 = \frac{SS_{\text{between}}}{SS_{\text{between}} + SS_{\text{within}}}$$
 
 $$I_{\text{ANOVA}}(X; Y) = -\frac{1}{2} \log_2(1 - \eta^2), \qquad G_{\text{equiv}} = -N \ln(1 - \eta^2) \sim \chi^2_{K-1} \quad (H_0)$$
 
-This maps any continuous SQL `GROUP BY` query directly onto SignalGate's $\chi^2_{K-1}$ Extreme Value Theory envelope (`anova_rig_from_group_stats` and `evaluate_continuous_group_aggregation`) without requiring raw row-level data.
+This maps any continuous SQL `GROUP BY` query directly onto SignalGuard's $\chi^2_{K-1}$ Extreme Value Theory envelope (`anova_rig_from_group_stats` and `evaluate_continuous_group_aggregation`) without requiring raw row-level data.
 
 ---
 
@@ -141,11 +141,11 @@ See **[`REPORT.md`](REPORT.md)** for the complete 5-act visual narrative, mathem
 
 Autonomous data science and Text-to-SQL agents running in while-loops act as high-velocity multiple-testing machines. As they slice warehouses or engineer features, standard significance criteria fail because the search space ($M$) is constantly growing.
 
-**SignalGate** includes a stateful **Model Context Protocol (MCP)** server and framework-agnostic agent tools to act as an active gatekeeper:
+**SignalGuard** includes a stateful **Model Context Protocol (MCP)** server and framework-agnostic agent tools to act as an active gatekeeper:
 
 ```mermaid
 flowchart LR
-    A["LLM Agent (Claude Code / LangGraph / Cursor)"] -->|"Propose Feature or Slice"| B["SignalGate (MCP Guardrail)"]
+    A["LLM Agent (Claude Code / LangGraph / Cursor)"] -->|"Propose Feature or Slice"| B["SignalGuard (MCP Guardrail)"]
     B -->|"Stateful Tracker (M += 1)"| C{"Noise Gate Check"}
     C -->|"RIG >= tau_sig"| D["VERIFIED_SIGNAL<br>(Proceed)"]
     C -->|"tau_evt <= RIG < tau_sig"| E["BORDERLINE_WARNING<br>(Needs Holdout Validation)"]
@@ -160,8 +160,8 @@ Add the server to your `claude_desktop_config.json` (or Cursor MCP settings):
 ```json
 {
   "mcpServers": {
-    "signalgate": {
-      "command": "signalgate-mcp"
+    "signalguard": {
+      "command": "signalguard-mcp"
     }
   }
 }
@@ -170,7 +170,7 @@ Add the server to your `claude_desktop_config.json` (or Cursor MCP settings):
 Or run via Python directly:
 ```bash
 pip install -e ".[mcp]"
-signalgate-mcp
+signalguard-mcp
 ```
 
 ### 2. Available MCP & Agent Tools
@@ -183,9 +183,9 @@ signalgate-mcp
 ### 3. Using in Python Agent Reflection Loops (LangGraph / CrewAI / Raw LLM)
 
 ```python
-from signalgate import SignalGateSessionLedger
+from signalguard import SignalGuardSessionLedger
 
-ledger = SignalGateSessionLedger()
+ledger = SignalGuardSessionLedger()
 
 # Agent evaluates an engineered feature or database slice
 verdict = ledger.evaluate_feature_or_slice(
@@ -202,7 +202,7 @@ print(verdict["agent_directive"]) # Authoritative natural-language directive for
 
 Or plug in ready-to-use OpenAI / Anthropic schemas:
 ```python
-from signalgate import get_openai_tools, get_anthropic_tools, create_agent_tools
+from signalguard import get_openai_tools, get_anthropic_tools, create_agent_tools
 
 tools = create_agent_tools()
 dispatch_dict = tools.to_callable_dict()
@@ -215,8 +215,8 @@ openai_tool_schemas = get_openai_tools()
 
 ### Installation
 ```bash
-git clone https://github.com/eldridzakis/signal-gate.git
-cd signal-gate
+git clone https://github.com/eldridzakis/signal-guard.git
+cd signal-guard
 pip install -e .
 
 # Or with MCP server support:
@@ -227,7 +227,7 @@ pip install -e ".[mcp]"
 Calculate how high a feature's RIG must be to be statistically distinguished from noise after evaluating $M=20,000$ candidates on a dataset of 5,000 rows with a 15% minority class:
 
 ```python
-from signalgate import estimate_noise_threshold, SignalNoiseThreshold
+from signalguard import estimate_noise_threshold, SignalNoiseThreshold
 
 # Instant lookup (< 1 millisecond)
 tau = estimate_noise_threshold(nrows=5000, minority_frac=0.15, n_features_evaluated=20000, alpha=0.05)
@@ -241,7 +241,7 @@ print(summary_df)
 
 ### 2. Fast Monte-Carlo Permutation Test
 ```python
-from signalgate import PermutationObject
+from signalguard import PermutationObject
 
 perm = PermutationObject()
 perm.set_data_parameters(nrows=2000, class_weights=[0.25])
@@ -255,7 +255,7 @@ perm.null_rigs_comparison(threshold=0.005)
 
 ### 3. Feature De-Biasing & Stability Classification
 ```python
-from signalgate import SignalDebiaser
+from signalguard import SignalDebiaser
 
 # 1. Compute holdout bias: Bias = Train_Metric - Unseen_Metric
 df_bias = SignalDebiaser.compute_holdout_bias(df_train, df_test, target='target')
@@ -283,7 +283,7 @@ print(stable_features[['feature', 'train_rig', 'corrected_rig', 'stability_class
 | **[`01_feature_noise_thresholds.ipynb`](notebooks/01_feature_noise_thresholds.ipynb)** | Mathematical proofs, asymptotic $\chi^2$ vs Monte-Carlo permutations, parameter sweeps ($N$, minority class $p$), and Bonferroni/EVT noise gates. |
 | **[`02_selection_bias_and_debiasing.ipynb`](notebooks/02_selection_bias_and_debiasing.ipynb)** | Quantifying the Winner's Curse on Lending Club loan defaults, measuring search complexity vs. bias, and executing $1\sigma / 2\sigma$ bootstrap de-biasing. |
 | **[`03_agent_phacking_benchmark.ipynb`](notebooks/03_agent_phacking_benchmark.ipynb)** | Autonomous agent p-hacking benchmark ($M > 500$ hypotheses), real-time trajectory hero chart, subgroup slicing ($N \to 0$), Frobenius $M_{\text{eff}}$ analysis, and bootstrap needle recovery. |
-| **[`04_llm_persona_and_modality_benchmark.ipynb`](notebooks/04_llm_persona_and_modality_benchmark.ipynb)** | LLM agent personas (Business Analyst vs. Statistician vs. SignalGate), The Hawthorne Effect & Batch Blindness ($8\times$–$25\times$ gap), and Raw CSV vs. Governed Semantic Layer modality benchmark. |
+| **[`04_llm_persona_and_modality_benchmark.ipynb`](notebooks/04_llm_persona_and_modality_benchmark.ipynb)** | LLM agent personas (Business Analyst vs. Statistician vs. SignalGuard), The Hawthorne Effect & Batch Blindness ($8\times$–$25\times$ gap), and Raw CSV vs. Governed Semantic Layer modality benchmark. |
 | **[`05_frontier_llm_benchmark.ipynb`](notebooks/05_frontier_llm_benchmark.ipynb)** | **Synthetic Control Frontier LLM Benchmark:** Empirical validation across **Anthropic Claude Opus 5.5**, **OpenAI GPT-6.1 Sol**, **Google Gemini 3.5 Flash Lite**, and **Claude Sonnet 5.5** on synthetic control datasets. |
 | **[`06_real_world_and_agentune_benchmark.ipynb`](notebooks/06_real_world_and_agentune_benchmark.ipynb)** | **Real-World Holdout, Local SQLite Semantic Warehouse, Continuous ANOVA Gate & Agentune AutoML Benchmark:** 216 live frontier LLM runs across Lending Club, King County Housing (both binary & continuous `log_price` SQL ANOVA), and UCI Bank Marketing, plus 3,000-candidate AutoML feature overfitting audit. |
 
@@ -292,9 +292,9 @@ print(stable_features[['feature', 'train_rig', 'corrected_rig', 'stability_class
 ## 📂 Repository Structure
 
 ```
-signal-gate/
+signal-guard/
 ├── REPORT.md                     # Standalone 5-act executive & technical empirical report
-├── signalgate/                   # Core library
+├── signalguard/                   # Core library
 │   ├── __init__.py               # Public API exports
 │   ├── metrics.py                # Fast entropy, mutual info, RIG calculations
 │   ├── threshold.py              # Analytical Chi-squared, EVT, Frobenius M_eff, & ANOVA F->RIG estimators

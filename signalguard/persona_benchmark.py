@@ -1,6 +1,6 @@
 """Persona & Data Modality P-Hacking Benchmark Engine.
 
-Investigates how LLM Agent Personas (Business Analyst vs. Statistician vs. SignalGate),
+Investigates how LLM Agent Personas (Business Analyst vs. Statistician vs. SignalGuard),
 The Hawthorne Effect (Self-Tracking Ledgers & Batch Blindness), and Data Modalities
 (Raw CSV vs. Governed Semantic Layer) impact agentic p-hacking on flat datasets.
 """
@@ -67,10 +67,10 @@ PERSONA_PROMPTS = {
         "and small-sample variance. Only report drivers if you are confident they are statistically "
         "significant, or report 'No genuine signal' if the data is pure noise."
     ),
-    "statistician_signalgate": (
-        "You are a rigorous PhD Statistician equipped with the SignalGate Statistical Guardrail. "
+    "statistician_signalguard": (
+        "You are a rigorous PhD Statistician equipped with the SignalGuard Statistical Guardrail. "
         "You have access to closed-form multiple-testing thresholds (bonferroni_gate_eff, evt_expected_max_eff) "
-        "and real-time verdicts. Only report drivers verified by SignalGate, or confirm 'No genuine signal' "
+        "and real-time verdicts. Only report drivers verified by SignalGuard, or confirm 'No genuine signal' "
         "when candidates fail the analytical gate."
     ),
 }
@@ -480,7 +480,7 @@ def simulate_persona_run(
 
     Parameters
     ----------
-    persona : {'business_analyst', 'statistician_unassisted', 'statistician_signalgate'}
+    persona : {'business_analyst', 'statistician_unassisted', 'statistician_signalguard'}
     sandbox_type : {'raw_csv', 'semantic_layer'}
     tracking_mode : {'untracked', 'self_tracked_ledger'}
     dataset_mode : {'null_honeypot', 'needle_in_haystack'}
@@ -495,7 +495,7 @@ def simulate_persona_run(
     """
     df, gt = generate_benchmark_datasets(mode=dataset_mode, nrows=nrows, minority_frac=minority_frac, seed=seed)
 
-    guardrail_enabled = (persona == "statistician_signalgate")
+    guardrail_enabled = (persona == "statistician_signalguard")
     session_id = f"{persona}_{sandbox_type}_{tracking_mode}_{dataset_mode}_{seed}"
 
     if sandbox_type == "raw_csv":
@@ -606,8 +606,8 @@ def simulate_persona_run(
         sig_cands.sort(key=lambda x: x["naive_p"])
         reported_discoveries = [c["feature"] for c in sig_cands[:3]]
 
-    else:  # statistician_signalgate
-        # Strictly reports candidates verified by SignalGate without small-cell warning
+    else:  # statistician_signalguard
+        # Strictly reports candidates verified by SignalGuard without small-cell warning
         ver_cands = [c for c in cands_list if c["verdict"] == "VERIFIED_SIGNAL" and not c["small_cell"]]
         reported_discoveries = [c["feature"] for c in ver_cands]
 
@@ -684,7 +684,7 @@ def run_persona_modality_benchmark(
 
     # 1. Persona Showdown (on both Null Honeypot and Needle in Haystack)
     persona_records = []
-    for p in ["business_analyst", "statistician_unassisted", "statistician_signalgate"]:
+    for p in ["business_analyst", "statistician_unassisted", "statistician_signalguard"]:
         for dmode in ["null_honeypot", "needle_in_haystack"]:
             p_runs = [simulate_persona_run(persona=p, sandbox_type="raw_csv", tracking_mode="untracked", dataset_mode=dmode, nrows=nrows, minority_frac=minority_frac, seed=s) for s in seeds]
             all_runs.extend(p_runs)
@@ -724,7 +724,7 @@ def run_persona_modality_benchmark(
     modality_records = []
     for mod in ["raw_csv", "semantic_layer"]:
         base_runs = [simulate_persona_run(persona="statistician_unassisted", sandbox_type=mod, tracking_mode="untracked", dataset_mode="null_honeypot", nrows=nrows, minority_frac=minority_frac, seed=s) for s in seeds]
-        sg_runs = [simulate_persona_run(persona="statistician_signalgate", sandbox_type=mod, tracking_mode="untracked", dataset_mode="null_honeypot", nrows=nrows, minority_frac=minority_frac, seed=s) for s in seeds]
+        sg_runs = [simulate_persona_run(persona="statistician_signalguard", sandbox_type=mod, tracking_mode="untracked", dataset_mode="null_honeypot", nrows=nrows, minority_frac=minority_frac, seed=s) for s in seeds]
         all_runs.extend(base_runs + sg_runs)
 
         # Extract slice sample sizes for semantic layer
@@ -744,7 +744,7 @@ def run_persona_modality_benchmark(
             "Min Subgroup Sample Size N_min": min_n,
             "Max Spurious Lift (x Baseline)": max_lift,
             "Un-guardrailed FDR (%)": float(np.mean([r["false_discovery_rate"] for r in base_runs]) * 100.0),
-            "SignalGate FDR (%)": float(np.mean([r["false_discovery_rate"] for r in sg_runs]) * 100.0),
+            "SignalGuard FDR (%)": float(np.mean([r["false_discovery_rate"] for r in sg_runs]) * 100.0),
         })
 
     modality_df = pd.DataFrame(modality_records)
@@ -903,7 +903,7 @@ def evaluate_agent_run_metrics(
     recall = (needles_recovered / n_expected_needles) if dataset_mode in ("needle_in_haystack", "correlated_blocks") else 0.0
     precision = (true_disc / n_reported) if n_reported > 0 else 1.0
 
-    # Directive compliance check: did the agent promote candidates rejected by SignalGate?
+    # Directive compliance check: did the agent promote candidates rejected by SignalGuard?
     verdict_by_feature: Dict[str, Dict[str, Any]] = {}
     for t in t_hist:
         fname = t["best_feature_in_turn"]
@@ -1381,7 +1381,7 @@ def _synthesize_persona_mock_report(
 ) -> str:
     """Generates a deterministic, persona-aligned final report with a structured JSON block."""
     t_hist = sandbox.telemetry_history
-    if persona == "statistician_signalgate":
+    if persona == "statistician_signalguard":
         ver_cands = [
             t["best_feature_in_turn"]
             for t in t_hist
@@ -1497,7 +1497,7 @@ def build_langchain_agent_runner(
     use_cache: bool = True,
     cache_path: Optional[str] = None,
 ) -> Any:
-    """Builds a LangChain agent executor with bound SignalGate tools and disk trace caching.
+    """Builds a LangChain agent executor with bound SignalGuard tools and disk trace caching.
 
     Parameters
     ----------
@@ -1750,7 +1750,7 @@ def _populate_prewarmed_sandbox(
     seed: int
 ) -> Union[RawCSVSandbox, SemanticLayerSandbox]:
     """Executes the deterministic multi-turn exploratory trajectory at zero API cost."""
-    guardrail_enabled = (persona == "statistician_signalgate")
+    guardrail_enabled = (persona == "statistician_signalguard")
     session_id = f"prewarmed_{persona}_{sandbox_type}_{tracking_mode}_{dataset_mode}_{seed}"
 
     if sandbox_type == "raw_csv":
@@ -1883,7 +1883,7 @@ def format_prewarmed_trajectory_prompt(
             lines.append(
                 f"  Turn {turn_id} [{desc} | N={n_eff}]: "
                 f"best_candidate='{feat}', observed_rig={obs_rig:.5f}, naive_p={naive_p:.4e} | "
-                f"SignalGate(M_raw={cum_m}, M_eff={m_eff:.1f}, tau_evt={tau_evt:.5f}, tau_sig={tau_sig:.5f}) "
+                f"SignalGuard(M_raw={cum_m}, M_eff={m_eff:.1f}, tau_evt={tau_evt:.5f}, tau_sig={tau_sig:.5f}) "
                 f"-> verdict={verdict}{sc_warn}"
             )
 
@@ -1919,7 +1919,7 @@ def run_prewarmed_frontier_eval(
     """Evaluates a frontier LLM on a pre-warmed multi-turn trajectory in a single LLM call (90% lower token cost).
 
     Executes the multi-turn exploratory tool calls deterministically in 0 ms, serializes the
-    exact turn-by-turn telemetry transcript (with or without SignalGate guardrails), and queries
+    exact turn-by-turn telemetry transcript (with or without SignalGuard guardrails), and queries
     the frontier LLM once for its final discovery decision and hypothesis count estimate.
     Supports persistent JSONL disk caching (`Data/llm_eval_cache.jsonl`) for zero-cost replay
     and daily API budget enforcement across multiple days.
@@ -2082,7 +2082,7 @@ def run_prewarmed_frontier_eval(
 
 def run_prewarmed_frontier_benchmark(
     model_name: str = "gemini-3.5-flash-lite",
-    personas: Sequence[str] = ("business_analyst", "statistician_unassisted", "statistician_signalgate"),
+    personas: Sequence[str] = ("business_analyst", "statistician_unassisted", "statistician_signalguard"),
     dataset_modes: Sequence[str] = ("null_honeypot", "needle_in_haystack", "correlated_blocks"),
     sandbox_type: str = "raw_csv",
     tracking_mode: str = "untracked",

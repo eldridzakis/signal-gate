@@ -18,7 +18,7 @@ import pandas as pd
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
-from signalgate.sql_semantic_benchmark import (
+from signalguard.sql_semantic_benchmark import (
     SEMANTIC_CATALOGS,
     run_sql_semantic_frontier_eval,
 )
@@ -44,7 +44,7 @@ def main():
     parser.add_argument(
         "--personas",
         nargs="+",
-        default=["business_analyst", "statistician_unassisted", "statistician_signalgate"],
+        default=["business_analyst", "statistician_unassisted", "statistician_signalguard"],
         help="Personas to evaluate",
     )
     parser.add_argument(
@@ -68,7 +68,7 @@ def main():
     args = parser.parse_args()
 
     print("=" * 78)
-    print("  SignalGate End-to-End SQLite Warehouse + Semantic Layer Benchmark")
+    print("  SignalGuard End-to-End SQLite Warehouse + Semantic Layer Benchmark")
     print("=" * 78)
     print(f"  Semantic Mart     : {args.mart.upper()} ({SEMANTIC_CATALOGS[args.mart]['target_type']} metric)")
     print(f"  Target Model      : {args.model_name}")

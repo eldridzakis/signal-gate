@@ -2,7 +2,7 @@
 
 Provides synthetic fraud/risk benchmark datasets (null_honeypot and needle_in_haystack)
 and an instrumented telemetry sandbox to simulate and benchmark autonomous exploratory
-data agents, quantifying false discovery rates and showing how SignalGate prevents
+data agents, quantifying false discovery rates and showing how SignalGuard prevents
 agentic p-hacking in real time.
 """
 
@@ -187,7 +187,7 @@ def generate_benchmark_datasets(
 
         # Inject 1 subtle genuine needle into Cluster 0
         # Target RIG ~ 0.0035, naive p ~ 0.0012:
-        # Passes SignalGate (M_eff ~ 7 -> threshold p < 0.007),
+        # Passes SignalGuard (M_eff ~ 7 -> threshold p < 0.007),
         # but fails naive Bonferroni (M_raw ~ 75+ -> threshold p < 0.0006)
         x_needle = np.zeros(nrows, dtype=int)
         x_needle[rng.choice(idx_pos, size=int(round(0.182 * len(idx_pos))), replace=False)] = 1
@@ -267,7 +267,7 @@ class InstrumentedAgentSandbox:
         p_eff: float,
         feature_name: str
     ) -> Dict[str, Any]:
-        """Calculates RIG, naive p-value, and checks SignalGate gates."""
+        """Calculates RIG, naive p-value, and checks SignalGuard gates."""
         obs_rig = rig(series, target)
 
         r_cats = max(2, int(series.nunique()))
@@ -691,12 +691,12 @@ def run_monte_carlo_benchmark(
     minority_frac: float = 0.12,
     seed: Optional[int] = 42
 ) -> Dict[str, Any]:
-    """Runs a Monte-Carlo benchmark comparing Baseline Agent vs SignalGate over multiple runs."""
+    """Runs a Monte-Carlo benchmark comparing Baseline Agent vs SignalGuard over multiple runs."""
     rng = np.random.default_rng(seed)
 
     # 1. Null Honeypot Benchmark (Pure Noise)
     baseline_false_alarms = 0
-    signalgate_false_alarms = 0
+    signalguard_false_alarms = 0
     total_null_runs = n_simulations
 
     for sim_idx in range(n_simulations):
@@ -711,20 +711,20 @@ def run_monte_carlo_benchmark(
         if (t_base["naive_p_value"] < 0.05).any():
             baseline_false_alarms += 1
 
-        # SignalGate run
+        # SignalGuard run
         sb_gate = InstrumentedAgentSandbox(df=df_null, target_col="is_fraud", guardrail_enabled=True, session_id=f"sim_gate_{sim_idx}")
         run_exploratory_agent_simulation(sb_gate, seed=sim_seed)
         t_gate = sb_gate.get_telemetry_df()
-        # Did SignalGate verify any noise as verified signal?
+        # Did SignalGuard verify any noise as verified signal?
         if (t_gate["verdict"] == "VERIFIED_SIGNAL").any():
-            signalgate_false_alarms += 1
+            signalguard_false_alarms += 1
 
     # 2. Needle in Haystack Benchmark
     needles = ["verified_velocity_spike", "compromised_asn_match", "high_risk_mcc_group"]
     baseline_needles_captured = {needle: 0 for needle in needles}
-    signalgate_needles_captured = {needle: 0 for needle in needles}
+    signalguard_needles_captured = {needle: 0 for needle in needles}
     baseline_noise_promoted = 0
-    signalgate_noise_promoted = 0
+    signalguard_noise_promoted = 0
 
     for sim_idx in range(n_simulations):
         sim_seed = int(rng.integers(1, 1000000))
@@ -738,7 +738,7 @@ def run_monte_carlo_benchmark(
         sb_base.scan_feature_batch(candidate_cols)
         t_base = sb_base.get_telemetry_df()
 
-        # SignalGate evaluation with bootstrap audit
+        # SignalGuard evaluation with bootstrap audit
         sb_gate = InstrumentedAgentSandbox(df=df_needle, target_col="is_fraud", guardrail_enabled=True, session_id=f"needle_gate_{sim_idx}")
         audit_res = sb_gate.ledger.audit_dataframe(
             df_train=df_needle,
@@ -752,7 +752,7 @@ def run_monte_carlo_benchmark(
 
         for needle in needles:
             if needle in promoted_gate:
-                signalgate_needles_captured[needle] += 1
+                signalguard_needles_captured[needle] += 1
             # Baseline uses raw train score > naive threshold
             r_val = rig(df_needle[needle], df_needle["is_fraud"])
             if r_val > 0.00174:
@@ -762,12 +762,12 @@ def run_monte_carlo_benchmark(
         for col in candidate_cols:
             if col not in needles:
                 if col in promoted_gate:
-                    signalgate_noise_promoted += 1
+                    signalguard_noise_promoted += 1
                 if rig(df_needle[col], df_needle["is_fraud"]) > 0.00174:
                     baseline_noise_promoted += 1
 
     fdr_baseline = baseline_false_alarms / total_null_runs
-    fdr_signalgate = signalgate_false_alarms / total_null_runs
+    fdr_signalguard = signalguard_false_alarms / total_null_runs
 
     summary = {
         "n_simulations": n_simulations,
@@ -775,14 +775,14 @@ def run_monte_carlo_benchmark(
         "minority_frac": minority_frac,
         "null_honeypot": {
             "baseline_false_discovery_rate": fdr_baseline,
-            "signalgate_false_discovery_rate": fdr_signalgate,
+            "signalguard_false_discovery_rate": fdr_signalguard,
         },
         "needle_in_haystack": {
             "needles": needles,
             "baseline_recall": {k: v / n_simulations for k, v in baseline_needles_captured.items()},
-            "signalgate_recall": {k: v / n_simulations for k, v in signalgate_needles_captured.items()},
+            "signalguard_recall": {k: v / n_simulations for k, v in signalguard_needles_captured.items()},
             "baseline_noise_promotions_per_run": baseline_noise_promoted / n_simulations,
-            "signalgate_noise_promotions_per_run": signalgate_noise_promoted / n_simulations,
+            "signalguard_noise_promotions_per_run": signalguard_noise_promoted / n_simulations,
         }
     }
     return summary

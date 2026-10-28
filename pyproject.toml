@@ -3,9 +3,9 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "signalgate"
+name = "signalguard"
 version = "1.2.0"
-description = "SignalGate: Stateful statistical guardrails and MCP server for autonomous LLM data agents, Text-to-SQL, and AutoML"
+description = "SignalGuard: Stateful statistical guardrails and MCP server for autonomous LLM data agents, Text-to-SQL, and AutoML"
 readme = "README.md"
 requires-python = ">=3.8"
 license = { text = "MIT" }
@@ -13,7 +13,7 @@ authors = [
     { name = "Peter Eldridge" }
 ]
 keywords = [
-    "signalgate",
+    "signalguard",
     "feature-selection",
     "mcp",
     "mcp-server",
@@ -60,7 +60,7 @@ dev = [
 ]
 
 [project.scripts]
-signalgate-mcp = "signalgate.mcp_server:main"
+signalguard-mcp = "signalguard.mcp_server:main"
 
 [tool.setuptools.packages.find]
-include = ["signalgate*"]
+include = ["signalguard*"]

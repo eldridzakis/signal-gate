@@ -1,10 +1,10 @@
-"""Automated Unit Tests for SignalGate Real-World Empirical Benchmark Engine."""
+"""Automated Unit Tests for SignalGuard Real-World Empirical Benchmark Engine."""
 
 import unittest
 import numpy as np
 import pandas as pd
 
-from signalgate.real_world_benchmark import (
+from signalguard.real_world_benchmark import (
     load_real_world_benchmark_dataset,
     RealWorldAgentSandbox,
     populate_real_world_agent_trajectory,
@@ -96,7 +96,7 @@ class TestRealWorldBenchmark(unittest.TestCase):
 
     def test_frontier_eval_dry_run(self):
         """Verifies dry-run frontier evaluation across all personas."""
-        for p in ["business_analyst", "statistician_unassisted", "statistician_signalgate"]:
+        for p in ["business_analyst", "statistician_unassisted", "statistician_signalguard"]:
             res = run_real_world_frontier_eval(
                 dataset_name="lending_club",
                 persona=p,

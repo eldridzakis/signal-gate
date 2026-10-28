@@ -1,10 +1,10 @@
-"""Unit tests for the Agentune AutoML Overfitting & SignalGate Benchmark."""
+"""Unit tests for the Agentune AutoML Overfitting & SignalGuard Benchmark."""
 
 import unittest
 import numpy as np
 import pandas as pd
 
-from signalgate.agentune_benchmark import (
+from signalguard.agentune_benchmark import (
     AgentuneFeatureSynthesizer,
     calculate_holdout_replication_metrics,
     run_agentune_overfitting_benchmark,
@@ -72,7 +72,7 @@ class TestAgentuneBenchmark(unittest.TestCase):
         self.assertIn("summary_df", res)
         self.assertIn("downstream_df", res)
         self.assertIn("unassisted_verified_df", res)
-        self.assertIn("signalgate_verified_df", res)
+        self.assertIn("signalguard_verified_df", res)
 
         summary = res["summary_df"]
         self.assertEqual(len(summary), 2)

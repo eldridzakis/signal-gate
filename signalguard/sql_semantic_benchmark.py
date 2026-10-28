@@ -1,4 +1,4 @@
-"""End-to-End Local SQLite Database + Governed Semantic Layer Benchmark for SignalGate.
+"""End-to-End Local SQLite Database + Governed Semantic Layer Benchmark for SignalGuard.
 
 Loads real-world production datasets into a local relational SQL database (SQLite)
 with a governed semantic catalog:
@@ -90,7 +90,7 @@ SEMANTIC_CATALOGS: Dict[str, Dict[str, Any]] = {
 # =============================================================================
 
 class RealWorldSQLSemanticWarehouse:
-    """Local SQLite relational database with a governed Semantic Layer & SignalGate MCP ledger."""
+    """Local SQLite relational database with a governed Semantic Layer & SignalGuard MCP ledger."""
 
     def __init__(
         self,
@@ -99,7 +99,7 @@ class RealWorldSQLSemanticWarehouse:
         sample_test: Optional[int] = None,
         seed: int = 42,
         guardrail_enabled: bool = True,
-        tracking_mode: str = "signalgate_ledger",
+        tracking_mode: str = "signalguard_ledger",
         session_id: str = "sql_sem_session",
         alpha: float = 0.05,
         db_path: str = ":memory:",
@@ -317,7 +317,7 @@ class RealWorldSQLSemanticWarehouse:
         sql_stats: Dict[str, Any],
         hypotheses_in_batch: int = 1,
     ) -> Dict[str, Any]:
-        """Evaluates a SQL GROUP BY query result through the SignalGate MCP ledger."""
+        """Evaluates a SQL GROUP BY query result through the SignalGuard MCP ledger."""
         if not self.guardrail_enabled:
             verdict = "NAIVE_SIGNIFICANT" if sql_stats["p_value"] < self.alpha else "NOT_SIGNIFICANT"
             return {
@@ -575,7 +575,7 @@ def populate_sql_semantic_trajectory(
 
             t["verdict"] = "VERIFIED_SIGNAL" if term_verdict == "VERIFIED_SIGNAL" else "REJECT_SPURIOUS_NOISE"
             line += (
-                f" | SignalGate(step_M={m_raw}, terminal_M_raw={final_m_raw}, df={df_k}, "
+                f" | SignalGuard(step_M={m_raw}, terminal_M_raw={final_m_raw}, df={df_k}, "
                 f"small_cell={small_cell}, terminal_tau_evt={term_tau_evt:.5f}, terminal_tau_sig={term_tau_sig:.5f}) "
                 f"-> terminal_verdict={term_verdict}"
             )
@@ -588,7 +588,7 @@ def populate_sql_semantic_trajectory(
         ver_unique = list(dict.fromkeys(verified_drivers))
         rej_unique = [x for x in dict.fromkeys(rejected_drivers) if x not in ver_unique]
         lines.append(
-            f"\n=== SignalGate End-of-Session SQL Ledger Audit (Terminal M_raw={final_m_raw}, M_eff={final_m_eff:.1f}) ==="
+            f"\n=== SignalGuard End-of-Session SQL Ledger Audit (Terminal M_raw={final_m_raw}, M_eff={final_m_eff:.1f}) ==="
         )
         lines.append(f"  * VERIFIED_SIGNAL (Cleared Terminal ANOVA/Wilks & Small-Cell Gates): {ver_unique}")
         lines.append(f"  * REJECTED (Failed Terminal Multi-Testing or Small-Cell Sparsity Gate): {rej_unique}")
@@ -726,8 +726,8 @@ def run_sql_semantic_frontier_eval(
     """Runs an end-to-end SQL + Semantic Layer benchmark evaluation with a frontier LLM."""
     _ensure_api_keys()
 
-    guardrail_enabled = (persona == "statistician_signalgate")
-    tracking_mode = "signalgate_ledger" if guardrail_enabled else "untracked"
+    guardrail_enabled = (persona == "statistician_signalguard")
+    tracking_mode = "signalguard_ledger" if guardrail_enabled else "untracked"
 
     warehouse = RealWorldSQLSemanticWarehouse(
         mart_name=mart_name,

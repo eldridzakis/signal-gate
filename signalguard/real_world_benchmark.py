@@ -1,4 +1,4 @@
-"""Real-World Empirical Agentic Benchmark Engine for SignalGate.
+"""Real-World Empirical Agentic Benchmark Engine for SignalGuard.
 
 Evaluates autonomous LLM data agents on large-scale real-world production datasets:
   1. Lending Club Loan Defaults (54,655 real loans, target: 'bad_loans')
@@ -224,7 +224,7 @@ class RealWorldAgentSandbox:
         self._evaluated_feature_series: Dict[str, pd.Series] = {}
 
     def _evaluate_candidate_series(self, name: str, series: pd.Series) -> Dict[str, Any]:
-        """Calculates observed Relative Information Gain (RIG), Wilks Chi2 p-value, and SignalGate verdict."""
+        """Calculates observed Relative Information Gain (RIG), Wilks Chi2 p-value, and SignalGuard verdict."""
         self._evaluated_feature_series[name] = series
         n = len(series)
         y = self.df.loc[series.index, self.target_col]
@@ -501,7 +501,7 @@ def populate_real_world_agent_trajectory(
     for f_col, f_val, sub_cols in slice_specs:
         sandbox.drill_down_slice(f_col, f_val, sub_cols)
 
-    # 5. Build prompt transcript with Retroactive Terminal Session Audit for SignalGate
+    # 5. Build prompt transcript with Retroactive Terminal Session Audit for SignalGuard
     is_unassisted = not sandbox.guardrail_enabled
     final_m_raw = sandbox.telemetry_history[-1].get("cumulative_M", len(sandbox._evaluated_feature_series)) if sandbox.telemetry_history else 1
     final_m_eff = float(sandbox.telemetry_history[-1].get("M_eff") or final_m_raw) if sandbox.telemetry_history else 1.0
@@ -563,7 +563,7 @@ def populate_real_world_agent_trajectory(
 
             t["verdict"] = "VERIFIED_SIGNAL" if term_verdict == "VERIFIED_SIGNAL" else "REJECT_SPURIOUS_NOISE"
             line += (
-                f" | SignalGate(step_M={m_raw}, terminal_M_raw={final_m_raw}, terminal_M_eff={final_m_eff:.1f}, "
+                f" | SignalGuard(step_M={m_raw}, terminal_M_raw={final_m_raw}, terminal_M_eff={final_m_eff:.1f}, "
                 f"df={df_k}, small_cell={small_cell}, terminal_tau_evt={term_tau_evt:.5f}, terminal_tau_sig={term_tau_sig:.5f}) "
                 f"-> terminal_verdict={term_verdict}"
             )
@@ -577,7 +577,7 @@ def populate_real_world_agent_trajectory(
         ver_unique = list(dict.fromkeys(verified_terminal_drivers))
         rej_unique = [x for x in dict.fromkeys(rejected_terminal_drivers) if x not in ver_unique]
         lines.append(
-            f"\n=== SignalGate End-of-Session Ledger Audit (Terminal M_raw={final_m_raw}, M_eff={final_m_eff:.1f}) ==="
+            f"\n=== SignalGuard End-of-Session Ledger Audit (Terminal M_raw={final_m_raw}, M_eff={final_m_eff:.1f}) ==="
         )
         lines.append(f"  * VERIFIED_SIGNAL (Cleared Terminal Bonferroni & Cochran Gates): {ver_unique}")
         lines.append(f"  * REJECTED (Failed Terminal Multi-Testing or Cochran Small-Cell Gate): {rej_unique}")
@@ -887,8 +887,8 @@ def run_real_world_frontier_eval(
     candidate_features = ds["candidate_features"]
 
     # Initialize sandbox
-    guardrail_enabled = (persona == "statistician_signalgate")
-    tracking_mode = "signalgate_ledger" if guardrail_enabled else "untracked"
+    guardrail_enabled = (persona == "statistician_signalguard")
+    tracking_mode = "signalguard_ledger" if guardrail_enabled else "untracked"
 
     sandbox = RealWorldAgentSandbox(
         train_df=train_df,
@@ -944,7 +944,7 @@ def run_real_world_frontier_eval(
                 output_text = f"Significant drivers: {best_cands}\n```json\n{{\"reported_discoveries\": {json.dumps(best_cands)}, \"self_reported_M\": 8}}\n```"
             else:
                 ver_cands = [t["best_feature_in_turn"] for t in sandbox.telemetry_history if t.get("verdict") == "VERIFIED_SIGNAL"]
-                output_text = f"SignalGate verified drivers: {ver_cands}\n```json\n{{\"reported_discoveries\": {json.dumps(ver_cands)}, \"self_reported_M\": {sandbox.telemetry_history[-1].get('cumulative_M', 50)}}}\n```"
+                output_text = f"SignalGuard verified drivers: {ver_cands}\n```json\n{{\"reported_discoveries\": {json.dumps(ver_cands)}, \"self_reported_M\": {sandbox.telemetry_history[-1].get('cumulative_M', 50)}}}\n```"
         else:
             # Live Frontier LLM call
             msgs_payload = [

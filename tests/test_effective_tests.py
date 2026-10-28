@@ -5,12 +5,12 @@ import unittest
 import numpy as np
 import pandas as pd
 
-from signalgate.threshold import (
+from signalguard.threshold import (
     estimate_effective_tests,
     estimate_noise_threshold,
     FeatureNoiseThreshold,
 )
-from signalgate.agent_sandbox import (
+from signalguard.agent_sandbox import (
     generate_benchmark_datasets,
     InstrumentedAgentSandbox,
     simulate_agent_archetypes,

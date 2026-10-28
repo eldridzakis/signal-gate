@@ -1,4 +1,4 @@
-"""SignalGate: Stateful Statistical Guardrails for Autonomous LLM Agents & AutoML.
+"""SignalGuard: Stateful Statistical Guardrails for Autonomous LLM Agents & AutoML.
 
 Guarding against multiple-testing bias (The Winner's Curse), estimating closed-form
 noise thresholds, and de-biasing agent insights, feature engineering, and Text-to-SQL slices.
@@ -87,6 +87,7 @@ from .sql_semantic_benchmark import (
 )
 
 # Convenient top-level aliases
+SignalGuardSessionLedger = NoiseGateSessionLedger
 SignalGateSessionLedger = NoiseGateSessionLedger
 SignalDebiaser = FeatureDebiaser
 SignalNoiseThreshold = FeatureNoiseThreshold
@@ -110,7 +111,7 @@ __all__ = [
     "FeatureDebiaser",
     "SignalDebiaser",
     "NoiseGateSessionLedger",
-    "SignalGateSessionLedger",
+    "SignalGuardSessionLedger",
     "create_mcp_server",
     "GLOBAL_LEDGER",
     "get_openai_tools",

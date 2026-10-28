@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""CLI script to run the Agentune AutoML Overfitting & SignalGate Benchmark."""
+"""CLI script to run the Agentune AutoML Overfitting & SignalGuard Benchmark."""
 
 import argparse
 import os
@@ -11,11 +11,11 @@ import pandas as pd
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
-from signalgate.agentune_benchmark import run_agentune_overfitting_benchmark
+from signalguard.agentune_benchmark import run_agentune_overfitting_benchmark
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Run Agentune AutoML Overfitting & SignalGate Benchmark.")
+    parser = argparse.ArgumentParser(description="Run Agentune AutoML Overfitting & SignalGuard Benchmark.")
     parser.add_argument("--dataset", type=str, default="lending_club", choices=["lending_club", "king_county", "bank_marketing"])
     parser.add_argument("--max-candidates", type=int, default=1000, help="Number of synthetic candidate features M")
     parser.add_argument("--top-k", type=int, default=15, help="Top K features to promote")
@@ -27,7 +27,7 @@ def main():
     args = parser.parse_args()
 
     print("=" * 76)
-    print("  Agentune-Style AutoML Overfitting vs SignalGate Benchmark")
+    print("  Agentune-Style AutoML Overfitting vs SignalGuard Benchmark")
     print("=" * 76)
     print(f"  Dataset          : {args.dataset.upper()}")
     print(f"  Candidates (M)   : {args.max_candidates}")
@@ -51,12 +51,12 @@ def main():
     summary_path = out_dir / f"agentune_benchmark_{args.dataset}_summary.csv"
     downstream_path = out_dir / f"agentune_benchmark_{args.dataset}_downstream.csv"
     unassisted_path = out_dir / f"agentune_benchmark_{args.dataset}_unassisted_topk.csv"
-    signalgate_path = out_dir / f"agentune_benchmark_{args.dataset}_signalgate_topk.csv"
+    signalguard_path = out_dir / f"agentune_benchmark_{args.dataset}_signalguard_topk.csv"
 
     res["summary_df"].to_csv(summary_path, index=False)
     res["downstream_df"].to_csv(downstream_path, index=False)
     res["unassisted_verified_df"].to_csv(unassisted_path, index=False)
-    res["signalgate_verified_df"].to_csv(signalgate_path, index=False)
+    res["signalguard_verified_df"].to_csv(signalguard_path, index=False)
 
     print("\n>>> SUMMARY METRICS (Out-of-Sample Holdout Replication):")
     print(res["summary_df"].to_string(index=False))

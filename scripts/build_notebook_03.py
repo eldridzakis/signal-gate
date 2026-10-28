@@ -42,7 +42,7 @@ def add_code(source_text):
 # ==========================================
 # CELL 1: TITLE & EXECUTIVE SUMMARY
 # ==========================================
-add_md(r"""# 03 - Agentic P-Hacking Benchmark & SignalGate Statistical Guardrails
+add_md(r"""# 03 - Agentic P-Hacking Benchmark & SignalGuard Statistical Guardrails
 
 ## Executive Summary: The Agentic Winner's Curse
 
@@ -56,8 +56,8 @@ $$P(\text{False Discovery}) = 1 - (1 - 0.05)^{500} \approx 1 - 7.3 \times 10^{-1
 
 This benchmark demonstrates how:
 1. **Un-guardrailed data agents suffer a 100% false discovery rate** on pure noise datasets (`null_honeypot`).
-2. **SignalGate maintains a 0.0% false discovery rate** via stateful hypothesis tracking ($M$), dynamic Bonferroni/Šidák significance gates, and Extreme Value Theory (EVT) expected noise ceilings.
-3. **Subgroup slicing ($N \to 0$) triggers sample noise explosion ($O(1/N)$)**, which SignalGate neutralizes in sub-millisecond closed form.
+2. **SignalGuard maintains a 0.0% false discovery rate** via stateful hypothesis tracking ($M$), dynamic Bonferroni/Šidák significance gates, and Extreme Value Theory (EVT) expected noise ceilings.
+3. **Subgroup slicing ($N \to 0$) triggers sample noise explosion ($O(1/N)$)**, which SignalGuard neutralizes in sub-millisecond closed form.
 4. **Bootstrap de-biasing ($B=100$) preserves true signal needles** while shrinking overfit noise discoveries to zero.""")
 
 # ==========================================
@@ -71,10 +71,10 @@ import matplotlib.pyplot as plt
 from scipy import stats
 from IPython.display import display
 
-# Ensure local signalgate package is importable
+# Ensure local signalguard package is importable
 sys.path.insert(0, os.path.abspath('..'))
 
-from signalgate import (
+from signalguard import (
     rig,
     entropy,
     FeatureNoiseThreshold,
@@ -93,7 +93,7 @@ from signalgate import (
 plt.style.use('seaborn-v0_8-whitegrid' if 'seaborn-v0_8-whitegrid' in plt.style.available else 'default')
 %matplotlib inline
 
-print("SignalGate agent sandbox & statistical guardrail engine successfully loaded.")""")
+print("SignalGuard agent sandbox & statistical guardrail engine successfully loaded.")""")
 
 # ==========================================
 # CELL 3: SECTION 1 MARKDOWN
@@ -118,7 +118,7 @@ print(f"Dataset Shape: {df_null.shape} (30 noise features + 1 target 'is_fraud')
 print(f"Target Minority Proportion: {df_null['is_fraud'].mean():.4f}")
 print(f"Ground Truth Genuine Features: {sum(m['is_genuine'] for m in gt_null.values())}")
 
-# Run 15-turn exploratory agent with SignalGate instrumentation
+# Run 15-turn exploratory agent with SignalGuard instrumentation
 sandbox_null = InstrumentedAgentSandbox(df=df_null, target_col="is_fraud", guardrail_enabled=True, session_id="bench_null")
 telemetry_null = run_exploratory_agent_simulation(sandbox_null, seed=42)
 
@@ -178,7 +178,7 @@ print(f"Summary: In just 15 agent turns, the autonomous agent evaluated M = {cum
 # ==========================================
 # CELL 6: SECTION 2 MARKDOWN
 # ==========================================
-add_md(r"""## Section 2: The Hero Chart: Real-Time SignalGate Trajectory on Pure Noise
+add_md(r"""## Section 2: The Hero Chart: Real-Time SignalGuard Trajectory on Pure Noise
 
 Under Wilks' Theorem, the null distribution of Relative Information Gain for a binary target scales as:
 $$\text{RIG}_{\text{null}} \sim \frac{\chi^2_1}{2 N \ln(2) H(Y)}$$
@@ -196,7 +196,7 @@ The region between $\tau_{\text{naive}}$ and $\tau_{\text{EVT}}$ is the **"Agent
 # ==========================================
 # CELL 7: SECTION 2 CODE (HERO CHART PLOT 2)
 # ==========================================
-add_code(r"""# Hero Chart: SignalGate Dynamic Trajectory vs Naive Baseline on Pure Noise
+add_code(r"""# Hero Chart: SignalGuard Dynamic Trajectory vs Naive Baseline on Pure Noise
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5.5))
 
 turns = telemetry_null["turn_id"].values
@@ -240,7 +240,7 @@ ax1.annotate("Turn 1: Naive Agent Claims 'Discovery'!\nPure noise breaches naive
              fontsize=9, fontweight="bold", color="#d62728",
              bbox=dict(boxstyle="round,pad=0.3", fc="#ffffff", ec="#d62728", lw=1.2))
 
-ax1.annotate("SignalGate Dynamic Gate:\nAll 15 turns correctly REJECTED as noise!\n(0 False Discoveries)", 
+ax1.annotate("SignalGuard Dynamic Gate:\nAll 15 turns correctly REJECTED as noise!\n(0 False Discoveries)", 
              xy=(12, bonferroni_gate[11]), xytext=(8.0, 0.0074),
              arrowprops=dict(facecolor="#2ca02c", shrink=0.08, width=1.5, headwidth=6),
              fontsize=9, fontweight="bold", color="#2ca02c",
@@ -282,10 +282,10 @@ ax2.legend(loc="lower right", frameon=True, fontsize=8.5)
 plt.tight_layout()
 plt.show()
 
-# Verify SignalGate rejection rate
+# Verify SignalGuard rejection rate
 n_spurious = (telemetry_null["verdict"] == "REJECT_SPURIOUS_NOISE").sum()
 n_verified = (telemetry_null["verdict"] == "VERIFIED_SIGNAL").sum()
-print(f"SignalGate Decisions on Pure Noise: {n_spurious}/15 Rejected, {n_verified}/15 False Discoveries.")""")
+print(f"SignalGuard Decisions on Pure Noise: {n_spurious}/15 Rejected, {n_verified}/15 False Discoveries.")""")
 
 # ==========================================
 # CELL 8: SECTION 3 MARKDOWN
@@ -300,7 +300,7 @@ However, when an agent filters the dataset:
 3. A $20\times$ decrease in sample size ($3000 \to 150$) produces a **$20\times$ surge in observed noise RIG**!
 4. **Finite-Sample Small-Cell Breakdown:** When expected minority co-occurrence $E_{11} = N_{\text{eff}} \cdot p_{\text{eff}} \cdot P(X=1) < 5$, the asymptotic Chi-squared distribution loses validity.
 
-SignalGate dynamically recalculates both $N_{\text{eff}}$ and $p_{\text{eff}}$ for every slice, raising the noise threshold proportionally and issuing a `small_cell_warning` whenever $E_{11} < 5$!""")
+SignalGuard dynamically recalculates both $N_{\text{eff}}$ and $p_{\text{eff}}$ for every slice, raising the noise threshold proportionally and issuing a `small_cell_warning` whenever $E_{11} < 5$!""")
 
 # ==========================================
 # CELL 9: SECTION 3 CODE (SLICE TRAP PLOT 3)
@@ -346,16 +346,16 @@ ax1.legend(frameon=True, fontsize=9)
 # Subplot 2: Dynamic Gate Adaptation
 scenarios = ["Full Data\n(N=3000)", f"Subgroup Slice\n(N={n_slice})"]
 observed_maxima = [max_full_rig, max_slice_rig]
-signalgate_thresholds = [gate_full, gate_slice]
+signalguard_thresholds = [gate_full, gate_slice]
 
 x_scen = np.arange(len(scenarios))
 ax2.bar(x_scen - 0.2, observed_maxima, 0.35, label="Max Apparent Noise RIG", color="#ff7f0e", alpha=0.85)
-ax2.bar(x_scen + 0.2, signalgate_thresholds, 0.35, label="SignalGate Bonferroni Gate", color="#9467bd", alpha=0.85)
+ax2.bar(x_scen + 0.2, signalguard_thresholds, 0.35, label="SignalGuard Bonferroni Gate", color="#9467bd", alpha=0.85)
 ax2.axhline(tau_naive, color="#d62728", linestyle="--", lw=2, label="Static Naive Cutoff (Fails!)")
 
 ax2.set_xticks(x_scen)
 ax2.set_xticklabels(scenarios, fontsize=11, fontweight="bold")
-ax2.set_title("SignalGate Defense: Dynamic O(1/N) Gate Ratchet", fontsize=11, fontweight="bold")
+ax2.set_title("SignalGuard Defense: Dynamic O(1/N) Gate Ratchet", fontsize=11, fontweight="bold")
 ax2.set_ylabel("RIG Threshold & Value", fontsize=11)
 ax2.legend(frameon=True, fontsize=9)
 
@@ -374,7 +374,7 @@ In the **`needle_in_haystack` dataset ($N=3000, p=0.12$)**, we inject 47 pure-no
 2. `compromised_asn_match`: Population $\text{RIG} \approx 0.015$ (Strong signal)
 3. `high_risk_mcc_group`: Population $\text{RIG} \approx 0.030$ (Very strong signal)
 
-To counteract **selection bias (The Winner's Curse)**, SignalGate employs a two-step de-biasing and stability classification engine:
+To counteract **selection bias (The Winner's Curse)**, SignalGuard employs a two-step de-biasing and stability classification engine:
 
 1. **Optimism Bias Correction:**
    Estimate empirical selection bias via holdout validation or out-of-fold cross-validation ($\text{Bias}_{\text{holdout/OOF}}$) bounded by the EVT noise ceiling $\tau_{\text{EVT}}$:
@@ -399,7 +399,7 @@ candidate_cols = list(dict.fromkeys(candidate_cols))  # deduplicate preserving o
 if "is_fraud" in candidate_cols:
     candidate_cols.remove("is_fraud")
 
-# Run SignalGate Bootstrap De-Biasing Audit
+# Run SignalGuard Bootstrap De-Biasing Audit
 ledger = NoiseGateSessionLedger()
 audit_results = ledger.audit_dataframe(
     df_train=df_needle,
@@ -413,7 +413,7 @@ audit_results = ledger.audit_dataframe(
 audit_df = pd.DataFrame(audit_results["audit_table"])
 audit_df["bonferroni_gate"] = audit_results["current_bonferroni_gate"]
 top_audit = audit_df.sort_values(by="train_rig", ascending=False).head(8)
-print("SignalGate Top Audit Candidates Table:")
+print("SignalGuard Top Audit Candidates Table:")
 display(top_audit[[
     "feature", "train_rig", "estimated_bias", 
     "corrected_rig", "sigma_boot", "bonferroni_gate", "stability_class"
@@ -448,34 +448,34 @@ plt.tight_layout()
 plt.show()
 
 # Run Monte-Carlo Benchmark (30 simulations)
-print("Executing 30-run Monte Carlo Benchmark (comparing Baseline vs. SignalGate)...")
+print("Executing 30-run Monte Carlo Benchmark (comparing Baseline vs. SignalGuard)...")
 mc_summary = run_monte_carlo_benchmark(n_simulations=30, nrows=3000, minority_frac=0.12, seed=42)
 
 print("\n=== MONTE CARLO BENCHMARK RESULTS (N=3000, 30 Simulations) ===")
 print(f"Baseline Agent False Discovery Rate (Pure Noise): {mc_summary['null_honeypot']['baseline_false_discovery_rate'] * 100:.1f}%")
-print(f"SignalGate False Discovery Rate (Pure Noise):     {mc_summary['null_honeypot']['signalgate_false_discovery_rate'] * 100:.1f}%")
+print(f"SignalGuard False Discovery Rate (Pure Noise):     {mc_summary['null_honeypot']['signalguard_false_discovery_rate'] * 100:.1f}%")
 print("Signal Needle Recall Rates:")
 for needle in needles:
     print(f"  - {needle}: Baseline = {mc_summary['needle_in_haystack']['baseline_recall'][needle]*100:.0f}%, "
-          f"SignalGate = {mc_summary['needle_in_haystack']['signalgate_recall'][needle]*100:.0f}%")
+          f"SignalGuard = {mc_summary['needle_in_haystack']['signalguard_recall'][needle]*100:.0f}%")
 print(f"Average Noise Promotions Per Run: Baseline = {mc_summary['needle_in_haystack']['baseline_noise_promotions_per_run']:.2f}, "
-      f"SignalGate = {mc_summary['needle_in_haystack']['signalgate_noise_promotions_per_run']:.2f}")""")
+      f"SignalGuard = {mc_summary['needle_in_haystack']['signalguard_noise_promotions_per_run']:.2f}")""")
 
 # ==========================================
 # CELL 12: SECTION 5 MARKDOWN
 # ==========================================
 add_md(r"""## Section 5: Direct Agent & LLM Integration Guide
 
-SignalGate integrates out of the box with autonomous LLM frameworks (**OpenAI Function Calling**, **Anthropic Claude Tool Use**, **LangGraph**, **Cursor**, and **Claude Code** via Model Context Protocol).
+SignalGuard integrates out of the box with autonomous LLM frameworks (**OpenAI Function Calling**, **Anthropic Claude Tool Use**, **LangGraph**, **Cursor**, and **Claude Code** via Model Context Protocol).
 
 ### 1. Model Context Protocol (MCP) Configuration
-Add the SignalGate guardrail server to your `claude_desktop_config.json` or `.cursorrules`:
+Add the SignalGuard guardrail server to your `claude_desktop_config.json` or `.cursorrules`:
 ```json
 {
   "mcpServers": {
-    "signalgate": {
+    "signalguard": {
       "command": "python",
-      "args": ["-m", "signalgate.mcp_server"]
+      "args": ["-m", "signalguard.mcp_server"]
     }
   }
 }
@@ -519,9 +519,9 @@ print(f"Agent Directive:\n{guardrail_response['agent_directive']}")""")
 # ==========================================
 # CELL 14: SUMMARY MARKDOWN
 # ==========================================
-add_md(r"""## 6. Summary: Un-Guardrailed Agent vs. SignalGate Guardrail
+add_md(r"""## 6. Summary: Un-Guardrailed Agent vs. SignalGuard Guardrail
 
-| Metric / Dimension | Un-Guardrailed Baseline Agent | SignalGate Guarded Agent |
+| Metric / Dimension | Un-Guardrailed Baseline Agent | SignalGuard Guarded Agent |
 | :--- | :--- | :--- |
 | **Hypothesis Accounting** | Naive ($M=1$ static test) | Stateful Cumulative ($M \leftarrow M + K$) |
 | **False Discovery Rate (Pure Noise)** | **100.0%** (Winner's Curse Trap) | **0.0%** (Mathematically Guaranteed) |
@@ -531,7 +531,7 @@ add_md(r"""## 6. Summary: Un-Guardrailed Agent vs. SignalGate Guardrail
 | **Latency Overhead** | None | **< 1 millisecond** analytical gate lookup |
 | **Protocol Compatibility** | Ad-hoc heuristics | Native **MCP**, **OpenAI**, and **Anthropic** tools |
 
-SignalGate transforms exploratory data science agents from high-velocity p-hacking engines into rigorous, statistically sound co-pilots.""")
+SignalGuard transforms exploratory data science agents from high-velocity p-hacking engines into rigorous, statistically sound co-pilots.""")
 
 # Save script output to file
 out_path = os.path.join(os.path.dirname(__file__), "..", "notebooks", "03_agent_phacking_benchmark.ipynb")

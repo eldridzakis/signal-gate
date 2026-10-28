@@ -4,7 +4,7 @@ import unittest
 import numpy as np
 import pandas as pd
 
-from signalgate.agent_sandbox import (
+from signalguard.agent_sandbox import (
     BASE_DOMAIN_COLUMNS,
     generate_benchmark_datasets,
     InstrumentedAgentSandbox,
@@ -99,7 +99,7 @@ class TestAgentSandbox(unittest.TestCase):
         self.assertIn("small_cell_warning", res)
 
     def test_guardrail_modes(self):
-        """Verifies baseline un-guardrailed mode vs SignalGate mode."""
+        """Verifies baseline un-guardrailed mode vs SignalGuard mode."""
         df, _ = generate_benchmark_datasets(mode="null_honeypot", nrows=500, seed=42)
 
         # Baseline mode
@@ -117,7 +117,7 @@ class TestAgentSandbox(unittest.TestCase):
         self.assertIn("verdict", res_gate)
 
     def test_exploratory_simulation_hypothesis_inflation(self):
-        """Tests that a 15-turn exploratory agent evaluates > 500 hypotheses and SignalGate protects against noise."""
+        """Tests that a 15-turn exploratory agent evaluates > 500 hypotheses and SignalGuard protects against noise."""
         df, _ = generate_benchmark_datasets(mode="null_honeypot", nrows=1000, minority_frac=0.12, seed=42)
         sandbox = InstrumentedAgentSandbox(df=df, target_col="is_fraud", guardrail_enabled=True, session_id="sim_test")
 
@@ -128,7 +128,7 @@ class TestAgentSandbox(unittest.TestCase):
         final_m = telemetry.iloc[-1]["cumulative_M"]
         self.assertGreater(final_m, 500)
 
-        # On pure noise, SignalGate must not verify any feature as VERIFIED_SIGNAL
+        # On pure noise, SignalGuard must not verify any feature as VERIFIED_SIGNAL
         verified_count = (telemetry["verdict"] == "VERIFIED_SIGNAL").sum()
         self.assertEqual(verified_count, 0)
 

@@ -1,7 +1,7 @@
 """Unit Tests for Local SQLite + Governed Semantic Layer Benchmark (`sql_semantic_benchmark.py`)."""
 
 import unittest
-from signalgate.sql_semantic_benchmark import (
+from signalguard.sql_semantic_benchmark import (
     RealWorldSQLSemanticWarehouse,
     populate_sql_semantic_trajectory,
     evaluate_sql_holdout_replication,
@@ -41,7 +41,7 @@ class TestSQLSemanticBenchmark(unittest.TestCase):
 
     def test_binary_sql_warehouse_dry_run(self):
         """Verifies dry-run SQL semantic evaluation on Lending Club."""
-        for p in ["business_analyst", "statistician_unassisted", "statistician_signalgate"]:
+        for p in ["business_analyst", "statistician_unassisted", "statistician_signalguard"]:
             res = run_sql_semantic_frontier_eval(
                 mart_name="lending_club",
                 persona=p,

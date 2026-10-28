@@ -21,7 +21,7 @@ import pandas as pd
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
-from signalgate.real_world_benchmark import (
+from signalguard.real_world_benchmark import (
     run_real_world_frontier_eval,
     DEFAULT_REAL_WORLD_CACHE_PATH,
 )
@@ -47,7 +47,7 @@ def main():
     parser.add_argument(
         "--personas",
         nargs="+",
-        default=["business_analyst", "statistician_unassisted", "statistician_signalgate"],
+        default=["business_analyst", "statistician_unassisted", "statistician_signalguard"],
         help="Personas to evaluate",
     )
     parser.add_argument(
@@ -82,7 +82,7 @@ def main():
     args = parser.parse_args()
 
     print("=" * 76)
-    print("  SignalGate Real-World Empirical Frontier Benchmark")
+    print("  SignalGuard Real-World Empirical Frontier Benchmark")
     print("=" * 76)
     print(f"  Dataset           : {args.dataset.upper()} (Real-World Train vs. Holdout)")
     print(f"  Target Model      : {args.model_name}")

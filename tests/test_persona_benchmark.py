@@ -6,7 +6,7 @@ import unittest
 import numpy as np
 import pandas as pd
 
-from signalgate.persona_benchmark import (
+from signalguard.persona_benchmark import (
     PERSONA_PROMPTS,
     TRACKING_INSTRUCTIONS,
     RawCSVSandbox,
@@ -23,7 +23,7 @@ from signalgate.persona_benchmark import (
     run_prewarmed_frontier_benchmark,
     DailyBudgetExhausted,
 )
-from signalgate.agent_sandbox import generate_benchmark_datasets
+from signalguard.agent_sandbox import generate_benchmark_datasets
 
 
 class TestPersonaBenchmark(unittest.TestCase):
@@ -37,14 +37,14 @@ class TestPersonaBenchmark(unittest.TestCase):
         """Test 1: Verify persona registry and tracking prompt structures."""
         self.assertIn("business_analyst", PERSONA_PROMPTS)
         self.assertIn("statistician_unassisted", PERSONA_PROMPTS)
-        self.assertIn("statistician_signalgate", PERSONA_PROMPTS)
+        self.assertIn("statistician_signalguard", PERSONA_PROMPTS)
 
         self.assertIn("untracked", TRACKING_INSTRUCTIONS)
         self.assertIn("self_tracked_ledger", TRACKING_INSTRUCTIONS)
 
         self.assertIn("3–5 concrete drivers", PERSONA_PROMPTS["business_analyst"])
         self.assertIn("multiple hypothesis testing", PERSONA_PROMPTS["statistician_unassisted"])
-        self.assertIn("SignalGate Statistical Guardrail", PERSONA_PROMPTS["statistician_signalgate"])
+        self.assertIn("SignalGuard Statistical Guardrail", PERSONA_PROMPTS["statistician_signalguard"])
         self.assertIn("CRITICAL: You must log every single feature", TRACKING_INSTRUCTIONS["self_tracked_ledger"])
 
     def test_raw_csv_sandbox_and_batch_blindness(self):
@@ -104,12 +104,12 @@ class TestPersonaBenchmark(unittest.TestCase):
         self.assertEqual(res_ba["false_discovery_rate"], 1.0)
         self.assertGreater(res_ba["false_discoveries"], 0)
 
-        res_sg = simulate_persona_run(persona="statistician_signalgate", dataset_mode="null_honeypot", nrows=3000, seed=42)
+        res_sg = simulate_persona_run(persona="statistician_signalguard", dataset_mode="null_honeypot", nrows=3000, seed=42)
         self.assertEqual(res_sg["false_discovery_rate"], 0.0)
         self.assertEqual(res_sg["false_discoveries"], 0)
 
         # On Needle in Haystack (N=3000, p=0.12):
-        res_needle_sg = simulate_persona_run(persona="statistician_signalgate", dataset_mode="needle_in_haystack", nrows=3000, seed=42)
+        res_needle_sg = simulate_persona_run(persona="statistician_signalguard", dataset_mode="needle_in_haystack", nrows=3000, seed=42)
         self.assertEqual(res_needle_sg["false_discovery_rate"], 0.0)
         self.assertGreaterEqual(res_needle_sg["recall"], 0.66)
 
@@ -138,9 +138,9 @@ class TestPersonaBenchmark(unittest.TestCase):
         self.assertEqual(res["false_discovery_rate"], 1.0)
         self.assertEqual(res["directive_compliance_rate"], 0.0)
 
-        # SignalGate persona must achieve 100% directive compliance and 0% FDR on null honeypot
+        # SignalGuard persona must achieve 100% directive compliance and 0% FDR on null honeypot
         sb_sg = RawCSVSandbox(self.df_null, guardrail_enabled=True, session_id="test_runner_sg")
-        runner_sg = build_langchain_agent_runner(sb_sg, persona="statistician_signalgate", dry_run=True)
+        runner_sg = build_langchain_agent_runner(sb_sg, persona="statistician_signalguard", dry_run=True)
         res_sg = runner_sg.invoke({"input": "Find top fraud drivers"})
         self.assertEqual(res_sg["false_discovery_rate"], 0.0)
         self.assertEqual(res_sg["directive_compliance_rate"], 1.0)
@@ -158,7 +158,7 @@ class TestPersonaBenchmark(unittest.TestCase):
         metrics = evaluate_agent_run_metrics(
             output_text=llm_json_reply,
             sandbox=sb,
-            persona="statistician_signalgate",
+            persona="statistician_signalguard",
             dataset_mode="needle_in_haystack"
         )
         self.assertEqual(metrics["reported_discoveries"], ["verified_velocity_spike"])
@@ -174,7 +174,7 @@ class TestPersonaBenchmark(unittest.TestCase):
 
             # 1st call: populates cache on miss
             r1 = run_prewarmed_frontier_eval(
-                persona="statistician_signalgate",
+                persona="statistician_signalguard",
                 dataset_mode="needle_in_haystack",
                 nrows=3000,
                 seed=42,
@@ -187,11 +187,11 @@ class TestPersonaBenchmark(unittest.TestCase):
             self.assertEqual(r1["false_discovery_rate"], 0.0)
             self.assertEqual(r1["directive_compliance_rate"], 1.0)
             self.assertGreaterEqual(r1["recall"], 0.66)
-            self.assertIn("SignalGate(M_raw=", r1["prompt_transcript"])
+            self.assertIn("SignalGuard(M_raw=", r1["prompt_transcript"])
 
             # 2nd call with identical parameters: must hit JSONL disk cache
             r2 = run_prewarmed_frontier_eval(
-                persona="statistician_signalgate",
+                persona="statistician_signalguard",
                 dataset_mode="needle_in_haystack",
                 nrows=3000,
                 seed=42,
@@ -205,7 +205,7 @@ class TestPersonaBenchmark(unittest.TestCase):
 
             # Multi-seed prewarmed benchmark
             bench = run_prewarmed_frontier_benchmark(
-                personas=("business_analyst", "statistician_signalgate"),
+                personas=("business_analyst", "statistician_signalguard"),
                 dataset_modes=("null_honeypot",),
                 n_seeds=2,
                 nrows=500,
@@ -232,7 +232,7 @@ class TestPersonaBenchmark(unittest.TestCase):
 
             # Test multi-day benchmark pausing on budget limit
             paused_bench = run_prewarmed_frontier_benchmark(
-                personas=("business_analyst", "statistician_signalgate"),
+                personas=("business_analyst", "statistician_signalguard"),
                 dataset_modes=("null_honeypot",),
                 n_seeds=2,
                 nrows=200,

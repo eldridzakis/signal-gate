@@ -49,7 +49,7 @@ add_md(r"""# 05 - Frontier LLM Empirical Benchmark
 ## Quantifying Agentic P-Hacking, The Winner's Curse, and Metacognitive Search Space Amnesia
 
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
-[![SignalGate](https://img.shields.io/badge/SignalGate-Frontier%20Benchmark-purple.svg)](https://github.com/peter-eldridge/signalgate)
+[![SignalGuard](https://img.shields.io/badge/SignalGuard-Frontier%20Benchmark-purple.svg)](https://github.com/peter-eldridge/signalguard)
 [![Status: Empirical Validation](https://img.shields.io/badge/Status-Empirical%20Validation-success.svg)]()
 
 ---
@@ -70,7 +70,7 @@ This notebook synthesizes empirical evaluation results across **120+ live and ca
 Across three rigorously controlled benchmark modalities:
 * **`null_honeypot`**: 50 pure-noise features (ground truth: 0 genuine drivers).
 * **`needle_in_haystack`**: 47 pure-noise features + 3 subtle, calibrated genuine drivers.
-* **`correlated_blocks`**: 40 collinear features ($\rho \approx 0.90$) where naive Bonferroni over-penalizes and kills genuine signals, but SignalGate's Frobenius matrix reduction ($M_{\\text{eff}}$) preserves statistical power.
+* **`correlated_blocks`**: 40 collinear features ($\rho \approx 0.90$) where naive Bonferroni over-penalizes and kills genuine signals, but SignalGuard's Frobenius matrix reduction ($M_{\\text{eff}}$) preserves statistical power.
 """)
 
 # =============================================================================
@@ -107,15 +107,15 @@ plt.rcParams['figure.dpi'] = 150
 
 # Ensure repository root is on path
 REPO_ROOT = Path(os.getcwd()).resolve()
-if not (REPO_ROOT / 'signalgate').exists() and (REPO_ROOT.parent / 'signalgate').exists():
+if not (REPO_ROOT / 'signalguard').exists() and (REPO_ROOT.parent / 'signalguard').exists():
     REPO_ROOT = REPO_ROOT.parent
 sys.path.insert(0, str(REPO_ROOT))
 
 FIGURES_DIR = REPO_ROOT / 'notebooks' / 'figures'
 FIGURES_DIR.mkdir(parents=True, exist_ok=True)
 
-from signalgate.agent_sandbox import generate_benchmark_datasets
-from signalgate.persona_benchmark import (
+from signalguard.agent_sandbox import generate_benchmark_datasets
+from signalguard.persona_benchmark import (
     _populate_prewarmed_sandbox,
     evaluate_agent_run_metrics,
     GENUINE_NEEDLE_NAMES,
@@ -194,17 +194,17 @@ A key discovery in agentic AI evaluation is **The Hawthorne Batch-Blindness Effe
 * Real autonomous agents call tools like `scan_feature_batch([10 columns])` or `test_interaction_grid([5 cols], [6 cols])`.
 * In conversation logs, the agent only sees the winning result per turn.
 * **Without a stateful statistical ledger, unassisted LLMs suffer from severe search space amnesia**: they count only the tool turns ($M=12$), missing $>85\\%$ of evaluated hypotheses.
-* **SignalGate's stateful ledger maintains exact $1.00\\times$ metacognitive calibration**.
+* **SignalGuard's stateful ledger maintains exact $1.00\\times$ metacognitive calibration**.
 """)
 
 add_code(r"""fig, ax = plt.subplots(figsize=(10, 5.5))
 
 models_order = ['gemini-3.5-flash-lite', 'gpt-6.1-sol', 'claude-sonnet-5-5', 'claude-opus-5-5']
-personas_order = ['business_analyst', 'statistician_unassisted', 'statistician_signalgate']
-colors = {'business_analyst': '#e74c3c', 'statistician_unassisted': '#f39c12', 'statistician_signalgate': '#27ae60'}
+personas_order = ['business_analyst', 'statistician_unassisted', 'statistician_signalguard']
+colors = {'business_analyst': '#e74c3c', 'statistician_unassisted': '#f39c12', 'statistician_signalguard': '#27ae60'}
 labels = {'business_analyst': 'Business Analyst (Unassisted)', 
           'statistician_unassisted': 'PhD Statistician (Unassisted)', 
-          'statistician_signalgate': 'SignalGate Guardrail'}
+          'statistician_signalguard': 'SignalGuard Guardrail'}
 
 bar_width = 0.25
 x_indices = np.arange(len(models_order))
@@ -247,7 +247,7 @@ In the `null_honeypot` benchmark, **all 50 features are pure Gaussian/Bernoulli 
 
 * Unassisted Business Analysts under stakeholder pressure hallucinate drivers in **$33\\% - 67\\%$** of runs.
 * Unassisted Statisticians occasionally promote small-cell interactions.
-* **SignalGate enforces an analytical noise ceiling $\\tau_{\\text{sig}}$, driving FDR to $0.0\\%$ across all models.**
+* **SignalGuard enforces an analytical noise ceiling $\\tau_{\\text{sig}}$, driving FDR to $0.0\\%$ across all models.**
 """)
 
 add_code(r"""fig, ax = plt.subplots(figsize=(9, 5))
@@ -289,14 +289,14 @@ plt.show()
 # =============================================================================
 add_md("""## Section 5: Visual Analysis 3 — The Collinear Power Gap (Frobenius Matrix Reduction vs. Naive Bonferroni)
 
-On mutually independent features, Bonferroni and SignalGate produce similar thresholds ($M_{\\text{eff}} \\approx M_{\\text{raw}}$).
+On mutually independent features, Bonferroni and SignalGuard produce similar thresholds ($M_{\\text{eff}} \\approx M_{\\text{raw}}$).
 
 However, in realistic tabular data, candidate features are heavily correlated ($\rho \\approx 0.90$).
 * **Naive Bonferroni ($M_{\\text{raw}} = 98$):** Drastically over-penalizes correlated tests ($p_{\\text{crit}} = 0.05 / 98 \\approx 0.0005$), killing genuine signals.
-* **SignalGate Frobenius Reduction:** Calculates the effective tests via eigenvalues of the correlation matrix:
+* **SignalGuard Frobenius Reduction:** Calculates the effective tests via eigenvalues of the correlation matrix:
   $$\\text{Redundancy Ratio} = \\frac{\\|R - I\\|_F^2}{M(M-1)}$$
   $$M_{\\text{eff}} = 1 + (M_{\\text{raw}} - 1)(1 - \\text{Redundancy Ratio})$$
-* **Result:** SignalGate rescues statistical power, lifting Needle Recall from **0.0% to 100.0%** in Gemini 3.5.
+* **Result:** SignalGuard rescues statistical power, lifting Needle Recall from **0.0% to 100.0%** in Gemini 3.5.
 """)
 
 add_code(r"""fig, ax = plt.subplots(figsize=(9, 5))
@@ -349,7 +349,7 @@ print(tr_gpt.get('output', '')[:750])
 print("\\n" + "=" * 80)
 print("2. Claude Opus 5.5: Deductive Pre-Registration vs. Open Search")
 print("=" * 80)
-tr_opus = traces_map.get(('claude-opus-5-5', 'statistician_signalgate', 'correlated_blocks', 76), {})
+tr_opus = traces_map.get(('claude-opus-5-5', 'statistician_signalguard', 'correlated_blocks', 76), {})
 print(tr_opus.get('output', '')[:850])
 """)
 
@@ -371,10 +371,10 @@ add_md("""## Section 7: Key Architectural Recommendations for Agent Builders
 
 ### Citation & Open Source
 
-SignalGate is available under the MIT License.
+SignalGuard is available under the MIT License.
 To reproduce this benchmark or integrate the MCP guardrail into your agents:
 ```bash
-pip install signalgate
+pip install signalguard
 python scripts/run_daily_frontier_eval.py --model-name gemini-3.5-flash-lite
 ```
 """)

@@ -3,7 +3,7 @@
 import unittest
 import numpy as np
 import pandas as pd
-from signalgate.debias import FeatureDebiaser
+from signalguard.debias import FeatureDebiaser
 
 
 class TestDebias(unittest.TestCase):

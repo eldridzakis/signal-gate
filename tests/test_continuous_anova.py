@@ -5,8 +5,8 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
-from signalgate.metrics import anova_rig_from_group_stats, fast_continuous_rig
-from signalgate.mcp_server import NoiseGateSessionLedger
+from signalguard.metrics import anova_rig_from_group_stats, fast_continuous_rig
+from signalguard.mcp_server import NoiseGateSessionLedger
 
 
 class TestContinuousANOVA(unittest.TestCase):
@@ -24,7 +24,7 @@ class TestContinuousANOVA(unittest.TestCase):
         # Scipy baseline
         f_expected, p_expected = stats.f_oneway(g1, g2, g3)
 
-        # SignalGate summary stats
+        # SignalGuard summary stats
         counts = [len(g1), len(g2), len(g3)]
         means = [float(np.mean(g1)), float(np.mean(g2)), float(np.mean(g3))]
         stds = [float(np.std(g1, ddof=1)), float(np.std(g2, ddof=1)), float(np.std(g3, ddof=1))]

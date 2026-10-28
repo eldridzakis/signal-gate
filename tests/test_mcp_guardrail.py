@@ -4,8 +4,8 @@ import unittest
 import numpy as np
 import pandas as pd
 
-from signalgate.mcp_server import NoiseGateSessionLedger
-from signalgate.agent_tools import (
+from signalguard.mcp_server import NoiseGateSessionLedger
+from signalguard.agent_tools import (
     create_agent_tools,
     get_openai_tools,
     get_anthropic_tools,

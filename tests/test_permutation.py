@@ -2,8 +2,8 @@
 
 import unittest
 import numpy as np
-from signalgate.permutation import PermutationObject
-from signalgate.threshold import FeatureNoiseThreshold
+from signalguard.permutation import PermutationObject
+from signalguard.threshold import FeatureNoiseThreshold
 
 
 class TestPermutation(unittest.TestCase):

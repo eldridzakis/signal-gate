@@ -4,11 +4,11 @@ import unittest
 import numpy as np
 import pandas as pd
 
-from signalgate.metrics import entropy, rig, fast_contingency_matrix
-from signalgate.threshold import FeatureNoiseThreshold, estimate_noise_threshold, target_entropy_from_weights
-from signalgate.permutation import PermutationObject
-from signalgate.mcp_server import NoiseGateSessionLedger
-from signalgate.agent_sandbox import InstrumentedAgentSandbox
+from signalguard.metrics import entropy, rig, fast_contingency_matrix
+from signalguard.threshold import FeatureNoiseThreshold, estimate_noise_threshold, target_entropy_from_weights
+from signalguard.permutation import PermutationObject
+from signalguard.mcp_server import NoiseGateSessionLedger
+from signalguard.agent_sandbox import InstrumentedAgentSandbox
 
 
 class TestMulticlass(unittest.TestCase):
