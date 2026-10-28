@@ -1,0 +1,4 @@
+Mart,Metric_Type,Model,Persona,Holdout_Replication_Rate (%),Real_FDR (%),Mean_Train_RIG,Mean_Holdout_RIG,Generalization_Bias,Decay (%),Under_Reporting_Ratio,Completed_Seeds
+bank_marketing,binary,gpt-6.1-sol,business_analyst,86.66666666666667,13.333333333333334,0.07468366666666666,0.06983933333333334,0.0048393333333333335,7.926666666666667,4.22,3
+bank_marketing,binary,gpt-6.1-sol,statistician_signalgate,100.0,0.0,0.089662,0.085274,0.004385333333333333,5.28,1.0,3
+bank_marketing,binary,gpt-6.1-sol,statistician_unassisted,100.0,0.0,0.089662,0.085274,0.004385333333333333,5.28,4.22,3

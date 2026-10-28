@@ -2,10 +2,12 @@
 
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Tests](https://img.shields.io/badge/tests-47%20passed-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/tests-60%20passed-brightgreen.svg)]()
 [![MCP Server](https://img.shields.io/badge/MCP-Protocol%20Ready-purple.svg)](https://modelcontextprotocol.io)
 
-> **Stateful statistical guardrails and Model Context Protocol (MCP) server for autonomous LLM data agents, Text-to-SQL, and AutoML. Quantifying the Winner's Curse, estimating closed-form noise ceilings, and filtering out spurious insights.**
+> **Stateful statistical guardrails and Model Context Protocol (MCP) server for autonomous LLM data agents, Text-to-SQL semantic layers, and AutoML. Quantifying the Winner's Curse, estimating closed-form noise ceilings (both discrete contingency & continuous SQL ANOVA), and filtering out spurious insights.**
+>
+> 📄 **[Read the Full Standalone Technical & Empirical Report (`REPORT.md`)](REPORT.md)** — *Featuring 216 live frontier LLM evaluations (`claude-opus-5-5`, `claude-sonnet-5-5`, `gpt-6.1-sol`, `gemini-3.5-flash-lite`) and the 3,000-candidate AutoML benchmark across Lending Club, King County Housing, and UCI Bank Marketing.*
 
 ---
 
@@ -79,6 +81,25 @@ Rather than computing an expensive $\mathcal{O}(M^3)$ eigendecomposition, Signal
 $$\sum_{i=1}^M \lambda_i^2 = \text{Tr}(\mathbf{R}^2) = \|\mathbf{R}\|_F^2$$
 * **Primal Formulation ($M \le N$):** Computes sample correlation matrix $\mathbf{R} = \mathbf{Z}^T \mathbf{Z}$ ($M \times M$) in $\mathcal{O}(M^2 N)$.
 * **Dual Gram Trick ($M > N$):** Computes $\mathbf{G}_{\text{dual}} = \mathbf{Z} \mathbf{Z}^T$ ($N \times N$), which possesses the identical non-zero eigenvalues and computes in $\mathcal{O}(N^2 M)$ time!
+
+### 4. Closed-Form Continuous Metric Gate (`ANOVA F -> RIG`) for SQL `GROUP BY` Queries
+For continuous business targets (e.g., revenue, house prices, latency) where SQL `GROUP BY` queries return only sufficient statistics `COUNT(*)`, `AVG(y)`, and `STDDEV(y)` across $K$ groups $\{(n_g, \bar{y}_g, s_g)\}_{g=1}^K$, SignalGate avoids arbitrary target binning by using the exact Gaussian / one-way ANOVA mutual information identity:
+
+$$SS_{\text{between}} = \sum_{g=1}^K n_g (\bar{y}_g - \bar{y}_{\text{grand}})^2, \qquad SS_{\text{within}} = \sum_{g=1}^K (n_g - 1) s_g^2, \qquad \eta^2 = \frac{SS_{\text{between}}}{SS_{\text{between}} + SS_{\text{within}}}$$
+
+$$I_{\text{ANOVA}}(X; Y) = -\frac{1}{2} \log_2(1 - \eta^2) \text{ bits}, \qquad G_{\text{equiv}} = -N \ln(1 - \eta^2) \xrightarrow{d} \chi^2_{K-1} \text{ under } H_0$$
+
+This maps any continuous SQL `GROUP BY` query directly onto SignalGate's $\chi^2_{K-1}$ Extreme Value Theory envelope (`anova_rig_from_group_stats` and `evaluate_continuous_group_aggregation`) without requiring raw row-level data.
+
+---
+
+## 🏆 Key Empirical Benchmark Results (216 Live Frontier LLM Runs)
+
+See **[`REPORT.md`](REPORT.md)** for the complete 5-act visual narrative, mathematical derivations, and full tables across **Anthropic Claude Opus 5.5** (`claude-opus-5-5`), **Claude Sonnet 5.5** (`claude-sonnet-5-5`), **OpenAI GPT-6.1 Sol** (`gpt-6.1-sol`), and **Google Gemini 3.5 Flash Lite** (`gemini-3.5-flash-lite`) on **Lending Club ($N=54.6\text{k}$)**, **King County Housing ($N=21.6\text{k}$)**, and **UCI Bank Marketing ($N=41.2\text{k}$)**.
+
+![Real-World Frontier LLM Replication & False Discovery Audit](notebooks/figures/fig4_real_world_frontier_replication.png)
+
+![SQLite Warehouse + Semantic Layer + Continuous ANOVA Gate](notebooks/figures/fig7_sql_semantic_layer_benchmark.png)
 
 ---
 
@@ -229,7 +250,8 @@ print(stable_features[['feature', 'train_rig', 'corrected_rig', 'stability_class
 | **[`02_selection_bias_and_debiasing.ipynb`](notebooks/02_selection_bias_and_debiasing.ipynb)** | Quantifying the Winner's Curse on Lending Club loan defaults, measuring search complexity vs. bias, and executing $1\sigma / 2\sigma$ bootstrap de-biasing. |
 | **[`03_agent_phacking_benchmark.ipynb`](notebooks/03_agent_phacking_benchmark.ipynb)** | Autonomous agent p-hacking benchmark ($M > 500$ hypotheses), real-time trajectory hero chart, subgroup slicing ($N \to 0$), Frobenius $M_{\text{eff}}$ analysis, and bootstrap needle recovery. |
 | **[`04_llm_persona_and_modality_benchmark.ipynb`](notebooks/04_llm_persona_and_modality_benchmark.ipynb)** | LLM agent personas (Business Analyst vs. Statistician vs. SignalGate), The Hawthorne Effect & Batch Blindness ($8\times$–$25\times$ gap), and Raw CSV vs. Governed Semantic Layer modality benchmark. |
-| **[`05_frontier_llm_benchmark.ipynb`](notebooks/05_frontier_llm_benchmark.ipynb)** | **Empirical Frontier LLM Benchmark:** Empirical validation across **Anthropic Claude Opus 5.5**, **OpenAI GPT-6.1 Sol**, **Google Gemini 3.5 Flash Lite**, and **Claude Sonnet 5.5**. Demonstrates FDR elimination, collinear power preservation, and resolves unassisted "Multiplicity Paralysis". |
+| **[`05_frontier_llm_benchmark.ipynb`](notebooks/05_frontier_llm_benchmark.ipynb)** | **Synthetic Control Frontier LLM Benchmark:** Empirical validation across **Anthropic Claude Opus 5.5**, **OpenAI GPT-6.1 Sol**, **Google Gemini 3.5 Flash Lite**, and **Claude Sonnet 5.5** on synthetic control datasets. |
+| **[`06_real_world_and_agentune_benchmark.ipynb`](notebooks/06_real_world_and_agentune_benchmark.ipynb)** | **Real-World Holdout, Local SQLite Semantic Warehouse, Continuous ANOVA Gate & Agentune AutoML Benchmark:** 216 live frontier LLM runs across Lending Club, King County Housing (both binary & continuous `log_price` SQL ANOVA), and UCI Bank Marketing, plus 3,000-candidate AutoML feature overfitting audit. |
 
 ---
 
@@ -237,36 +259,31 @@ print(stable_features[['feature', 'train_rig', 'corrected_rig', 'stability_class
 
 ```
 signal-gate/
+├── REPORT.md                     # Standalone 5-act executive & technical empirical report
 ├── signalgate/                   # Core library
 │   ├── __init__.py               # Public API exports
 │   ├── metrics.py                # Fast entropy, mutual info, RIG calculations
-│   ├── threshold.py              # Analytical Chi-squared, EVT, & Frobenius M_eff estimators
+│   ├── threshold.py              # Analytical Chi-squared, EVT, Frobenius M_eff, & ANOVA F->RIG estimators
+│   ├── ledger.py                 # Stateful session ledger (discrete & continuous SQL group stats)
 │   ├── permutation.py            # Vectorized Monte-Carlo permutation tester
 │   ├── debias.py                 # Out-of-Fold (OOF) & Bootstrap de-biasing engine
 │   ├── automl_utils.py           # AutoML operational log parsing & regression target binning
 │   ├── mcp_server.py             # Stateful MCP statistical guardrail server (with M_eff tracking)
 │   ├── agent_tools.py            # OpenAI/Anthropic tool schemas & callable dispatchers
 │   ├── agent_sandbox.py          # Synthetic benchmarks & agent simulation telemetry
-│   └── persona_benchmark.py      # LLM personas, Hawthorne self-tracking, & live LLM evals
+│   ├── persona_benchmark.py      # LLM personas, Hawthorne self-tracking, & live LLM evals
+│   ├── real_world_benchmark.py   # Real-world train/holdout vault & Agentune AutoML benchmark
+│   └── sql_semantic_benchmark.py # Local SQLite warehouse + governed semantic layer SQL benchmark
 ├── notebooks/                    # Self-contained walkthroughs
 │   ├── 01_feature_noise_thresholds.ipynb
 │   ├── 02_selection_bias_and_debiasing.ipynb
 │   ├── 03_agent_phacking_benchmark.ipynb
 │   ├── 04_llm_persona_and_modality_benchmark.ipynb
 │   ├── 05_frontier_llm_benchmark.ipynb
-│   └── figures/                  # Publication-grade benchmark plots
-├── tests/                        # Automated unit tests (47 test suites)
-│   ├── test_metrics.py
-│   ├── test_threshold.py
-│   ├── test_effective_tests.py
-│   ├── test_permutation.py
-│   ├── test_debias.py
-│   ├── test_mcp_guardrail.py
-│   ├── test_agent_sandbox.py
-│   ├── test_multiclass.py
-│   └── test_persona_benchmark.py
-├── Data/                         # Benchmark datasets (King County, Lending Club)
-├── archive/                      # Historical notebooks preserved for reference
+│   ├── 06_real_world_and_agentune_benchmark.ipynb
+│   └── figures/                  # Publication-grade benchmark plots (fig1 through fig7)
+├── tests/                        # Automated unit tests (60 tests across 12 test suites)
+├── Data/                         # Benchmark datasets & cached frontier LLM evaluation CSVs
 ├── pyproject.toml                # Modern package configuration (with CLI scripts)
 └── README.md
 ```
@@ -281,7 +298,7 @@ Run the test suite using standard Python `unittest`:
 python -m unittest discover -s tests -v
 ```
 
-All 46 tests run in $< 8.0$ seconds.
+All 60 tests run in $< 10.0$ seconds.
 
 ---
 

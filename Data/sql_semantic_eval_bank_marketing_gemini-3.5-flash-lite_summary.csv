@@ -1,0 +1,4 @@
+Mart,Metric_Type,Model,Persona,Holdout_Replication_Rate (%),Real_FDR (%),Mean_Train_RIG,Mean_Holdout_RIG,Generalization_Bias,Decay (%),Under_Reporting_Ratio,Completed_Seeds
+bank_marketing,binary,gemini-3.5-flash-lite,business_analyst,80.0,20.0,0.08521933333333333,0.07929466666666667,0.005922666666666666,9.94,6.473333333333333,3
+bank_marketing,binary,gemini-3.5-flash-lite,statistician_signalgate,100.0,0.0,0.089662,0.085274,0.004385333333333333,5.28,1.0,3
+bank_marketing,binary,gemini-3.5-flash-lite,statistician_unassisted,83.33333333333333,16.666666666666668,0.08618166666666667,0.08180933333333333,0.004372,20.09,4.22,3

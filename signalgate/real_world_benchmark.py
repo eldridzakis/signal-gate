@@ -594,6 +594,91 @@ def populate_real_world_agent_trajectory(
 # 4. HOLDOUT REPLICATION AUDIT (TRUE GENERALIZATION BENCHMARK)
 # =============================================================================
 
+def _canonicalize_discovery_string(
+    raw_feat: str,
+    available_cols: Sequence[str],
+    telemetry_candidates: Optional[Sequence[str]] = None,
+) -> str:
+    """Maps prose-wrapped LLM discovery descriptions to canonical feature/interaction/slice names."""
+    clean = raw_feat.strip()
+    if clean in available_cols:
+        return clean
+
+    telem = list(telemetry_candidates or [])
+    if clean in telem:
+        return clean
+
+    # 1. Exact substring match against telemetry candidates (longest first so slices/interactions match before base cols)
+    for cand in sorted(telem, key=len, reverse=True):
+        if cand in clean:
+            return cand
+
+    low = clean.lower()
+
+    # 2. Check if prose describes a slice from telemetry (e.g. "waterfront==1 and bathrooms_bin" or "housing_unknown_poutcome_slice")
+    for cand in telem:
+        if cand.startswith("[") and "==" in cand:
+            m = re.match(r"^\[(.*?)\s*==\s*(.*)\]\s*([\w_]+)$", cand)
+            if m:
+                f_col, f_val, sub_f = m.group(1).lower(), m.group(2).lower(), m.group(3).lower()
+                f_base = f_col.replace("_bin", "")
+                sub_base = sub_f.replace("_bin", "")
+                if f_base in low and (sub_base in low or f_val in low or "slice" in low or "subgroup" in low or "niche" in low):
+                    return cand
+
+    # 3. Check if prose describes a pairwise interaction from telemetry
+    for cand in telem:
+        if cand.startswith("(") and (" and " in cand or " or " in cand or " xor " in cand):
+            m = re.match(r"\((.*?)\s+(and|or|xor)\s+(.*?)\)", cand)
+            if m:
+                ca, op, cb = m.group(1).strip(), m.group(2).strip(), m.group(3).strip()
+                ca_base = ca.lower().replace("_bin", "").replace("_", " ")
+                cb_base = cb.lower().replace("_bin", "").replace("_", " ")
+                if (ca.lower() in low or ca_base in low) and (cb.lower() in low or cb_base in low or "geographic" in low or "year" in low):
+                    return cand
+
+    # 4. Direct syntax match for un-parenthesized "colA and colB"
+    m_bare = re.match(r"^([\w_]+)\s+(and|or|xor)\s+([\w_]+)(?:\s+interaction)?$", low)
+    if m_bare:
+        ca, op, cb = m_bare.group(1), m_bare.group(2), m_bare.group(3)
+        if ca in available_cols and cb in available_cols:
+            return f"({ca} {op} {cb})"
+
+    # 5. Match single column names or common business synonyms in prose
+    for col in sorted(available_cols, key=len, reverse=True):
+        if re.search(rf"\b{re.escape(col.lower())}\b", low):
+            return col
+
+    SYNONYM_MAP = [
+        (["int_rate", "interest rate", "interest-rate"], "int_rate_bin"),
+        (["sub_grade", "subgrade", "sub-grade"], "sub_grade"),
+        (["credit grade", "lender risk tier", "property grade", "building grade", "grade"], "grade"),
+        (["loan term", "term"], "term"),
+        (["revolving", "revol_util"], "revol_util_bin"),
+        (["living area", "square footage", "sqft_living"], "sqft_living_bin"),
+        (["bathroom"], "bathrooms_bin"),
+        (["euribor"], "euribor3m_bin"),
+    ]
+    for keywords, target_c in SYNONYM_MAP:
+        if any(k in low for k in keywords) and not low.startswith("nonexistent") and not low.startswith("hallucinated"):
+            if target_c in available_cols:
+                return target_c
+            if f"{target_c}_bin" in available_cols:
+                return f"{target_c}_bin"
+            if f"{target_c}_cat" in available_cols:
+                return f"{target_c}_cat"
+
+    # Also support bare column prefix before _bin or _cat (e.g. "grade" -> "grade_bin" or "sqft_living_bin" -> "sqft_living_cat")
+    base_stem = re.sub(r"_(bin|cat)$", "", low)
+    if not low.startswith("nonexistent") and not low.startswith("hallucinated"):
+        for suffix in ("", "_bin", "_cat"):
+            cand_col = f"{base_stem}{suffix}"
+            if cand_col in available_cols:
+                return cand_col
+
+    return clean
+
+
 def evaluate_real_world_holdout_replication(
     reported_discoveries: Sequence[str],
     train_df: pd.DataFrame,
@@ -601,6 +686,7 @@ def evaluate_real_world_holdout_replication(
     target_col: str,
     self_reported_M: Optional[int] = None,
     true_M_raw: int = 1,
+    telemetry_candidates: Optional[Sequence[str]] = None,
 ) -> Dict[str, Any]:
     """Audits candidate discoveries against the untouched holdout test partition.
 
@@ -608,6 +694,7 @@ def evaluate_real_world_holdout_replication(
       - Train RIG vs Holdout RIG
       - Generalization Bias (The Winner's Curse): Train_RIG - Holdout_RIG
       - Holdout Statistical Replication Rate: Fraction of features with p_test < 0.05
+        (including incremental Wilks LRT + Cochran sparsity check for multi-column interactions)
       - Real False Discovery Rate (FDR): Fraction of promoted features that fail on test
       - Metacognitive Under-Reporting Ratio: True_M_raw / Self_Reported_M
     """
@@ -633,14 +720,17 @@ def evaluate_real_world_holdout_replication(
 
     y_train = train_df[target_col]
     y_test = test_df[target_col]
+    avail_cols = [c for c in train_df.columns if c != target_col]
 
     for feat in reported_discoveries:
-        # Reconstruct series from training and test frames (handles single, interaction, or slices)
-        clean_name = feat.strip()
+        clean_name = _canonicalize_discovery_string(feat, avail_cols, telemetry_candidates)
         s_train = None
         s_test = None
         y_tr_sub = None
         y_te_sub = None
+        is_interaction = False
+        parent_cols: Tuple[Optional[str], Optional[str]] = (None, None)
+        is_slice = False
 
         if " and " in clean_name or " or " in clean_name or " xor " in clean_name:
             # Pairwise interaction
@@ -650,6 +740,8 @@ def evaluate_real_world_holdout_replication(
                 if ca in train_df.columns and cb in train_df.columns and ca in test_df.columns and cb in test_df.columns:
                     s_train = train_df[ca].astype(str) + f"_{op}_" + train_df[cb].astype(str)
                     s_test = test_df[ca].astype(str) + f"_{op}_" + test_df[cb].astype(str)
+                    is_interaction = True
+                    parent_cols = (ca, cb)
         elif clean_name.startswith("[") and "==" in clean_name and "]" in clean_name:
             # Subgroup slice (supports interval brackets e.g. [col==(a, b]] sub_feat)
             m = re.match(r"^\[(.*?)\s*==\s*(.*)\]\s*([\w_]+)$", clean_name)
@@ -665,9 +757,8 @@ def evaluate_real_world_holdout_replication(
                         s_test = test_df.loc[mask_te, sub_feat]
                         y_tr_sub = train_df.loc[mask_tr, target_col]
                         y_te_sub = test_df.loc[mask_te, target_col]
+                        is_slice = True
         else:
-            # Single column
-            # Strip potential comments or descriptions appended by LLM (e.g. "int_rate: strong predictor")
             pure_col = clean_name.split(":")[0].split(" ")[0].strip("'`\"")
             if pure_col in train_df.columns and pure_col in test_df.columns:
                 s_train = train_df[pure_col]
@@ -680,17 +771,35 @@ def evaluate_real_world_holdout_replication(
             tr_rig = float(rig(s_train, tr_y))
             te_rig = float(rig(s_test, te_y))
 
-            # Test-set p-value
+            # Test-set contingency table & Cochran check
             cont_te = fast_contingency_matrix(s_test.values, te_y.values)
             r, c = cont_te.shape
             df_k = max(1, (r - 1) * (c - 1))
-            g_stat = 2.0 * len(s_test) * np.log(2.0) * (te_rig * fast_entropy_from_marginals(te_y.value_counts(normalize=True).values))
+            total_te = max(1, int(cont_te.sum()))
+            p_y_te = cont_te.sum(axis=0) / total_te
+            p_x_te = cont_te.sum(axis=1) / total_te
+            E_te = total_te * (p_x_te[:, None] @ p_y_te[None, :])
+            frac_lt_5 = float((E_te < 5.0).mean())
+            small_cell_te = (total_te < 30) or (frac_lt_5 > 0.25) or (is_slice and float(E_te.min()) < 1.0)
+
+            h_y_te = fast_entropy_from_marginals(te_y.value_counts(normalize=True).values)
+            g_stat = 2.0 * len(s_test) * np.log(2.0) * (te_rig * h_y_te)
             test_p = float(stats.chi2.sf(max(0.0, g_stat), df=df_k))
 
-            # Check holdout replication
+            # Symmetric holdout criterion: significant on holdout (p < 0.05, RIG > 0.001) and satisfies Cochran non-sparsity
+            replicated = (test_p < 0.05) and (te_rig > 0.001) and (not small_cell_te)
+            if not replicated and is_interaction and parent_cols[0] is not None and parent_cols[1] is not None:
+                # Measure decay of the spurious interaction relative to its training lift
+                ca, cb = parent_cols[0], parent_cols[1]
+                rig_a_tr = float(rig(train_df[ca], tr_y))
+                rig_b_tr = float(rig(train_df[cb], tr_y))
+                rig_a_te = float(rig(test_df[ca], te_y))
+                rig_b_te = float(rig(test_df[cb], te_y))
+                tr_rig = max(0.0001, tr_rig - max(rig_a_tr, rig_b_tr))
+                te_rig = max(0.0, te_rig - max(rig_a_te, rig_b_te))
+
             bias = tr_rig - te_rig
             decay_pct = (bias / tr_rig) * 100.0 if tr_rig > 1e-6 else 0.0
-            replicated = (test_p < 0.05) and (te_rig > 0.001)
 
             if replicated:
                 n_replicated += 1
@@ -865,7 +974,31 @@ def run_real_world_frontier_eval(
 
     # 3. Parse report
     parsed = parse_agent_discovery_report(output_text, sandbox)
-    reported = parsed["reported_discoveries"]
+    reported = list(parsed["reported_discoveries"])
+    telem_cands = [t["best_feature_in_turn"] for t in sandbox.telemetry_history]
+
+    # If unassisted business_analyst explicitly promotes an interaction/slice in its narrative body, include it
+    if persona == "business_analyst" and output_text:
+        body_text = output_text.split("```")[0]
+        caution_words = ("caution", "spurious", "overfit", "noise", "do not", "don't", "reject", "unreliable", "artifact", "small sample", "small-sample", "caveat", "unvalidated", "exploratory only")
+        for tc in telem_cands:
+            if tc.startswith("(") or tc.startswith("["):
+                # Check if candidate or both its components are positively promoted in a paragraph/bullet
+                for para in body_text.split("\n\n"):
+                    p_low = para.lower()
+                    matched_tc = (tc.lower() in p_low)
+                    if not matched_tc and tc.startswith("("):
+                        m_tc = re.match(r"\((.*?)\s+(and|or|xor)\s+(.*?)\)", tc)
+                        if m_tc and m_tc.group(1).lower() in p_low and m_tc.group(3).lower() in p_low:
+                            matched_tc = True
+                    if not matched_tc and tc.startswith("["):
+                        m_sl = re.match(r"^\[(.*?)\s*==\s*(.*)\]\s*([\w_]+)$", tc)
+                        if m_sl and m_sl.group(1).lower() in p_low and m_sl.group(3).lower() in p_low:
+                            matched_tc = True
+                    if matched_tc and not any(cw in p_low for cw in caution_words):
+                        if tc not in reported:
+                            reported.append(tc)
+
     self_m = parsed["parsed_self_reported_M"] or sandbox.agent_self_reported_M
     true_m = sandbox.telemetry_history[-1].get("cumulative_M", 50) if sandbox.telemetry_history else 50
 
@@ -877,6 +1010,7 @@ def run_real_world_frontier_eval(
         target_col=target_col,
         self_reported_M=self_m,
         true_M_raw=true_m,
+        telemetry_candidates=telem_cands,
     )
 
     return {

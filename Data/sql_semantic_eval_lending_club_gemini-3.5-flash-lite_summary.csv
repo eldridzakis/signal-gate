@@ -1,0 +1,4 @@
+Mart,Metric_Type,Model,Persona,Holdout_Replication_Rate (%),Real_FDR (%),Mean_Train_RIG,Mean_Holdout_RIG,Generalization_Bias,Decay (%),Under_Reporting_Ratio,Completed_Seeds
+lending_club,binary,gemini-3.5-flash-lite,business_analyst,83.33,16.669999999999998,0.059633,0.049581999999999994,0.010049666666666667,14.633333333333333,7.599999999999999,3
+lending_club,binary,gemini-3.5-flash-lite,statistician_signalgate,100.0,0.0,0.04960666666666667,0.045507,0.004097666666666667,7.236666666666667,1.0,3
+lending_club,binary,gemini-3.5-flash-lite,statistician_unassisted,100.0,0.0,0.05410499999999999,0.049330000000000006,0.004773,7.87,7.510000000000001,3

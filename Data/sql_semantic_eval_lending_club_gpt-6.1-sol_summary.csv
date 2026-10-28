@@ -1,0 +1,4 @@
+Mart,Metric_Type,Model,Persona,Holdout_Replication_Rate (%),Real_FDR (%),Mean_Train_RIG,Mean_Holdout_RIG,Generalization_Bias,Decay (%),Under_Reporting_Ratio,Completed_Seeds
+lending_club,binary,gpt-6.1-sol,business_analyst,100.0,0.0,0.05661766666666667,0.05296766666666667,0.0036456666666666664,6.576666666666667,5.43,3
+lending_club,binary,gpt-6.1-sol,statistician_signalgate,100.0,0.0,0.04960666666666667,0.045507,0.004097666666666667,7.236666666666667,1.0,3
+lending_club,binary,gpt-6.1-sol,statistician_unassisted,100.0,0.0,0.05410499999999999,0.049330000000000006,0.004773,7.87,5.43,3

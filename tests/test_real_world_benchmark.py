@@ -68,8 +68,8 @@ class TestRealWorldBenchmark(unittest.TestCase):
         """Verifies true out-of-sample holdout replication calculations."""
         ds = load_real_world_benchmark_dataset(
             dataset_name="lending_club",
-            sample_train=1000,
-            sample_test=500,
+            sample_train=2000,
+            sample_test=2000,
             seed=42
         )
         train_df = ds["train_df"]

@@ -1,0 +1,4 @@
+Mart,Metric_Type,Model,Persona,Holdout_Replication_Rate (%),Real_FDR (%),Mean_Train_RIG,Mean_Holdout_RIG,Generalization_Bias,Decay (%),Under_Reporting_Ratio,Completed_Seeds
+king_county_continuous,continuous,gemini-3.5-flash-lite,business_analyst,30.0,70.0,0.4013006666666667,0.3785133333333333,0.022789666666666666,-5.650000000000001,8.866666666666667,3
+king_county_continuous,continuous,gemini-3.5-flash-lite,statistician_signalgate,100.0,0.0,0.15679433333333334,0.16029466666666667,-0.0034976666666666663,-1.9900000000000002,2.4066666666666667,3
+king_county_continuous,continuous,gemini-3.5-flash-lite,statistician_unassisted,50.0,50.0,0.43884166666666663,0.44178999999999996,-0.0029449999999999997,-0.8166666666666668,4.22,3

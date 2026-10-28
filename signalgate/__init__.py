@@ -78,6 +78,13 @@ from .agentune_benchmark import (
     AgentuneFeatureSynthesizer,
     run_agentune_overfitting_benchmark,
 )
+from .sql_semantic_benchmark import (
+    SEMANTIC_CATALOGS,
+    RealWorldSQLSemanticWarehouse,
+    populate_sql_semantic_trajectory,
+    evaluate_sql_holdout_replication,
+    run_sql_semantic_frontier_eval,
+)
 
 # Convenient top-level aliases
 SignalGateSessionLedger = NoiseGateSessionLedger
@@ -141,4 +148,9 @@ __all__ = [
     "run_real_world_frontier_eval",
     "AgentuneFeatureSynthesizer",
     "run_agentune_overfitting_benchmark",
+    "SEMANTIC_CATALOGS",
+    "RealWorldSQLSemanticWarehouse",
+    "populate_sql_semantic_trajectory",
+    "evaluate_sql_holdout_replication",
+    "run_sql_semantic_frontier_eval",
 ]
