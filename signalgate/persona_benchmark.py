@@ -1116,10 +1116,21 @@ class NativeGeminiModel:
             data=json.dumps(body).encode("utf-8"),
             headers={"Content-Type": "application/json"}
         )
-        with urllib.request.urlopen(req) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-            candidate = data.get("candidates", [{}])[0]
-            text = candidate.get("content", {}).get("parts", [{}])[0].get("text", "").strip()
+        text = ""
+        for attempt in range(3):
+            try:
+                with urllib.request.urlopen(req) as resp:
+                    data = json.loads(resp.read().decode("utf-8"))
+                    candidate = data.get("candidates", [{}])[0]
+                    text = candidate.get("content", {}).get("parts", [{}])[0].get("text", "").strip()
+                    break
+            except urllib.error.HTTPError as http_err:
+                if http_err.code in (503, 429) and attempt < 2:
+                    import time
+                    time.sleep(2.0 * (attempt + 1))
+                    continue
+                error_body = http_err.read().decode("utf-8")
+                raise RuntimeError(f"Google Gemini API Error {http_err.code}: {error_body}")
 
         class _SimpleResp:
             def __init__(self, t: str):
@@ -1164,7 +1175,7 @@ class NativeClaudeModel:
 
         body: Dict[str, Any] = {
             "model": self.model_name,
-            "max_tokens": 1024,
+            "max_tokens": 4096,
             "messages": [{"role": "user", "content": user_content}],
         }
         # In modern Claude 5.x/reasoning models, temperature is deprecated
@@ -1214,6 +1225,9 @@ class NativeOpenAIModel:
         msg_list = []
         if isinstance(messages, list):
             for m in messages:
+                if isinstance(m, dict):
+                    msg_list.append(m)
+                    continue
                 c = getattr(m, "content", str(m))
                 t = type(m).__name__
                 if "System" in t:
@@ -1227,7 +1241,9 @@ class NativeOpenAIModel:
             "model": self.model_name,
             "messages": msg_list,
         }
-        if not (self.model_name.startswith("o1") or self.model_name.startswith("o3")):
+        # Modern OpenAI reasoning models (gpt-6, o1, o3) only support default temperature
+        is_reasoning_model = any(k in self.model_name for k in ("gpt-6", "o1", "o3"))
+        if not is_reasoning_model and self.temperature is not None and self.temperature > 0.0:
             body["temperature"] = self.temperature
 
         req = urllib.request.Request(

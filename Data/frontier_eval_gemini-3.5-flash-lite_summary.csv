@@ -1,0 +1,5 @@
+Model,Persona,Dataset Mode,Completed Seeds,False Discovery Rate (%),Needle Recall (%),Precision (%),Directive Compliance (%),Under-Reporting Ratio,Cache Hits,Live API Calls
+gemini-3.5-flash-lite,business_analyst,null_honeypot,3,33.33333333333333,0.0,66.66666666666666,66.66666666666666,13.194444444444445,0,3
+gemini-3.5-flash-lite,business_analyst,needle_in_haystack,3,0.0,77.77777777777777,100.0,100.0,22.866666666666664,0,3
+gemini-3.5-flash-lite,statistician_unassisted,null_honeypot,3,0.0,0.0,100.0,100.0,1.4777777777777779,0,3
+gemini-3.5-flash-lite,statistician_unassisted,needle_in_haystack,3,0.0,77.77777777777777,100.0,100.0,2.022222222222222,0,3
