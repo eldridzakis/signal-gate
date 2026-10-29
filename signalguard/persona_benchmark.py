@@ -1328,9 +1328,9 @@ def _resolve_llm_model(model_name: str, temperature: float = 0.0) -> Tuple[Any, 
         "claude-3-7-sonnet": "claude-sonnet-5-5",
         "claude-3.7-sonnet": "claude-sonnet-5-5",
         "claude-3-7-sonnet-20250219": "claude-sonnet-5-5",
-        "claude-3-5-sonnet": "claude-sonnet-5-5",
+        "claude-sonnet-5-5": "claude-sonnet-5-5",
         "claude-3.5-sonnet": "claude-sonnet-5-5",
-        "claude-3-5-sonnet-20241022": "claude-sonnet-5-5",
+        "claude-sonnet-5-5-20241022": "claude-sonnet-5-5",
         "claude-3-sonnet": "claude-sonnet-5-5",
         "claude-3-sonnet-20240229": "claude-sonnet-5-5",
         # Claude Haiku Aliases (Redirect retired 3.x to 5.5)
@@ -1518,7 +1518,7 @@ def build_langchain_agent_runner(
     tracking_mode : str, default 'untracked'
     model_name : str, default 'gemini-3.5-flash'
         Supported models: 'gemini-3.5-flash' (Google AI Studio),
-        'gpt-4o-mini' (OpenAI), 'claude-3-5-sonnet' (Anthropic).
+        'gpt-4o-mini' (OpenAI), 'claude-sonnet-5-5' (Anthropic).
     temperature : float, default 0.0
     dry_run : bool, default False
         If True, returns MockLangChainAgentRunner without requiring API keys or third-party packages.
