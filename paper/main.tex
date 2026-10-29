@@ -93,6 +93,13 @@ To maintain family-wise error control at significance level $\alpha$, the dynami
 \tau_{\text{sig}}(N, k, M, \alpha) = \frac{F^{-1}_{\chi^2_k}\left((1 - \alpha)^{1/M}\right)}{2 N \ln(2) \, H(Y)}
 \end{equation}
 
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\linewidth]{figures/fig1_scaling_laws.png}
+  \caption{\textbf{Asymptotic Scaling Laws of Spurious Relative Information Gain (RIG).} (Left) Null noise floor collapses strictly as $O(1/N)$. (Right) As candidate hypothesis space $M$ expands, Gumbel Extreme Value Theory inflates the expected maximum spurious signal floor.}
+  \label{fig:scaling_laws}
+\end{figure}
+
 \subsection{Closed-Form Continuous Metric Gate (ANOVA $F \to \text{RIG}$)}
 In SQL warehouses, business targets (e.g., sale price, revenue, duration) are continuous. Consider a continuous target $Y \sim \mathcal{N}(\mu, \sigma^2)$ evaluated across $K$ categorical groups from a SQL \texttt{GROUP BY} query. Let $n_g$, $\bar{y}_g$, and $s_g^2$ denote the group count, sample mean, and sample variance for group $g \in \{1, \dots, K\}$, with grand mean $\bar{y} = \frac{1}{N} \sum n_g \bar{y}_g$.
 
@@ -115,6 +122,13 @@ In real-world data warehouses, candidate features are highly collinear. SignalGu
 M_{\text{eff}} = \frac{\left(\sum_{i=1}^M \lambda_i\right)^2}{\sum_{i=1}^M \lambda_i^2} = \frac{(\text{Tr}(R))^2}{\|R\|_F^2} = \frac{M^2}{\sum_{i=1}^M \sum_{j=1}^M r_{ij}^2}
 \end{equation}
 When features are perfectly collinear ($r_{ij} = 1$), $M_{\text{eff}} = 1$. When features are mutually orthogonal ($r_{ij} = 0$), $M_{\text{eff}} = M$. Replacing $M$ with $M_{\text{eff}}$ in the EVT threshold guarantees family-wise error protection while preserving statistical power for correlated discovery.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\linewidth]{figures/fig3_collinear_power_gap.png}
+  \caption{\textbf{Resolving Multiplicity Paralysis via Frobenius Spectral Effective Hypothesis Count ($M_{\text{eff}}$).} Standard Bonferroni adjustments assume orthogonality and crush statistical power in correlated spaces; $M_{\text{eff}}$ tracks true spectral degrees of freedom.}
+  \label{fig:collinear_power}
+\end{figure}
 
 \section{Phase 1 Empirical Benchmark: Foundation \& AutoML}
 Phase~1 evaluated \textbf{216 live multi-turn agent evaluations} across four frontier LLMs (\texttt{claude-opus-5-5}, \texttt{claude-sonnet-5-5}, \texttt{gpt-6.1-sol}, \texttt{gemini-3.5-flash-lite}) and \textbf{3,000 automated feature engineering candidates} across three production datasets: Lending Club Credit Risk ($N=54{,}636$), King County Housing Sales ($N=21{,}613$), and UCI Bank Marketing Campaigns ($N=41{,}188$).
@@ -145,7 +159,23 @@ Phase~1 evaluated \textbf{216 live multi-turn agent evaluations} across four fro
 \end{tabular}
 \end{table}
 
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\linewidth]{figures/fig4_real_world_frontier_replication.png}
+  \caption{\textbf{Master Phase 1 Frontier LLM Replication Matrix.} Holdout replication rates and empirical False Discovery Rates across frontier models with unassisted personas versus SignalGuard.}
+  \label{fig:frontier_rep}
+\end{figure}
+
 In automated feature engineering on Lending Club ($M = 1{,}000$ candidate interactions $\to$ Top-15 selected), unassisted greedy selection promoted fragile 3-way interactions that collapsed out-of-sample (\textbf{26.7\% Real FDR}, \textbf{39.2\% signal decay}), actively degrading downstream test ROC AUC from 0.7010 to 0.6993. SignalGuard-governed selection achieved \textbf{100\% holdout replication}, cutting signal decay to 21.9\% and improving test ROC AUC to \textbf{0.7028}.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.48\linewidth]{figures/fig5_agentune_holdout_decay.png}
+  \hfill
+  \includegraphics[width=0.48\linewidth]{figures/fig6_agentune_downstream_overfitting_gap.png}
+  \caption{\textbf{Generalization to Automated Feature Discovery.} (Left) Train-to-holdout signal decay across $M=1{,}000$ candidate interactions. (Right) Downstream test ROC AUC showing unassisted selection degrades models whereas SignalGuard preserves generalization.}
+  \label{fig:automl_generalization}
+\end{figure}
 
 \section{Phase 2 Empirical Benchmark: Unconstrained Agentic SQL}
 Phase~2 evaluated \textbf{192 live multi-turn agent evaluations} across four models (\texttt{claude-sonnet-5-5}, \texttt{gemini-3.5-flash-lite}, \texttt{gpt-6-luna}, and \texttt{claude-haiku-5-5}) across four tasks and three cross-validation seed splits ($42, 59, 76$). Models interactively wrote and executed arbitrary SQL queries over up to 8 turns. Replications were audited on strictly untouched holdout vaults where a finding replicated if and only if $p < 0.05$ with matching sign, with \textbf{zero small-cell rules or shared vetoes}.
@@ -181,6 +211,13 @@ Phase~2 evaluated \textbf{192 live multi-turn agent evaluations} across four mod
 \bottomrule
 \end{tabular}
 \end{table}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\linewidth]{figures/fig7_sql_semantic_layer_benchmark.png}
+  \caption{\textbf{Phase 2 Empirical Benchmark Across 192 Live Multi-Turn SQL Evaluations.} Evaluating \texttt{claude-sonnet-5-5}, \texttt{gemini-3.5-flash-lite}, \texttt{gpt-6-luna}, and \texttt{claude-haiku-5-5} across four statistical arms and isolated holdout test vaults.}
+  \label{fig:phase2_benchmark}
+\end{figure}
 
 \subsection{Phase 2 Core Findings}
 \begin{enumerate}

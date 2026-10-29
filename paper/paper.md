@@ -94,18 +94,8 @@ To maintain family-wise error control at significance level $\alpha$, the dynami
 
 $$\tau_{\text{sig}}(N, k, M, \alpha) = \frac{F^{-1}_{\chi^2_k}\left((1 - \alpha)^{1/M}\right)}{2 N \ln(2) \, H(Y)}$$
 
-```
-               Figure 1: Asymptotic Scaling Laws of Spurious RIG
-┌───────────────────────────────────────────┐ ┌───────────────────────────────────────────┐
-│ Panel A: Sample Size Collapse (O(1/N))    │ │ Panel B: Search Space Inflation (EVT Max) │
-│ Spurious RIG Ceiling                      │ │ Spurious RIG Ceiling                      │
-│ 0.35 │       * (N = 50 rows)              │ │ 0.25 │                           * (M=50) │
-│ 0.25 │        \                           │ │ 0.20 │                      *             │
-│ 0.15 │         \                          │ │ 0.15 │                 *                  │
-│ 0.05 │          *--___                    │ │ 0.10 │            *                       │
-│ 0.00 └────────────────* (N = 10,000 rows) │ │ 0.05 │   * (M = 1 single test)            │
-└───────────────────────────────────────────┘ └───────────────────────────────────────────┘
-```
+![Figure 1: Asymptotic Scaling Laws of Spurious RIG](figures/fig1_scaling_laws.png)
+*Figure 1: (Left) Asymptotic sample size collapse $O(1/N)$. (Right) Search space inflation under Extreme Value Theory (EVT).*
 
 ### 2.3 Closed-Form Continuous Metric Gate (ANOVA $F \to \text{RIG}$)
 In SQL warehouses, business targets (e.g. sale price, revenue, duration) are continuous. Arbitrary target binning destroys statistical power and introduces boundary artifacts.
@@ -139,11 +129,17 @@ $$M_{\text{eff}} = \frac{\left(\sum_{i=1}^M \lambda_i\right)^2}{\sum_{i=1}^M \la
 
 When features are perfectly collinear ($r_{ij} = 1$), $M_{\text{eff}} = 1$. When features are mutually orthogonal ($r_{ij} = 0$), $M_{\text{eff}} = M$. Replacing $M$ with $M_{\text{eff}}$ in the EVT threshold guarantees family-wise error protection while preserving statistical power for correlated discovery.
 
+![Figure 3: Resolving Multiplicity Paralysis via Frobenius Spectral Effective Hypothesis Count](figures/fig3_collinear_power_gap.png)
+*Figure 3: Comparison of nominal Bonferroni hypothesis inflation ($M$) versus Frobenius spectral effective rank ($M_{\text{eff}}$), resolving multiplicity paralysis across collinear feature spaces.*
+
 ---
 
 ## 3. System Architecture & MCP Integration
 
 SignalGuard is engineered as a stateful middleware layer operating via the Model Context Protocol (MCP) \cite{mcp2024}.
+
+![Figure 2: Real-Time Multi-Turn Agentic Trajectory & Dynamic Threshold Escalation](figures/fig2_agentic_trajectory.png)
+*Figure 2: Real-time agentic query trajectory. As the agent tests successive SQL slices, SignalGuard dynamically elevates the verification threshold ($\tau_{\text{sig}}$) to neutralize search space inflation.*
 
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
@@ -210,10 +206,19 @@ Every candidate insight promoted by the agent was audited against a strictly iso
 | **Bank Marketing** | `gemini-3.5-flash-lite` | `business_analyst` | 61.9% | **38.1%** | 0.0933 | 0.0749 | 7.56x |
 | **Bank Marketing** | `gemini-3.5-flash-lite` | **`statistician_signalguard`** | **100.0%** | **0.0%** | **0.0570** | **0.0526** | **1.00x** |
 
+![Figure 4: Real-World Multi-Model Frontier LLM Replication & False Discovery Audit](figures/fig4_real_world_frontier_replication.png)
+*Figure 4: Out-of-sample holdout replication rates and false discovery rates across frontier models with unassisted personas versus SignalGuard.*
+
 ### 4.3 Generalization to Classical Automated Feature Discovery
 To demonstrate that the asymptotic Wilks-EVT formulation generalizes beyond conversational agents to automated tabular feature synthesis, we evaluated candidate interaction selection on Lending Club ($M = 1{,}000$ generated interaction candidates $\to$ Top-15 selected):
 * **Unassisted Selection** promoted 4 fragile 3-way interactions that collapsed out-of-sample (**26.7% Real FDR**, **39.2% signal decay**), actively **degrading downstream test ROC AUC from 0.7010 to 0.6993**.
 * **SignalGuard Selection** filtered out overfit interactions, achieving **100% holdout replication**, cutting signal decay to **21.9%**, and **improving downstream test ROC AUC to 0.7028**.
+
+![Figure 5: Automated Feature Discovery Holdout Signal Decay](figures/fig5_agentune_holdout_decay.png)
+*Figure 5: Real-world signal decay from training to holdout test vault across $M=1,000$ candidate interactions.*
+
+![Figure 6: Downstream Model Generalization Gap](figures/fig6_agentune_downstream_overfitting_gap.png)
+*Figure 6: Test ROC AUC performance demonstrating that unassisted greedy selection degrades downstream models while SignalGuard preserves generalization.*
 
 ---
 
@@ -229,6 +234,9 @@ To eliminate the constraints of scripted exploration transcripts and shared smal
 ### 5.2 Phase 2 Master Empirical Results (192 Live Sessions)
 
 We evaluated four models representing both Flagship Production Workhorses and Everyday High-Speed Tiers: `claude-sonnet-5-5`, `gemini-3.5-flash-lite`, `gpt-6-luna`, and `claude-haiku-5-5`.
+
+![Figure 7: Phase 2 Dynamic Agentic SQL Benchmark Across 192 Live Sessions](figures/fig7_sql_semantic_layer_benchmark.png)
+*Figure 7: Phase 2 empirical benchmark results comparing query depth, holdout replication, Discovery F1, and empirical FDR across everyday and flagship models.*
 
 #### Table 2: Phase 2 Master Cross-Model Empirical Matrix (192 Live Evaluations)
 | Model Tier | Model ID | Statistical Arm | Avg Queries / Session | Total Reported | Replicated on Holdout | Empirical FDR ($\downarrow$) | Precision ($\uparrow$) | Signal Recall ($\uparrow$) | Discovery F1 ($\uparrow$) |
