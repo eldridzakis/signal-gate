@@ -1,7 +1,7 @@
 # SignalGuard: Information-Theoretic Guardrails for Autonomous LLM Analytics, SQL Warehouses, and AutoML Feature Discovery
 
 **Executive & Technical Benchmark Report**  
-*216 Live Frontier LLM Agent Evaluations (`claude-opus-5-5`, `claude-sonnet-5-5`, `gpt-6.1-sol`, `gemini-3.5-flash-lite`) + 3,000-Candidate AutoML Benchmark Across 3 Real-World Datasets*
+*216 Frontier LLM Agent Evaluations (`claude-opus-5-5`, `claude-sonnet-5-5`, `gpt-6.1-sol`, `gemini-3.5-flash-lite`) + 3,000-Candidate AutoML Benchmark Across 3 Real-World Datasets*
 
 ---
 
@@ -9,11 +9,11 @@
 
 When autonomous LLM agents and automated feature-engineering pipelines (`agentune`-style AutoML) explore production datasets via Python or SQL `GROUP BY` / `CUBE` queries, they operate as **high-throughput implicit hypothesis generators**. A single multi-turn agentic session routinely evaluates $M = 20$ to $1{,}000+$ marginal, interaction, and conditional slice hypotheses (`WHERE slice = x`) before promoting only the top cherry-picked findings in its final executive narrative.
 
-Because unassisted LLM agents lack a stateful multiple-testing ledger and rely on sample-size-blind heuristics ("looks like a $3\times$ lift") or uncalibrated self-reporting of how many hypotheses they tested, they suffer from two complementary failure modes:
-1. **Multiplicity Amnesia & Small-Cell Hallucination (`business_analyst` persona):** Agents under-report their true hypothesis search space by **$3.5\times\text{ to }8.9\times$** and promote high-cardinality interaction cubes or tiny conditional slices (`N < 30`) that collapse on unseen holdout data—producing up to **30.2%–44.8% Out-of-Sample False Discovery Rates (Real FDR)** on tabular exploration and up to **51.4%–82.1% Real FDR** on continuous SQL `GROUP BY` slice exploration.
+In our benchmark, frontier LLMs read scripted multi-turn exploration transcripts (fixed query sequences that include deliberately small slices) and wrote findings reports. Because unassisted LLMs lack a stateful multiple-testing ledger and rely on sample-size-blind heuristics ("looks like a $3\times$ lift") or uncalibrated self-reporting of how many hypotheses they tested, they suffer from two complementary failure modes:
+1. **Multiplicity Amnesia & Small-Cell Hallucination (`business_analyst` persona):** Agents under-report their true hypothesis search space by **$3.5\times\text{ to }8.9\times$** and promote high-cardinality interaction cubes or tiny conditional slices (`N < 30`) that collapse on unseen holdout data—producing up to **30.2%–44.8% Out-of-Sample False Discovery Rates (Real FDR)** on tabular exploration and **46.8%–82.1% Real FDR** on continuous SQL `GROUP BY` slice exploration.
 2. **Multiplicity Paralysis (`statistician_unassisted` persona):** When frontier models (`claude-opus-5-5`, `gpt-6.1-sol`) are explicitly prompted to act as rigorous PhD statisticians, they frequently **over-guess or miscalibrate** their cumulative search denominator $M$ (e.g., guessing $M = 200\text{–}300$ when $M_{\text{raw}} = 43$) or lack collinear effective-rank adjustment ($M_{\text{eff}}$), causing them to over-penalize genuine moderate signals and sacrifice out-of-sample signal power.
 
-**SignalGuard** resolves both failure modes by acting as a deterministic, stateful **Model Context Protocol (MCP) & SQL Semantic Layer Guardrail** between the agent and the data warehouse. Across **216 live multi-turn frontier LLM evaluations** (108 tabular tool-use runs + 108 local SQLite warehouse + semantic layer runs) and **3,000 automated feature-engineering candidates**, **`statistician_signalguard` achieved a 100.0% Out-of-Sample Holdout Replication Rate (0.0% Real FDR) across every dataset, every SQL mart (both binary classification and closed-form continuous ANOVA), and all 4 frontier models**, while recovering **higher out-of-sample signal power** than unassisted statisticians.
+**SignalGuard** addresses both failure modes by acting as a deterministic, stateful **Model Context Protocol (MCP) & SQL Semantic Layer Guardrail** between the agent and the data warehouse. Across **216 multi-turn frontier LLM evaluations** (108 tabular tool-use runs + 108 local SQLite warehouse + semantic layer runs) and **3,000 automated feature-engineering candidates**, `statistician_signalguard` reports had **no holdout replication failures** on any dataset, SQL mart, or model, while retaining higher out-of-sample signal power than unassisted statisticians. These results should be read alongside the [Benchmark Design & Limitations](#benchmark-design--limitations): exploration paths were scripted, and the replication criterion shares SignalGuard's small-sample rule, so the 0.0% figure demonstrates the mechanism rather than an independent estimate of production false discovery rates.
 
 ---
 
@@ -41,7 +41,7 @@ When an LLM agent explores a dataset across multiple tool calls, it evaluates do
 
 ![Figure 2: Multi-Turn Agentic Trajectory & Dynamic Threshold Escalation](notebooks/figures/fig2_agentic_trajectory.png)
 
-* **Takeaway from Figure 2:** As the agent executes successive exploratory queries (`Step 1` through `Step 8`), SignalGuard's [`NoiseGateSessionLedger`](file:///c:/Users/eldri/Code/sampling_toolbox/signalguard/ledger.py) automatically increments the cumulative hypothesis budget $M$ and dynamically raises the verification gate $\tau_{\text{sig}}(M_{\text{eff}})$ (green curve). True structural signals remain well above the escalating gate, while cherry-picked noise spikes—which easily clear a naive single-test $\alpha = 0.05$ bar (orange dashed line)—are deterministically quarantined.
+* **Takeaway from Figure 2:** As the agent executes successive exploratory queries (`Step 1` through `Step 8`), SignalGuard's [`NoiseGateSessionLedger`](signalguard/mcp_server.py) automatically increments the cumulative hypothesis budget $M$ and dynamically raises the verification gate $\tau_{\text{sig}}(M_{\text{eff}})$ (green curve). True structural signals remain well above the escalating gate, while cherry-picked noise spikes—which easily clear a naive single-test $\alpha = 0.05$ bar (orange dashed line)—are deterministically quarantined.
 
 ---
 
@@ -115,20 +115,20 @@ Every promoted discovery was audited against a **strictly unseen Holdout Test Va
 In enterprise BI and data-warehouse environments, agents do not pull raw row-level DataFrames into Python—they query a **governed semantic layer** via SQL `GROUP BY` aggregations returning `COUNT(*)`, `AVG(y)`, and `STDDEV(y)`. Furthermore, many critical business targets (such as house sale prices `log_price`, revenue, or latency) are **continuous**, where arbitrary target binning destroys information.
 
 #### Closed-Form Continuous Metric Gate (`ANOVA F -> RIG`)
-In [`signalguard/threshold.py`](file:///c:/Users/eldri/Code/sampling_toolbox/signalguard/threshold.py) ([`anova_rig_from_group_stats`](file:///c:/Users/eldri/Code/sampling_toolbox/signalguard/threshold.py#L648-L735)), we derived and implemented a closed-form continuous information gate directly from SQL `GROUP BY` sufficient statistics $\{(n_g, \bar{y}_g, s_g)\}_{g=1}^K$. Using the exact Gaussian / one-way ANOVA mutual information identity:
+In [`signalguard/threshold.py`](signalguard/threshold.py) ([`anova_rig_from_group_stats`](signalguard/threshold.py#L648-L735)), we derived and implemented a closed-form continuous information gate directly from SQL `GROUP BY` sufficient statistics $\{(n_g, \bar{y}_g, s_g)\}_{g=1}^K$. Using the exact Gaussian / one-way ANOVA mutual information identity:
 
 $$SS_{\text{between}} = \sum_{g=1}^K n_g (\bar{y}_g - \bar{y}_{\text{grand}})^2, \qquad SS_{\text{within}} = \sum_{g=1}^K (n_g - 1) s_g^2, \qquad \eta^2 = \frac{SS_{\text{between}}}{SS_{\text{between}} + SS_{\text{within}}}$$
 
 $$I_{\text{ANOVA}}(X; Y) = -\frac{1}{2} \log_2(1 - \eta^2) \text{ bits}, \qquad \text{RIG}_{\text{ANOVA}} = -\frac{1}{2} \log_2(1 - \eta^2)$$
 
-Because $F = \frac{SS_{\text{between}} / (K - 1)}{SS_{\text{within}} / (N - K)}$ satisfies $(K - 1) F \sim \chi^2_{K-1}$ under $H_0$, $\text{RIG}_{\text{ANOVA}}$ obeys the **exact same asymptotic $\chi^2_{K-1} / (2 N \ln 2)$ scaling law** as discrete mutual information with unit reference entropy $H_{\text{ref}} = 1.0\text{ bit}$. This enables [`NoiseGateSessionLedger.evaluate_continuous_group_aggregation()`](file:///c:/Users/eldri/Code/sampling_toolbox/signalguard/ledger.py) to gate any continuous SQL `GROUP BY` query without accessing raw rows!
+Because $F = \frac{SS_{\text{between}} / (K - 1)}{SS_{\text{within}} / (N - K)}$ satisfies $(K - 1) F \sim \chi^2_{K-1}$ under $H_0$, $\text{RIG}_{\text{ANOVA}}$ obeys the **exact same asymptotic $\chi^2_{K-1} / (2 N \ln 2)$ scaling law** as discrete mutual information with unit reference entropy $H_{\text{ref}} = 1.0\text{ bit}$. This enables [`NoiseGateSessionLedger.evaluate_continuous_group_aggregation()`](signalguard/mcp_server.py) to gate any continuous SQL `GROUP BY` query without accessing raw rows!
 
 ![Figure 7: Local SQLite Warehouse + Semantic Layer + Closed-Form Continuous ANOVA Gate](notebooks/figures/fig7_sql_semantic_layer_benchmark.png)
 
-* **Takeaway from Figure 7:** When all 4 frontier LLMs query a local SQLite warehouse ([`RealWorldSQLSemanticWarehouse`](file:///c:/Users/eldri/Code/sampling_toolbox/signalguard/sql_semantic_benchmark.py)) across `king_county_continuous` (continuous `log_price` gated via SQL `AVG`/`STDDEV` ANOVA), `lending_club`, and `bank_marketing`:
+* **Takeaway from Figure 7:** When all 4 frontier LLMs query a local SQLite warehouse ([`RealWorldSQLSemanticWarehouse`](signalguard/sql_semantic_benchmark.py)) across `king_county_continuous` (continuous `log_price` gated via SQL `AVG`/`STDDEV` ANOVA), `lending_club`, and `bank_marketing`:
   - Unassisted SQL agents under-report their `SQL CUBE` and `WHERE` slice search space by **$3.3\times\text{ to }6.0\times$** (Figure 7A) and promote fragile small-slice continuous queries like `WHERE waterfront='1' GROUP BY bedrooms_bin` ($N=36$) and `WHERE condition='2' GROUP BY yr_built_bin` ($N=41$).
   - Even unassisted PhD statisticians (`statistician_unassisted`) suffer **37.8%–50.0% Real FDR** on continuous SQL exploration because standard $F$-test $p$-values on $N=36\text{–}41$ slices look nominally significant ($p \approx 0.01\text{–}0.04$) when unadjusted for the 38-hypothesis session ledger.
-  - SignalGuard's closed-form ANOVA gate (`tau_sig(M=38)`) deterministically rejects the small-slice SQL hallucinations while verifying true macro drivers (`grade`, `sqft_living_bin`, `view`), achieving **100.0% Holdout Replication (0.0% Real FDR)** across all 4 frontier models (Figure 7B & Table 2).
+  - SignalGuard's closed-form ANOVA gate (`tau_sig(M=38)`) rejects the small-slice SQL results while verifying true macro drivers (`grade`, `sqft_living_bin`, `view`), achieving **100.0% Holdout Replication (0.0% Real FDR)** across all 4 frontier models (Figure 7B & Table 2).
 
 #### Table 2: Local SQLite Warehouse + Semantic Layer Benchmark Summary (108 Live Frontier SQL Runs)
 
@@ -181,19 +181,33 @@ We benchmarked **Unassisted Greedy Top-$K$ Selection** ($K = 15$ out of $M = 1{,
 
 ---
 
+## Benchmark Design & Limitations
+
+The results above demonstrate a real failure mode and show that the guardrail behaves as designed. They should not be read as independent estimates of false discovery rates in production. Specifically:
+
+1. **Scripted exploration, not free agentic search.** In both the tabular and SQL benchmarks, the query sequence is generated by a fixed script ([`populate_sql_semantic_trajectory`](signalguard/sql_semantic_benchmark.py), [`populate_real_world_agent_trajectory`](signalguard/real_world_benchmark.py)). Small filtered slices are selected deliberately (`_find_small_sql_slices`) as stress tests. The LLM's role is to read the resulting transcript and decide what to report, not to choose which queries to run. Results therefore measure *reporting* behavior under a fixed, trap-containing search, and the "unassisted FDR" figures depend on how many traps the script includes.
+2. **The replication criterion overlaps with the gate.** A finding counts as "replicated on holdout" only if $p < 0.05$ on the holdout **and** it does not trigger the small-cell warning (e.g. total slice $N < 45$ in the continuous SQL mart). SignalGuard's own gate applies a similar small-sample rule, and the `statistician_signalguard` persona sees SignalGuard's verdicts and is instructed to report only verified findings. The 0.0% Real FDR for that persona is therefore close to guaranteed by construction.
+3. **Some rejected findings may be real.** For example, `WHERE waterfront='1' GROUP BY bedrooms_bin` (Figure 7B) reaches $p \approx 0.025$ on an independent holdout of $N = 36$, which is evidence of a genuine but under-powered effect. It is classified as non-replicating only because of the small-cell rule. Rejecting it is a defensible conservative choice (a possible Type II error), not proof that it is noise.
+4. **Holdout splits on small slices are themselves noisy.** With slices of a few dozen rows, single train/holdout comparisons have high variance in both directions.
+5. **No latency or production-scale benchmarks yet.** The gate's computational cost is closed-form and small, but we have not published latency measurements against production warehouses.
+
+**Planned improvements:** (a) an arm in which agents choose their own queries; (b) a replication criterion based only on holdout significance (no shared small-cell rule), reported alongside power / missed-signal rates; (c) repeated train/holdout splits to quantify variance.
+
+---
+
 ## Reproducibility & Repository Navigation
 
 All code, unit tests, datasets, cached transcripts, and figure scripts are self-contained in this repository:
 
 * **Core Mathematical & Ledger Engine:**
-  * [`signalguard/threshold.py`](file:///c:/Users/eldri/Code/sampling_toolbox/signalguard/threshold.py) — Closed-form Wilks' $\chi^2_k$ & Gumbel EVT RIG thresholds (`FeatureNoiseThreshold`), eigenvalue effective rank (`effective_number_of_tests`), and closed-form continuous SQL ANOVA gate (`anova_rig_from_group_stats`).
-  * [`signalguard/ledger.py`](file:///c:/Users/eldri/Code/sampling_toolbox/signalguard/ledger.py) — Stateful multiple-testing session ledger (`NoiseGateSessionLedger`) supporting both discrete contingency tables and continuous SQL `GROUP BY` sufficient statistics (`evaluate_continuous_group_aggregation`).
-  * [`signalguard/mcp_server.py`](file:///c:/Users/eldri/Code/sampling_toolbox/signalguard/mcp_server.py) — Model Context Protocol (MCP) server exposing deterministic statistical verification tools to autonomous LLM agents.
+  * [`signalguard/threshold.py`](signalguard/threshold.py) — Closed-form Wilks' $\chi^2_k$ & Gumbel EVT RIG thresholds (`FeatureNoiseThreshold`), eigenvalue effective rank (`effective_number_of_tests`), and closed-form continuous SQL ANOVA gate (`anova_rig_from_group_stats`).
+  * [`signalguard/mcp_server.py`](signalguard/mcp_server.py) — Stateful multiple-testing session ledger (`NoiseGateSessionLedger`) supporting both discrete contingency tables and continuous SQL `GROUP BY` sufficient statistics (`evaluate_continuous_group_aggregation`).
+  * [`signalguard/mcp_server.py`](signalguard/mcp_server.py) — Model Context Protocol (MCP) server exposing deterministic statistical verification tools to autonomous LLM agents.
 * **Real-World Benchmarks & SQL Semantic Layer:**
-  * [`signalguard/real_world_benchmark.py`](file:///c:/Users/eldri/Code/sampling_toolbox/signalguard/real_world_benchmark.py) — Train/Holdout split-vault evaluator for tabular multi-turn LLM exploration and `agentune`-style AutoML feature engineering.
-  * [`signalguard/sql_semantic_benchmark.py`](file:///c:/Users/eldri/Code/sampling_toolbox/signalguard/sql_semantic_benchmark.py) — Local SQLite warehouse + governed YAML/JSON semantic catalog (`RealWorldSQLSemanticWarehouse`) with live multi-turn SQL `GROUP BY` / `CUBE` agent benchmarking.
+  * [`signalguard/real_world_benchmark.py`](signalguard/real_world_benchmark.py) — Train/Holdout split-vault evaluator for tabular multi-turn LLM exploration and `agentune`-style AutoML feature engineering.
+  * [`signalguard/sql_semantic_benchmark.py`](signalguard/sql_semantic_benchmark.py) — Local SQLite warehouse + governed YAML/JSON semantic catalog (`RealWorldSQLSemanticWarehouse`) with multi-turn SQL `GROUP BY` / `CUBE` agent benchmarking.
 * **Master Empirical Summary Tables & Figures:**
-  * [`Data/real_world_eval_all_models_summary.csv`](file:///c:/Users/eldri/Code/sampling_toolbox/Data/real_world_eval_all_models_summary.csv) (108 live tabular frontier runs)
-  * [`Data/sql_semantic_eval_all_models_summary.csv`](file:///c:/Users/eldri/Code/sampling_toolbox/Data/sql_semantic_eval_all_models_summary.csv) (108 live SQLite semantic layer frontier runs)
-  * [`scripts/generate_notebook_06_figures.py`](file:///c:/Users/eldri/Code/sampling_toolbox/scripts/generate_notebook_06_figures.py) — Reproduces Figures 3 through 7 directly from the cached empirical CSVs.
-  * [`notebooks/06_real_world_and_agentune_benchmark.ipynb`](file:///c:/Users/eldri/Code/sampling_toolbox/notebooks/06_real_world_and_agentune_benchmark.ipynb) — Interactive Jupyter walkthrough of the real-world frontier LLM, SQL semantic warehouse, and AutoML benchmarks.
+  * [`Data/real_world_eval_all_models_summary.csv`](Data/real_world_eval_all_models_summary.csv) (108 tabular frontier runs)
+  * [`Data/sql_semantic_eval_all_models_summary.csv`](Data/sql_semantic_eval_all_models_summary.csv) (108 SQLite semantic layer frontier runs)
+  * [`scripts/generate_notebook_06_figures.py`](scripts/generate_notebook_06_figures.py) — Reproduces Figures 3 through 7 directly from the cached empirical CSVs.
+  * [`notebooks/06_real_world_and_agentune_benchmark.ipynb`](notebooks/06_real_world_and_agentune_benchmark.ipynb) — Interactive Jupyter walkthrough of the real-world frontier LLM, SQL semantic warehouse, and AutoML benchmarks.

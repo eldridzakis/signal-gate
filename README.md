@@ -9,13 +9,13 @@
 >
 > 📄 **[Read the Full Standalone Technical & Empirical Report (`REPORT.md`)](REPORT.md)** — *Featuring 216 live frontier LLM evaluations (`claude-opus-5-5`, `claude-sonnet-5-5`, `gpt-6.1-sol`, `gemini-3.5-flash-lite`) and the 3,000-candidate AutoML benchmark across Lending Club, King County Housing, and UCI Bank Marketing.*
 >
-> 👔 **[Read the Executive Brief for Non-Data Scientists (`EXECUTIVE_SUMMARY.md`)](EXECUTIVE_SUMMARY.md)** — *A 3-minute guide for Engineering Directors, VPs of Operations, and Finance Leaders on preventing costly AI hallucinations.*
+> 👔 **[Read the Executive Brief for Non-Data Scientists (`EXECUTIVE_SUMMARY.md`)](EXECUTIVE_SUMMARY.md)** — *A 3-minute guide for Engineering Directors, VPs of Operations, and Finance Leaders on why AI-generated data insights need statistical guardrails.*
 
 ---
 
 ## ⚡ Executive TL;DR: Why Non-Data Scientists Care
 
-If your organization connects autonomous LLM agents (Claude Code, Cursor, LangChain, Text-to-SQL assistants) to your SQL database or data warehouse to "automatically discover business insights," **your team faces a silent reliability crisis**:
+If your organization connects autonomous LLM agents (Claude Code, Cursor, LangChain, Text-to-SQL assistants) to your SQL database or data warehouse to "automatically discover business insights," **your team faces a quiet reliability risk**:
 
 ```
            WHAT THE BUSINESS SEES                           WHAT ACTUALLY HAPPENED
@@ -25,23 +25,23 @@ If your organization connects autonomous LLM agents (Claude Code, Cursor, LangCh
 │   a 42% higher default rate (p < 0.05)!  │ ◄──┼─ • Query 2: age > 50 (p=0.18, no)        │
 │   Recommendation: Halt lending to X."    │    │  • ...                                   │
 └──────────────────────────────────────────┘    │  • Query 38: region='West' AND tenure<1  │
-                                                │    (N=35, p=0.03 by pure random chance!) │
+                                                │    (N=35, p=0.03 - plausibly just chance) │
                                                 └──────────────────────────────────────────┘
 ```
 
-1. **The Silent Multi-Testing Problem:** An LLM agent rarely executes a single query. To answer a high-level question, it iteratively slices, dices, and filters data across dozens of unseen tool calls.
-2. **51%–82% False Discoveries in Production:** By pure random chance, testing 40 candidate segments on small cohorts ($N < 50$) will *always* produce what looks like a massive anomaly. In our benchmark of **216 live frontier LLM evaluations**, unassisted frontier agents (`claude-opus-5-5`, `gpt-6.1-sol`, `claude-sonnet-5-5`) suffered a **51.4% to 82.1% False Discovery Rate**—reporting phantom correlations as genuine business drivers.
+1. **The Silent Multi-Testing Problem:** An LLM agent rarely executes a single query. To answer a high-level question, it slices, filters, and cross-tabulates data across dozens of tool calls, then reports only the most striking results.
+2. **Small Slices Produce Convincing Noise:** Test enough segments on small cohorts ($N < 50$) and some will look significant at $p < 0.05$ purely by chance. In our benchmark, frontier LLMs reading a 38-query SQL exploration transcript that contained such small-slice results promoted them freely: on the continuous King County mart, **47%–82% of `business_analyst` findings failed holdout replication** (Table 2 of the report).
 3. **The Business Fallout:**
-   * 💰 **Finance & FP&A:** Capital allocated to phantom market opportunities; pricing models altered for trends that collapse out-of-sample.
-   * ⚙️ **Operations:** Workflows restructured to solve operational "bottlenecks" that were small-sample statistical mirages.
-   * 🛠️ **Engineering:** Data engineers waste sprints building dbt models, tables, and production pipelines around features that provide zero real lift.
+   * 💰 **Finance & FP&A:** Budget and pricing decisions anchored on segment effects that do not hold up out-of-sample.
+   * ⚙️ **Operations:** Workflows restructured around "bottlenecks" observed in a few dozen records.
+   * 🛠️ **Engineering:** Pipelines and features built around signals that provide no real lift.
 
 **What SignalGuard Does:**  
-Think of SignalGuard as a **real-time statistical firewall** (via MCP or Python decorator). It sits between your AI agents and your SQL warehouse, statefully tracks the agent's hidden query budget ($M$), and mathematically rejects small-slice noise before it reaches executive decision-makers.
+SignalGuard is a **statistical firewall** for agent workflows, exposed as an MCP server and as OpenAI/Anthropic tool schemas. It keeps a running count of how many hypotheses the agent has tested ($M$), raises the significance bar accordingly, and flags findings that do not clear the noise ceiling for that sample size and search budget. For SQL `GROUP BY` results it works from aggregate statistics (`COUNT`, `AVG`, `STDDEV`) rather than raw rows.
 
-> **The Result:** Drops autonomous AI false discovery rate from **51%–82% down to 0.0%**, with **zero database scanning overhead** and **<0.1ms latency**.
+> **In our benchmark:** when the LLM was given SignalGuard's verdicts and instructed to report only verified findings, none of its reported findings failed holdout replication. Because the benchmark uses scripted exploration transcripts and a replication criterion that shares SignalGuard's small-sample rule, this demonstrates the mechanism rather than an independent estimate of production false discovery rates. See [Benchmark Design & Limitations](REPORT.md#benchmark-design--limitations).
 
-👉 *Want the full executive context with cost-of-error case studies? Read [`EXECUTIVE_SUMMARY.md`](EXECUTIVE_SUMMARY.md).*
+👉 *Want the full executive context? Read [`EXECUTIVE_SUMMARY.md`](EXECUTIVE_SUMMARY.md).*
 
 ---
 
@@ -57,7 +57,7 @@ Selecting features or reporting insights that maximize sample metrics introduces
 
 **SignalGuard** provides an information-theoretic framework and a **Stateful Model Context Protocol (MCP) Guardrail Server** to:
 * **Instantly calculate closed-form noise thresholds** given dataset size ($N$), target distribution ($p$), and search space size ($M$).
-* **Act as an active statistical guardrail for LLM agents**, statefully tracking cumulative hypotheses ($M$) and preventing agents from hallucinating spurious correlations as genuine insights.
+* **Act as an active statistical guardrail for LLM agents**, statefully tracking cumulative hypotheses ($M$) and flagging spurious correlations before agents report them as genuine insights.
 * **Run vectorized Monte-Carlo permutation tests** (100x faster than traditional dataframe shuffling).
 * **De-bias feature importances** and classify features into $1\sigma$ and $2\sigma$ statistical confidence tiers via bootstrap resampling.
 
@@ -127,7 +127,7 @@ This maps any continuous SQL `GROUP BY` query directly onto SignalGuard's $\chi^
 
 ---
 
-## 🏆 Key Empirical Benchmark Results (216 Live Frontier LLM Runs)
+## 🏆 Key Empirical Benchmark Results (216 Frontier LLM Runs)
 
 See **[`REPORT.md`](REPORT.md)** for the complete 5-act visual narrative, mathematical derivations, and full tables across **Anthropic Claude Opus 5.5** (`claude-opus-5-5`), **Claude Sonnet 5.5** (`claude-sonnet-5-5`), **OpenAI GPT-6.1 Sol** (`gpt-6.1-sol`), and **Google Gemini 3.5 Flash Lite** (`gemini-3.5-flash-lite`) on **Lending Club ($N=54.6\text{k}$)**, **King County Housing ($N=21.6\text{k}$)**, and **UCI Bank Marketing ($N=41.2\text{k}$)**.
 
@@ -298,15 +298,15 @@ signal-guard/
 │   ├── __init__.py               # Public API exports
 │   ├── metrics.py                # Fast entropy, mutual info, RIG calculations
 │   ├── threshold.py              # Analytical Chi-squared, EVT, Frobenius M_eff, & ANOVA F->RIG estimators
-│   ├── ledger.py                 # Stateful session ledger (discrete & continuous SQL group stats)
 │   ├── permutation.py            # Vectorized Monte-Carlo permutation tester
 │   ├── debias.py                 # Out-of-Fold (OOF) & Bootstrap de-biasing engine
 │   ├── automl_utils.py           # AutoML operational log parsing & regression target binning
-│   ├── mcp_server.py             # Stateful MCP statistical guardrail server (with M_eff tracking)
+│   ├── mcp_server.py             # MCP guardrail server + stateful session ledger (NoiseGateSessionLedger)
 │   ├── agent_tools.py            # OpenAI/Anthropic tool schemas & callable dispatchers
 │   ├── agent_sandbox.py          # Synthetic benchmarks & agent simulation telemetry
 │   ├── persona_benchmark.py      # LLM personas, Hawthorne self-tracking, & live LLM evals
-│   ├── real_world_benchmark.py   # Real-world train/holdout vault & Agentune AutoML benchmark
+│   ├── real_world_benchmark.py   # Real-world train/holdout vault benchmark
+│   ├── agentune_benchmark.py     # Agentune-style AutoML overfitting benchmark
 │   └── sql_semantic_benchmark.py # Local SQLite warehouse + governed semantic layer SQL benchmark
 ├── notebooks/                    # Self-contained walkthroughs
 │   ├── 01_feature_noise_thresholds.ipynb

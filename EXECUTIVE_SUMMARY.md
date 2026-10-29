@@ -1,18 +1,18 @@
 # SignalGuard: Executive Brief for Engineering & Business Leadership
 
-**Why Autonomous LLM Data Agents Hallucinate False Business Insights (and How SignalGuard Stops Them with Zero Pipeline Latency)**
+**Why AI Data Agents Report Insights That Don't Hold Up, and How a Statistical Guardrail Helps**
 
 *A 3-minute guide for Engineering Directors, VPs of Operations, and Finance Leaders.*
 
 ---
 
-## 1. The Executive Problem: "The Ghost in the Data Warehouse"
+## 1. The Problem: "The Ghost in the Data Warehouse"
 
-Every modern enterprise is racing to give Large Language Models (LLMs)—via Claude Code, Cursor, LangGraph, or internal Text-to-SQL tools—direct access to their data warehouse (Snowflake, BigQuery, Databricks, PostgreSQL). 
+Many companies are giving Large Language Models (LLMs), via Claude Code, Cursor, LangGraph, or internal Text-to-SQL tools, direct access to their data warehouse (Snowflake, BigQuery, Databricks, PostgreSQL).
 
-The pitch is intoxicating: *"Ask your data questions in plain English, and the AI will uncover hidden revenue leaks, operational bottlenecks, and customer risks."*
+The pitch: *"Ask your data questions in plain English, and the AI will uncover hidden revenue leaks, operational bottlenecks, and customer risks."*
 
-**Here is the invisible trap:**
+**The trap is easy to miss:**
 
 ```
            WHAT THE BUSINESS SEES                           WHAT ACTUALLY HAPPENED
@@ -22,99 +22,99 @@ The pitch is intoxicating: *"Ask your data questions in plain English, and the A
 │  "We discovered that customer segment    │    │  • Query 2: tenure > 3 years (no trend)  │
 │   X has a 42% higher default rate        │ ◄──┼─ • ...                                   │
 │   (p = 0.03, statistically significant)! │    │  • Query 38: region='West' AND age<25    │
-│   Recommendation: Restructure pricing."  │    │    (N=35 rows, p=0.03 purely by CHANCE!) │
+│   Recommendation: Restructure pricing."  │    │    (N=35 rows, p=0.03, plausibly chance) │
 └──────────────────────────────────────────┘    └──────────────────────────────────────────┘
 ```
 
-When a human data scientist runs 40 queries, they know they tested 40 hypotheses. But when an autonomous AI agent explores your database, it suffers from **Multiplicity Amnesia**:
-* It secretly executes **35 to 50 SQL queries** behind the scenes.
-* It filters down to a small cohort ($N = 35$ customers).
-* Pure random noise inevitably creates a statistical anomaly in one of those 40 cuts.
-* The AI promotes that single cherry-picked anomaly as an urgent, "statistically significant" business finding—**completely forgetting the 39 failed queries it ran before it.**
+When a careful analyst runs 40 queries, they know they tested 40 hypotheses and adjust for it. An AI agent exploring a database often doesn't:
+* It may run **dozens of SQL queries** behind the scenes.
+* Some of those queries drill into small cohorts (e.g. $N = 35$ customers).
+* With enough small cuts, some will look "statistically significant" purely by chance.
+* The agent reports the most striking result as a finding, without accounting for the queries that came up empty.
 
-In our benchmark across 216 live frontier LLM runs, **unassisted AI agents had a 51% to 82% False Discovery Rate**. More than half of their reported findings completely evaporated when tested on unseen holdout data.
+In our benchmark (described in Section 3), frontier LLMs reading such an exploration transcript frequently promoted small-slice results that **did not replicate on held-out data**.
 
 ---
 
 ## 2. Why Leadership Should Care: The Cost of Error by Role
 
-| Executive Role | The Immediate Danger | Real-World Business Consequence |
+| Executive Role | The Risk | Business Consequence |
 | :--- | :--- | :--- |
-| **Director of Finance / Head of FP&A** | **The Winner's Curse & Phantom ROI**<br>AI agents report inflated metrics and fake risk indicators on small slices. | **Misallocated Capital & Lost Revenue:** In our Lending Club default audit, 11%–17% of AI-promoted risk flags were pure statistical noise. Acting on them means denying credit to profitable customers or allocating marketing spend to ghost segments. |
-| **VP of Operations & Supply Chain** | **Operational Churn on Micro-Slices**<br>AI agents flag "urgent bottlenecks" in fulfillment or staffing on sample sizes under 40 records. | **Wasted Headcount & Disrupted Workflows:** Operations teams spend weeks re-engineering processes to solve problems that never actually existed outside of random small-sample noise. |
-| **Director of Engineering / Platform** | **Pipeline & Feature Store Pollution**<br>AI-generated discoveries get handed off to data teams to turn into production pipelines. | **Technical Debt & Production Incidents:** Data engineers burn sprints writing dbt models, materialized views, and alert pipelines for dead signals. When the metric flatlines in production, engineering gets blamed. |
+| **Director of Finance / Head of FP&A** | **The Winner's Curse**<br>The most impressive-looking segment effects are, on average, overstated, and some are noise. | **Misallocated budget:** pricing, credit, or marketing decisions anchored on effects that shrink or vanish out-of-sample. |
+| **VP of Operations & Supply Chain** | **Over-reacting to small samples**<br>"Urgent bottlenecks" flagged from a few dozen records. | **Wasted effort:** teams re-engineer processes to fix problems that may not exist at scale. |
+| **Director of Engineering / Platform** | **Building on weak signals**<br>AI-generated findings get turned into pipelines, features, and alerts. | **Technical debt:** sprints spent on dbt models, features, and dashboards around signals that provide little real lift. |
 
 ---
 
-## 3. Empirical Proof: 216 Live Frontier LLM Runs
+## 3. What Our Benchmark Shows (and What It Doesn't)
 
-We evaluated today's top frontier models (`claude-opus-5-5`, `claude-sonnet-5-5`, `gpt-6.1-sol`, `gemini-3.5-flash-lite`) across real-world enterprise datasets (Lending Club loan defaults, King County housing, UCI Bank Marketing). 
+We ran 216 evaluations across four frontier models (`claude-opus-5-5`, `claude-sonnet-5-5`, `gpt-6.1-sol`, `gemini-3.5-flash-lite`) on three public datasets (Lending Club loans, King County housing, UCI Bank Marketing). Each model read a scripted multi-step exploration transcript (single-dimension queries, cross-tabs, and small filtered slices) and wrote a findings report. We then checked whether each reported finding held up on a held-out portion of the data.
 
-Here is what happens when you let frontier LLMs query a database without statistical guardrails vs. with SignalGuard:
+Results on the continuous King County SQL mart, where the effect is clearest:
 
-| Configuration | What Happened | Real Out-of-Sample False Discovery Rate | Replication on Unseen Data |
-| :--- | :--- | :---: | :---: |
-| **Standard AI Agent**<br>*(Claude, GPT, Gemini unassisted)* | Under-reported true queries by $4\times$ to $9\times$. Promoted small-slice noise ($N < 40$). | **51.4% – 82.1%** | Only 17.9% – 53.2% replicated |
-| **Prompt Engineering**<br>*(Prompted to "act as a PhD statistician")* | Either hallucinated false signals or panicked (guessed $M=300$, killing real signal). | **37.8% – 50.0%** | Only 50.0% – 62.2% replicated |
-| **SignalGuard Active**<br>*(Model Context Protocol / Python Guardrail)* | Stateful session ledger dynamically raised verification bar for every query run. | **0.0%** | **100.0% Replicated** |
+| Configuration | What Happened | Findings That Failed Holdout Replication |
+| :--- | :--- | :---: |
+| **Unassisted "business analyst" prompt** | Under-counted how many queries were run; promoted small-slice results ($N \approx 36\text{–}41$). | **47% – 82%** |
+| **"Act as a PhD statistician" prompt** | Better, but still promoted small slices or mis-estimated the number of tests. | **38% – 50%** |
+| **SignalGuard verdicts provided** | Model reported only findings SignalGuard verified. | **0%** |
 
-> **Key Takeaway:** You cannot prompt-engineer your way out of this. An LLM cannot reliably count its own cumulative search history or compute extreme-value noise thresholds in its head. It requires an active, deterministic guardrail.
+On the binary-target marts (Lending Club, Bank Marketing) the gap is much smaller: unassisted failure rates averaged roughly 4–8% (up to 17–20% in individual runs).
+
+> [!IMPORTANT]
+> **How to read these numbers.** The exploration path was scripted (the models chose what to *report*, not what to *query*), and the small slices were deliberately included as traps. The holdout check also treats very small samples as non-replicating, which overlaps with SignalGuard's own small-sample rule, so the 0% figure partly reflects that shared criterion. These results show the failure mode is real and that the guardrail mechanism works as designed. They are **not** an independent estimate of false discovery rates in production. Some findings SignalGuard rejects may be real but under-powered effects. See [Benchmark Design & Limitations](REPORT.md#benchmark-design--limitations).
+
+**Takeaway:** prompting helps somewhat, but LLMs don't reliably track how many hypotheses they've tested or how sample size affects what "significant" means. An external, deterministic check is more dependable than asking the model to police itself.
 
 ---
 
 ## 4. How SignalGuard Works (Without Math)
 
 ### The Casino Analogy
-Imagine walking into a casino roulette room:
-* If one person places one bet on number 17 and hits it, that is a 35-to-1 miracle.
-* If a bus of 50 tourists walks in and bets on all numbers, **someone is guaranteed to hit number 17**. That is not a miracle—it is basic probability.
+Imagine a roulette table:
+* If one person bets on number 17 and wins, that's a 1-in-38 event, impressive.
+* If 50 people each pick a number, it's very likely *someone* hits 17. That's not skill; it's the number of bets.
 
-When an autonomous AI queries your database, it is that entire bus of 50 tourists. But when it reports back to you, it pretends it was just one lucky person.
+An AI agent querying your database is often making many bets. When it reports back, it can look like the one lucky bettor.
 
-**SignalGuard is the Casino Pit Boss:**
-1. **Stateful Session Ledger:** Every time an AI agent runs a query, SignalGuard notes the bet.
-2. **Dynamic Noise Ceiling:** If the agent has run 1 query, the bar to prove significance is normal. If the agent has secretly tested 40 queries, SignalGuard automatically raises the bar to filter out the noise.
-3. **Deterministic Gate:** If a finding is just random variance on a small slice, SignalGuard rejects it *inside the agent's loop* before the AI can write an erroneous report to an executive.
+**SignalGuard keeps count of the bets:**
+1. **Session ledger:** every hypothesis the agent tests is recorded.
+2. **Rising bar:** the more hypotheses tested, and the smaller the sample, the stronger the evidence required before something is called a finding.
+3. **Verdicts back to the agent:** results that don't clear the bar are flagged as likely noise (or "needs validation") before they reach a report.
 
 ---
 
-## 5. Enterprise Architecture: Why Engineers Love It
-
-SignalGuard was built to fit modern data stacks with **zero disruption**:
+## 5. Architecture
 
 ```
 ┌────────────────────────┐      ┌──────────────────────────┐      ┌────────────────────────┐
-│  AI Agent / Workflow   │ ───► │   SignalGuard Guardrail   │ ───► │  SQL Warehouse / Lake  │
-│ (Claude, LangGraph)    │ ◄─── │  (MCP Server / Decorator)│ ◄─── │ (Snowflake, BigQuery)  │
+│  AI Agent / Workflow   │ ───► │   SignalGuard Guardrail  │ ───► │  SQL Warehouse / Lake  │
+│ (Claude, LangGraph)    │ ◄─── │ (MCP Server / Tool APIs) │ ◄─── │ (Snowflake, BigQuery)  │
 └────────────────────────┘      └──────────────────────────┘      └────────────────────────┘
-                                 • Zero raw data privacy risk
-                                 • <0.1ms computation latency
-                                 • Rejects noise deterministically
+                                 • Works on aggregate statistics
+                                 • Closed-form math (no simulations needed)
+                                 • Stateful hypothesis count per session
 ```
 
-1. **Zero Database Overhead (<0.1ms Latency):**  
-   SignalGuard does not scan your billion-row tables. It computes closed-form information gates directly from the aggregate summary statistics (`COUNT`, `AVG`, `STDDEV`) already returned by standard SQL queries.
-2. **Privacy & Governance First:**  
-   No customer PII or raw records ever touch SignalGuard. It operates purely on mathematical sufficient statistics.
-3. **Plugs into Modern Agent Toolchains (MCP Ready):**  
-   Built natively on the **Model Context Protocol (MCP)**. Works out of the box with Claude Desktop, Cursor, LangGraph, AutoGen, and custom Python agents via a simple 2-line decorator.
+1. **Lightweight:** for SQL `GROUP BY` results, the check uses the aggregate statistics the query already returns (`COUNT`, `AVG`, `STDDEV`) and a closed-form formula, so it doesn't need to re-scan tables. (We have not yet published formal latency benchmarks.)
+2. **Works on aggregates:** the continuous-metric check needs only group-level summaries, not row-level records, which can simplify data-governance review.
+3. **Fits agent toolchains:** ships as a **Model Context Protocol (MCP)** server (Claude Desktop, Cursor, Claude Code) and as OpenAI/Anthropic tool schemas for custom Python agents.
 
 ---
 
-## 6. The 3-Question Reliability Audit for Engineering Directors
+## 6. Three Questions to Ask Your Team
 
-If your team is deploying LLMs or automated analytics against company data, ask your lead engineer these three questions:
+If your team is deploying LLMs or automated analytics against company data:
 
-1. **"Does our AI agent track its cumulative query count across a session, or does each SQL tool call evaluate statistical significance in isolation?"**  
-   *(If in isolation: you have a ~50%+ false discovery rate on small slices.)*
-2. **"When the AI narrows down to a specific cohort (e.g. $N < 100$), does our system dynamically raise the threshold required to claim an anomaly?"**  
-   *(If using static thresholds like $p < 0.05$ or $3\times$ lift: small cohorts will constantly trigger false alarms.)*
-3. **"Can we guarantee that insights recommended by our AI will replicate on unseen production data?"**  
-   *(SignalGuard provides this exact guarantee, backed by 216 live empirical tests.)*
+1. **"Does our agent track how many hypotheses it tests across a session, or is each query judged in isolation?"**  
+   *(If in isolation, expect more false positives the longer the agent explores.)*
+2. **"When the agent drills into a small cohort (say $N < 100$), does the bar for calling something significant go up?"**  
+   *(Fixed thresholds like $p < 0.05$ or "3× lift" are easily cleared by chance in small groups.)*
+3. **"How do we check whether AI-recommended insights hold up on data the agent didn't see?"**  
+   *(A holdout check, plus a guardrail like SignalGuard during exploration, substantially reduces the risk.)*
 
 ---
 
 ## Next Steps
 
-* **For the full mathematical proofs and benchmark charts:** Read [`REPORT.md`](REPORT.md).
-* **To install and run the 60-second MCP server:** Read [`README.md`](README.md).
+* **For the full mathematical derivations, benchmark charts, and limitations:** Read [`REPORT.md`](REPORT.md).
+* **To install and run the MCP server:** Read [`README.md`](README.md).
