@@ -1,0 +1,17 @@
+task,arm,queries_executed,n_reported,n_replicated,empirical_fdr,signal_recall,discovery_f1,completed_splits
+bank_marketing_null_ab,benjamini_hochberg,6.333333333333333,0.0,0.0,0.0,0.0,0.0,3
+bank_marketing_null_ab,bonferroni,7.0,0.0,0.0,0.0,0.0,0.0,3
+bank_marketing_null_ab,signalguard,8.0,0.0,0.0,0.0,0.0,0.0,3
+bank_marketing_null_ab,unassisted,7.666666666666667,0.0,0.0,0.0,0.0,0.0,3
+bank_marketing_seeded_hte,benjamini_hochberg,6.0,0.3333333333333333,0.3333333333333333,0.0,16.666666666666668,0.2222333333333333,3
+bank_marketing_seeded_hte,bonferroni,5.0,0.3333333333333333,0.3333333333333333,0.0,16.666666666666668,0.2222333333333333,3
+bank_marketing_seeded_hte,signalguard,3.6666666666666665,1.0,1.0,0.0,50.0,0.6667,3
+bank_marketing_seeded_hte,unassisted,6.0,1.0,1.0,0.0,50.0,0.6667,3
+king_county_subgroup,benjamini_hochberg,4.666666666666667,0.0,0.0,0.0,0.0,0.0,3
+king_county_subgroup,bonferroni,4.666666666666667,0.0,0.0,0.0,0.0,0.0,3
+king_county_subgroup,signalguard,5.666666666666667,0.0,0.0,0.0,0.0,0.0,3
+king_county_subgroup,unassisted,5.0,0.0,0.0,0.0,0.0,0.0,3
+lending_club_subgroup,benjamini_hochberg,6.333333333333333,1.0,1.0,0.0,33.333333333333336,0.3333333333333333,3
+lending_club_subgroup,bonferroni,5.333333333333333,0.0,0.0,0.0,0.0,0.0,3
+lending_club_subgroup,signalguard,6.0,0.0,0.0,0.0,0.0,0.0,3
+lending_club_subgroup,unassisted,5.333333333333333,0.0,0.0,0.0,0.0,0.0,3
