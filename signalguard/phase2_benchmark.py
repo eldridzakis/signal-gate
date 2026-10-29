@@ -585,18 +585,35 @@ class Phase2InteractiveAgentRunner:
                 except Exception:
                     pass
 
+            # Also check if raw JSON without markdown fences was emitted
+            if not concluded and "finish_analysis" in response_text:
+                raw_json_match = re.search(r"(\{\s*\"action\"\s*:\s*\"finish_analysis\".*?\})", response_text, re.DOTALL)
+                if raw_json_match:
+                    try:
+                        payload = json.loads(raw_json_match.group(1))
+                        reported_findings = payload.get("findings", [])
+                        concluded = True
+                    except Exception:
+                        pass
+
             if concluded:
+                # Normalize any dictionary subgroup_filter to SQL WHERE syntax
+                for f in reported_findings:
+                    sf = f.get("subgroup_filter")
+                    if isinstance(sf, dict):
+                        f["subgroup_filter"] = " AND ".join([f"{k} = '{v}'" for k, v in sf.items()])
                 break
 
             # Extract SQL query
             sql_match = re.search(r"```sql\s*(SELECT.*?;?)\s*```", response_text, re.DOTALL | re.IGNORECASE)
             if not sql_match:
-                # Prompt the agent to either run SQL or conclude
+                # Prompt the agent to either run SQL or conclude with specific JSON block
                 messages.append({
                     "role": "user",
                     "content": (
-                        "Turn note: No valid ```sql SELECT ... ``` or ```json finish_analysis ``` block detected. "
-                        "Please issue your next SQL query or conclude your analysis with finish_analysis."
+                        "Turn note: No valid ```sql SELECT ... ``` or ```json {\"action\": \"finish_analysis\", \"findings\": [...]} ``` block detected. "
+                        "Please issue your next SQL query or finalize your findings using:\n"
+                        "```json\n{\n  \"action\": \"finish_analysis\",\n  \"findings\": [\n    {\n      \"subgroup_filter\": \"dim1 = 'val'\",\n      \"dimension\": \"dim2\",\n      \"direction\": \"higher_metric\",\n      \"justification\": \"Statistical reasoning\"\n    }\n  ]\n}\n```"
                     ),
                 })
                 continue
@@ -611,8 +628,11 @@ class Phase2InteractiveAgentRunner:
                     n_table_rows=len(self.warehouse.train_df),
                 )
 
-                # Format tabular preview (up to 6 rows)
-                preview_str = df_res.head(6).to_string(index=False)
+                # Format tabular preview (up to 25 rows)
+                preview_str = df_res.head(25).to_string(index=False)
+                if len(df_res) > 25:
+                    preview_str += f"\n... [{len(df_res) - 25} more rows omitted]"
+
                 tool_msg = (
                     f"**SQL Execution Result (Turn {turns_executed}/{self.max_turns})**:\n\n"
                     f"```\n{preview_str}\n```\n\n"
@@ -656,6 +676,12 @@ class Phase2InteractiveAgentRunner:
                         pass
             except Exception:
                 pass
+
+        if reported_findings:
+            for f in reported_findings:
+                sf = f.get("subgroup_filter")
+                if isinstance(sf, dict):
+                    f["subgroup_filter"] = " AND ".join([f"{k} = '{v}'" for k, v in sf.items()])
 
         return {
             "task": self.warehouse.task_name,
