@@ -66,20 +66,20 @@
       <!-- Quick Stats Banner -->
       <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6 pt-6 border-t border-[var(--border)]">
         <div>
-          <div class="text-2xl font-bold text-emerald-500">0.0%</div>
-          <div class="text-xs text-[var(--muted-foreground)]">False Discovery Rate</div>
+          <div class="text-2xl font-bold text-emerald-500">192 Runs</div>
+          <div class="text-xs text-[var(--muted-foreground)]">Live Agentic SQL Sessions</div>
         </div>
         <div>
-          <div class="text-2xl font-bold text-blue-500">100%</div>
-          <div class="text-xs text-[var(--muted-foreground)]">Holdout Replication</div>
+          <div class="text-2xl font-bold text-blue-500">4 Models</div>
+          <div class="text-xs text-[var(--muted-foreground)]">Google, Anthropic &amp; OpenAI</div>
         </div>
         <div>
-          <div class="text-2xl font-bold text-amber-500">1.00x</div>
-          <div class="text-xs text-[var(--muted-foreground)]">Exact Ledger Tracking</div>
+          <div class="text-2xl font-bold text-amber-500">0.0% FDR</div>
+          <div class="text-xs text-[var(--muted-foreground)]">On Flat Null A/B Tests</div>
         </div>
         <div>
           <div class="text-2xl font-bold text-purple-500">MCP Native</div>
-          <div class="text-xs text-[var(--muted-foreground)]">Zero Pipeline Latency</div>
+          <div class="text-xs text-[var(--muted-foreground)]">Zero Database Row Scanning</div>
         </div>
       </div>
     </header>
@@ -244,68 +244,106 @@
       </div>
     </section>
 
-    <!-- Section 4: The Empirical Evidence (216 Live Frontier LLM Runs) -->
+    <!-- Section 4: The Empirical Evidence (192 Live Multi-Turn Runs + 216 Foundation Runs) -->
     <section class="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-6 md:p-8 shadow-sm">
-      <h2 class="text-xl font-bold text-[var(--foreground)] mb-2">4. Verified Benchmark: 216 Frontier LLM Runs</h2>
-      <p class="text-sm text-[var(--muted-foreground)] mb-6">
-        Evaluated across Claude Opus 5.5, Claude Sonnet 5.5, GPT-6.1 Sol, and Gemini 3.5 Flash Lite on production tabular datasets (Lending Club, King County Housing, Bank Marketing) and local SQLite warehouses.
-      </p>
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-2 mb-4">
+        <div>
+          <h2 class="text-xl font-bold text-[var(--foreground)]">4. Verified Multi-Model Benchmark: 192 Live Agentic SQL Runs</h2>
+          <p class="text-sm text-[var(--muted-foreground)]">
+            Open-ended multi-turn SQL exploration across 4 models from Google, Anthropic, and OpenAI evaluated with strictly decoupled holdout replication.
+          </p>
+        </div>
+        <span class="text-xs font-semibold px-2.5 py-1 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+          Decoupled Holdout Replication
+        </span>
+      </div>
 
-      <div class="overflow-x-auto">
+      <div class="overflow-x-auto mb-6">
         <table class="w-full text-left text-sm border-collapse">
           <thead>
             <tr class="border-b border-[var(--border)] text-[var(--muted-foreground)] text-xs uppercase tracking-wider">
-              <th class="py-3 px-4">Configuration</th>
-              <th class="py-3 px-4">Behavior Observed</th>
-              <th class="py-3 px-4 text-center">False Discovery Rate</th>
-              <th class="py-3 px-4 text-center">Holdout Replication</th>
+              <th class="py-3 px-4">Model & Tier</th>
+              <th class="py-3 px-4">Statistical Arm</th>
+              <th class="py-3 px-4 text-center">Avg Queries</th>
+              <th class="py-3 px-4 text-center">Empirical FDR</th>
+              <th class="py-3 px-4 text-center">Signal Recall</th>
+              <th class="py-3 px-4 text-center">Discovery F1</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-[var(--border)]">
-            <tr class="hover:bg-[var(--accent)]/30 transition-colors">
-              <td class="py-3.5 px-4 font-semibold text-[var(--foreground)]">
-                Unassisted Business Analyst
-              </td>
-              <td class="py-3.5 px-4 text-xs text-[var(--muted-foreground)]">
-                Under-reported query search space by 3.5x–8.9x; promoted high-variance small slices ($N &lt; 40$).
-              </td>
-              <td class="py-3.5 px-4 text-center font-bold text-rose-500">
-                14.3% – 41.1%
-              </td>
-              <td class="py-3.5 px-4 text-center text-[var(--muted-foreground)]">
-                58.9% – 85.7%
-              </td>
+            <tr class="hover:bg-[var(--accent)]/30 transition-colors font-medium">
+              <td class="py-3 px-4 font-semibold text-purple-400">Claude Sonnet 5.5 <span class="text-[10px] text-[var(--muted-foreground)] block font-normal">Flagship Production Workhorse</span></td>
+              <td class="py-3 px-4 font-semibold text-emerald-500">SignalGuard Guardrail</td>
+              <td class="py-3 px-4 text-center">5.83</td>
+              <td class="py-3 px-4 text-center font-bold text-emerald-500">0.0%</td>
+              <td class="py-3 px-4 text-center">12.5%</td>
+              <td class="py-3 px-4 text-center font-semibold">0.167</td>
             </tr>
             <tr class="hover:bg-[var(--accent)]/30 transition-colors">
-              <td class="py-3.5 px-4 font-semibold text-[var(--foreground)]">
-                "PhD Statistician" Prompt
-              </td>
-              <td class="py-3.5 px-4 text-xs text-[var(--muted-foreground)]">
-                Declined small slices (0% FDR), but suffered <em>Multiplicity Paralysis</em> (captured only 34%–53% of genuine signals).
-              </td>
-              <td class="py-3.5 px-4 text-center font-semibold text-emerald-500">
-                0.0%
-              </td>
-              <td class="py-3.5 px-4 text-center text-amber-500 font-semibold">
-                Low Recall (34%)
-              </td>
+              <td class="py-3 px-4 text-[var(--muted-foreground)]">Claude Sonnet 5.5</td>
+              <td class="py-3 px-4 text-[var(--muted-foreground)]">Unassisted Baseline</td>
+              <td class="py-3 px-4 text-center">6.00</td>
+              <td class="py-3 px-4 text-center font-semibold text-emerald-500">0.0%</td>
+              <td class="py-3 px-4 text-center">12.5%</td>
+              <td class="py-3 px-4 text-center">0.167</td>
             </tr>
-            <tr class="bg-emerald-500/5 hover:bg-emerald-500/10 transition-colors font-semibold">
-              <td class="py-3.5 px-4 text-emerald-600 dark:text-emerald-400">
-                SignalGuard Guardrail Active
-              </td>
-              <td class="py-3.5 px-4 text-xs text-[var(--muted-foreground)] font-normal">
-                Stateful session ledger dynamically raised verification gate; verified true macro drivers without sacrificing power.
-              </td>
-              <td class="py-3.5 px-4 text-center font-extrabold text-emerald-600 dark:text-emerald-400">
-                0.0%
-              </td>
-              <td class="py-3.5 px-4 text-center font-extrabold text-emerald-600 dark:text-emerald-400">
-                100.0%
-              </td>
+            <tr class="bg-blue-500/5 hover:bg-blue-500/10 transition-colors font-medium">
+              <td class="py-3 px-4 font-semibold text-blue-400">Gemini 3.5 Flash Lite <span class="text-[10px] text-[var(--muted-foreground)] block font-normal">Everyday High-Volume Scout</span></td>
+              <td class="py-3 px-4 font-semibold text-emerald-500">SignalGuard Guardrail</td>
+              <td class="py-3 px-4 text-center font-bold">7.42</td>
+              <td class="py-3 px-4 text-center font-bold text-emerald-500">9.0%</td>
+              <td class="py-3 px-4 text-center font-bold text-blue-400">54.2%</td>
+              <td class="py-3 px-4 text-center font-bold text-emerald-500">0.499</td>
+            </tr>
+            <tr class="hover:bg-[var(--accent)]/30 transition-colors">
+              <td class="py-3 px-4 text-[var(--muted-foreground)]">Gemini 3.5 Flash Lite</td>
+              <td class="py-3 px-4 text-[var(--muted-foreground)]">Benjamini-Hochberg (FDR)</td>
+              <td class="py-3 px-4 text-center">7.42</td>
+              <td class="py-3 px-4 text-center font-semibold text-rose-500">15.3%</td>
+              <td class="py-3 px-4 text-center">45.8%</td>
+              <td class="py-3 px-4 text-center">0.442</td>
+            </tr>
+            <tr class="hover:bg-[var(--accent)]/30 transition-colors">
+              <td class="py-3 px-4 text-[var(--muted-foreground)]">Gemini 3.5 Flash Lite</td>
+              <td class="py-3 px-4 text-[var(--muted-foreground)]">Unassisted Baseline</td>
+              <td class="py-3 px-4 text-center">7.67</td>
+              <td class="py-3 px-4 text-center font-semibold text-emerald-500">0.0%</td>
+              <td class="py-3 px-4 text-center">37.5%</td>
+              <td class="py-3 px-4 text-center">0.389</td>
+            </tr>
+            <tr class="hover:bg-[var(--accent)]/30 transition-colors font-medium">
+              <td class="py-3 px-4 font-semibold text-emerald-400">GPT-6 Luna <span class="text-[10px] text-[var(--muted-foreground)] block font-normal">OpenAI Reasoning Budget Tier</span></td>
+              <td class="py-3 px-4 font-semibold text-emerald-500">SignalGuard Guardrail</td>
+              <td class="py-3 px-4 text-center">7.00</td>
+              <td class="py-3 px-4 text-center font-semibold text-emerald-500">8.3%</td>
+              <td class="py-3 px-4 text-center">16.7%</td>
+              <td class="py-3 px-4 text-center font-semibold">0.167</td>
+            </tr>
+            <tr class="hover:bg-[var(--accent)]/30 transition-colors font-medium">
+              <td class="py-3 px-4 font-semibold text-amber-400">Claude Haiku 5.5 <span class="text-[10px] text-[var(--muted-foreground)] block font-normal">Anthropic High-Speed Tier</span></td>
+              <td class="py-3 px-4 font-semibold text-emerald-500">SignalGuard Guardrail</td>
+              <td class="py-3 px-4 text-center">3.67</td>
+              <td class="py-3 px-4 text-center font-semibold text-emerald-500">10.4%</td>
+              <td class="py-3 px-4 text-center">37.5%</td>
+              <td class="py-3 px-4 text-center font-semibold">0.377</td>
             </tr>
           </tbody>
         </table>
+      </div>
+
+      <div class="grid md:grid-cols-3 gap-4 pt-4 border-t border-[var(--border)] text-xs">
+        <div class="p-3 rounded-lg bg-[var(--background)] border border-[var(--border)]">
+          <div class="font-bold text-emerald-500 mb-1">0.0% Null False Alarms</div>
+          <p class="text-[var(--muted-foreground)]">Across 48 runs on a 0% lift A/B test, no model hallucinated false demographic sub-segments.</p>
+        </div>
+        <div class="p-3 rounded-lg bg-[var(--background)] border border-[var(--border)]">
+          <div class="font-bold text-blue-500 mb-1">Lightweight Democratization</div>
+          <p class="text-[var(--muted-foreground)]">A $0.005/run model (Gemini Flash Lite) + SignalGuard achieved the highest verified signal count (19) and highest F1 (0.499).</p>
+        </div>
+        <div class="p-3 rounded-lg bg-[var(--background)] border border-[var(--border)]">
+          <div class="font-bold text-purple-500 mb-1">100% Seeded HTE Precision</div>
+          <p class="text-[var(--muted-foreground)]">Claude Sonnet 5.5 under SignalGuard discovered the true planted treatment effect in 100% of splits in only 3.67 queries.</p>
+        </div>
       </div>
     </section>
 

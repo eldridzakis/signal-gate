@@ -2,12 +2,12 @@
 
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Tests](https://img.shields.io/badge/tests-64%20passed-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/tests-69%20passed-brightgreen.svg)]()
 [![MCP Server](https://img.shields.io/badge/MCP-Protocol%20Ready-purple.svg)](https://modelcontextprotocol.io)
 
 > **Stateful statistical guardrails and Model Context Protocol (MCP) server for autonomous LLM data agents, Text-to-SQL semantic layers, and AutoML. Quantifying the Winner's Curse, estimating closed-form noise ceilings (both discrete contingency & continuous SQL ANOVA), and filtering out spurious insights.**
 >
-> 📄 **[Read the Full Standalone Technical & Empirical Report (`REPORT.md`)](REPORT.md)** — *Featuring 216 live frontier LLM evaluations (`claude-opus-5-5`, `claude-sonnet-5-5`, `gpt-6.1-sol`, `gemini-3.5-flash-lite`) and the 3,000-candidate AutoML benchmark across Lending Club, King County Housing, and UCI Bank Marketing.*
+> 📄 **[Read the Full Standalone Technical & Empirical Report (`REPORT.md`)](REPORT.md)** — *Featuring 216 foundation frontier evaluations + 192 open-ended multi-turn agentic SQL evaluations across Google, Anthropic, and OpenAI (`claude-sonnet-5-5`, `claude-haiku-5-5`, `gpt-6-luna`, `gemini-3.5-flash-lite`).*
 >
 > 🎨 **[Open the Interactive Visual Executive Dashboard](https://eldridzakis.github.io/signal-guard/)** ([source](docs/index.html)) — *A visual explainer for leadership with interactive multi-testing simulations, role-based cost cards, and 1-click PDF export.*
 >
