@@ -1,4 +1,4 @@
 Mart,Metric_Type,Model,Persona,Holdout_Replication_Rate (%),Real_FDR (%),Mean_Train_RIG,Mean_Holdout_RIG,Generalization_Bias,Decay (%),Under_Reporting_Ratio,Completed_Seeds
-king_county_continuous,continuous,gpt-6.1-sol,business_analyst,17.86,82.14,0.23361900000000002,0.20674,0.026880666666666664,21.96666666666667,4.22,3
-king_county_continuous,continuous,gpt-6.1-sol,statistician_signalgate,100.0,0.0,0.23567533333333332,0.23940033333333333,-0.0037219999999999996,-1.4233333333333336,1.0,3
-king_county_continuous,continuous,gpt-6.1-sol,statistician_unassisted,60.0,40.0,0.25569733333333333,0.259292,-0.003591333333333333,-2.7133333333333334,4.22,3
+king_county_continuous,continuous,gpt-6.1-sol,business_analyst,58.92666666666667,41.07333333333333,0.30069633333333334,0.27381266666666665,0.026885999999999997,26.863333333333333,4.22,3
+king_county_continuous,continuous,gpt-6.1-sol,statistician_signalguard,100.0,0.0,0.23567533333333332,0.23940033333333333,-0.0037219999999999996,-1.4233333333333336,1.0,3
+king_county_continuous,continuous,gpt-6.1-sol,statistician_unassisted,100.0,0.0,0.25569733333333333,0.259292,-0.003591333333333333,-2.7133333333333334,4.22,3

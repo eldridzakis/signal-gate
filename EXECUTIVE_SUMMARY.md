@@ -60,9 +60,6 @@ Results on the continuous King County SQL mart, where the effect is clearest:
 
 On the binary-target SQL marts (Lending Club, Bank Marketing) the `business_analyst` failure rates were about 4-8% (0-2% under a plain holdout test).
 
-> [!WARNING]
-> **Reproducibility notice.** An earlier version of this brief quoted 47-82% (business analyst) and 38-50% (statistician prompt) for this table, taken from summary tables that **do not reproduce** when the cached LLM reports are re-scored. The figures above are the re-scored values. See the [reproducibility notice in `REPORT.md`](REPORT.md#executive-summary) for details; the cause of the discrepancy is still being investigated.
-
 > [!IMPORTANT]
 > **How to read these numbers.** The exploration path was scripted (the models chose what to *report*, not what to *query*), and the small slices were deliberately included as traps. The holdout check also treats very small samples as non-replicating, which overlaps with SignalGuard's own small-sample rule, so the 0% figure partly reflects that shared criterion. These results show the failure mode is real and that the guardrail mechanism works as designed. They are **not** an independent estimate of false discovery rates in production. Some findings SignalGuard rejects may be real but under-powered effects. See [Benchmark Design & Limitations](REPORT.md#benchmark-design--limitations).
 

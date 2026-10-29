@@ -1,4 +1,4 @@
 Dataset,Model,Persona,Holdout_Replication_Rate (%),Real_FDR (%),Mean_Train_RIG,Mean_Holdout_RIG,Generalization_Bias,Decay (%),Under_Reporting_Ratio,Completed_Seeds
 king_county,claude-sonnet-5-5,business_analyst,100.0,0.0,0.24906916666666667,0.24509583333333332,0.003970833333333332,0.8000000000000002,2.6437037037037037,3
-king_county,claude-sonnet-5-5,statistician_signalgate,100.0,0.0,0.22208142857142857,0.2184,0.0036799999999999997,2.638095238095238,1.0,3
+king_county,claude-sonnet-5-5,statistician_signalguard,100.0,0.0,0.22208142857142857,0.2184,0.0036799999999999997,2.638095238095238,1.0,3
 king_county,claude-sonnet-5-5,statistician_unassisted,100.0,0.0,0.21209177777777777,0.20777327777777777,0.004316999999999999,1.1383333333333334,3.662962962962963,3
