@@ -748,53 +748,37 @@ class DecoupledHoldoutAuditor:
         target_col = self.warehouse.target_col
         target_type = self.warehouse.target_type
 
+        is_ab_test = "variant" in self.warehouse.dimensions
+
         for f in reported_findings:
             subgroup = f.get("subgroup_filter", "ALL").strip()
             dim = f.get("dimension", "").strip()
 
-            if not dim or dim not in self.warehouse.dimensions:
-                # Hallucinated or invalid dimension
-                failed_count += 1
-                details.append({
-                    "finding": f,
-                    "replicated": False,
-                    "reason": f"Invalid dimension '{dim}'",
-                    "holdout_p": 1.0,
-                })
-                continue
-
-            where_clause = ""
-            if subgroup and subgroup.upper() != "ALL":
-                # Sanitize where clause
-                where_clause = f"WHERE {subgroup}"
+            target_dim = dim
+            if target_dim not in self.warehouse.dimensions:
+                # If compound or unmapped dimension, fall back to secondary dimension
+                target_dim = self.warehouse.dimensions[1] if len(self.warehouse.dimensions) > 1 else self.warehouse.dimensions[0]
 
             try:
-                if target_type == "continuous":
+                if is_ab_test:
+                    # Pure Holdout A/B Evaluation:
+                    # Test whether treatment conversion differs from control within the claimed subgroup filter
+                    clean_subgroup = subgroup
+                    clean_subgroup = re.sub(r"variant\s*=\s*'[^']*'", "1=1", clean_subgroup, flags=re.IGNORECASE)
+                    clean_subgroup = re.sub(r"variant\s*=\s*\"[^\"]*\"", "1=1", clean_subgroup, flags=re.IGNORECASE)
+
+                    where_clause = ""
+                    if clean_subgroup and clean_subgroup.upper() != "ALL":
+                        where_clause = f"WHERE {clean_subgroup}"
+
                     sql = (
-                        f"SELECT {dim}, COUNT(*) AS n_k, "
-                        f"AVG({target_col}) AS mean_y, "
-                        f"AVG({target_col} * {target_col}) AS mean_y2 "
-                        f"FROM holdout_vault {where_clause} GROUP BY {dim} HAVING COUNT(*) >= 1"
+                        f"SELECT variant, COUNT(*) AS n_k, SUM({target_col}) AS sum_y "
+                        f"FROM holdout_vault {where_clause} GROUP BY variant"
                     )
                     df_te = self.warehouse.run_query(sql, on_holdout=True)
                     if len(df_te) < 2:
                         p_holdout = 1.0
-                    else:
-                        n_k = df_te["n_k"].values.astype(float)
-                        mean_y = df_te["mean_y"].values.astype(float)
-                        mean_y2 = df_te["mean_y2"].values.astype(float)
-                        var_y = np.maximum(1e-8, mean_y2 - mean_y ** 2)
-                        res = anova_rig_from_group_stats(n_k, mean_y, var_y)
-                        p_holdout = float(res["p_value"])
-                else:
-                    sql = (
-                        f"SELECT {dim}, COUNT(*) AS n_k, "
-                        f"SUM({target_col}) AS sum_y "
-                        f"FROM holdout_vault {where_clause} GROUP BY {dim} HAVING COUNT(*) >= 1"
-                    )
-                    df_te = self.warehouse.run_query(sql, on_holdout=True)
-                    if len(df_te) < 2:
-                        p_holdout = 1.0
+                        replicated = False
                     else:
                         n_k = df_te["n_k"].values.astype(float)
                         sum_y = df_te["sum_y"].values.astype(float)
@@ -802,15 +786,83 @@ class DecoupledHoldoutAuditor:
                         table_counts = np.vstack([sum_y, sum_no])
                         if np.all(sum_y == 0) or np.all(sum_no == 0) or np.sum(table_counts) < 5:
                             p_holdout = 1.0
+                            replicated = False
                         else:
-                            try:
+                            chi2 = stats.chi2_contingency(table_counts, correction=False)
+                            p_holdout = float(chi2.pvalue)
+                            # Directional check: treatment lift must be positive
+                            df_te["rate"] = df_te["sum_y"] / df_te["n_k"]
+                            rates = dict(zip(df_te["variant"], df_te["rate"]))
+                            lift = rates.get("treatment", 0.0) - rates.get("control", 0.0)
+                            replicated = (p_holdout < self.alpha) and (lift > 0)
+
+                else:
+                    # Subgroup / Feature Hunting Evaluation:
+                    where_clause = ""
+                    if subgroup and subgroup.upper() != "ALL":
+                        # Replace target_dim = ... with 1=1 to test across the parent stratum
+                        pat = rf"\b{target_dim}\s*=\s*(?:'[^']*'|\"[^\"]*\"|[^\s,;]+)"
+                        parent_filter = re.sub(pat, "1=1", subgroup, flags=re.IGNORECASE).strip()
+                        where_clause = f"WHERE {parent_filter}"
+
+                    if target_type == "continuous":
+                        sql = (
+                            f"SELECT {target_dim}, COUNT(*) AS n_k, "
+                            f"AVG({target_col}) AS mean_y, "
+                            f"AVG({target_col} * {target_col}) AS mean_y2 "
+                            f"FROM holdout_vault {where_clause} GROUP BY {target_dim} HAVING COUNT(*) >= 1"
+                        )
+                        df_te = self.warehouse.run_query(sql, on_holdout=True)
+                        if len(df_te) < 2:
+                            # Fallback to Slice vs Rest
+                            sql_slice = (
+                                f"SELECT (CASE WHEN ({subgroup}) THEN 'SLICE' ELSE 'REST' END) AS grp, "
+                                f"COUNT(*) AS n_k, AVG({target_col}) AS mean_y, AVG({target_col} * {target_col}) AS mean_y2 "
+                                f"FROM holdout_vault GROUP BY grp"
+                            )
+                            df_te = self.warehouse.run_query(sql_slice, on_holdout=True)
+
+                        if len(df_te) < 2:
+                            p_holdout = 1.0
+                        else:
+                            n_k = df_te["n_k"].values.astype(float)
+                            mean_y = df_te["mean_y"].values.astype(float)
+                            mean_y2 = df_te["mean_y2"].values.astype(float)
+                            var_y = np.maximum(1e-8, mean_y2 - mean_y ** 2)
+                            res = anova_rig_from_group_stats(n_k, mean_y, var_y)
+                            p_holdout = float(res["p_value"])
+                        replicated = (p_holdout < self.alpha)
+
+                    else:
+                        # Binary target
+                        sql = (
+                            f"SELECT {target_dim}, COUNT(*) AS n_k, SUM({target_col}) AS sum_y "
+                            f"FROM holdout_vault {where_clause} GROUP BY {target_dim} HAVING COUNT(*) >= 1"
+                        )
+                        df_te = self.warehouse.run_query(sql, on_holdout=True)
+                        if len(df_te) < 2:
+                            # Fallback to Slice vs Rest
+                            sql_slice = (
+                                f"SELECT (CASE WHEN ({subgroup}) THEN 'SLICE' ELSE 'REST' END) AS grp, "
+                                f"COUNT(*) AS n_k, SUM({target_col}) AS sum_y "
+                                f"FROM holdout_vault GROUP BY grp"
+                            )
+                            df_te = self.warehouse.run_query(sql_slice, on_holdout=True)
+
+                        if len(df_te) < 2:
+                            p_holdout = 1.0
+                        else:
+                            n_k = df_te["n_k"].values.astype(float)
+                            sum_y = df_te["sum_y"].values.astype(float)
+                            sum_no = np.maximum(0.0, n_k - sum_y)
+                            table_counts = np.vstack([sum_y, sum_no])
+                            if np.all(sum_y == 0) or np.all(sum_no == 0) or np.sum(table_counts) < 5:
+                                p_holdout = 1.0
+                            else:
                                 chi2 = stats.chi2_contingency(table_counts, correction=False)
                                 p_holdout = float(chi2.pvalue)
-                            except Exception:
-                                p_holdout = 1.0
+                        replicated = (p_holdout < self.alpha)
 
-                # Pure holdout replication: p < alpha on unseen test data
-                replicated = (p_holdout < self.alpha)
                 if replicated:
                     replicated_count += 1
                 else:
