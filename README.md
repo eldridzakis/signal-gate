@@ -2,7 +2,7 @@
 
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Tests](https://img.shields.io/badge/tests-60%20passed-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/tests-64%20passed-brightgreen.svg)]()
 [![MCP Server](https://img.shields.io/badge/MCP-Protocol%20Ready-purple.svg)](https://modelcontextprotocol.io)
 
 > **Stateful statistical guardrails and Model Context Protocol (MCP) server for autonomous LLM data agents, Text-to-SQL semantic layers, and AutoML. Quantifying the Winner's Curse, estimating closed-form noise ceilings (both discrete contingency & continuous SQL ANOVA), and filtering out spurious insights.**
@@ -30,7 +30,7 @@ If your organization connects autonomous LLM agents (Claude Code, Cursor, LangCh
 ```
 
 1. **The Silent Multi-Testing Problem:** An LLM agent rarely executes a single query. To answer a high-level question, it slices, filters, and cross-tabulates data across dozens of tool calls, then reports only the most striking results.
-2. **Small Slices Produce Convincing Noise:** Test enough segments on small cohorts ($N < 50$) and some will look significant at $p < 0.05$ purely by chance. In our benchmark, frontier LLMs reading a 38-query SQL exploration transcript that contained such small-slice results promoted them freely: on the continuous King County mart, **47%–82% of `business_analyst` findings failed holdout replication** (Table 2 of the report).
+2. **Small Slices Produce Convincing Noise:** Test enough segments on small cohorts ($N < 50$) and some will look significant at $p < 0.05$ purely by chance. In our benchmark, frontier LLMs reading a 38-query SQL exploration transcript that contained such small-slice results sometimes promoted them: on the continuous King County mart, **14%-41% of `business_analyst` findings failed holdout replication** (0%-27% under a plain holdout test), while a skeptical-statistician prompt avoided them. See the [reproducibility notice](REPORT.md#executive-summary) in the report.
 3. **The Business Fallout:**
    * 💰 **Finance & FP&A:** Budget and pricing decisions anchored on segment effects that do not hold up out-of-sample.
    * ⚙️ **Operations:** Workflows restructured around "bottlenecks" observed in a few dozen records.
@@ -316,7 +316,7 @@ signal-guard/
 │   ├── 05_frontier_llm_benchmark.ipynb
 │   ├── 06_real_world_and_agentune_benchmark.ipynb
 │   └── figures/                  # Publication-grade benchmark plots (fig1 through fig7)
-├── tests/                        # Automated unit tests (60 tests across 12 test suites)
+├── tests/                        # Automated unit tests (64 tests across 13 test suites)
 ├── Data/                         # Benchmark datasets & cached frontier LLM evaluation CSVs
 ├── pyproject.toml                # Modern package configuration (with CLI scripts)
 └── README.md
@@ -332,7 +332,7 @@ Run the test suite using standard Python `unittest`:
 python -m unittest discover -s tests -v
 ```
 
-All 60 tests run in $< 10.0$ seconds.
+All 64 tests run in about a minute.
 
 ---
 

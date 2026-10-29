@@ -54,16 +54,19 @@ Results on the continuous King County SQL mart, where the effect is clearest:
 
 | Configuration | What Happened | Findings That Failed Holdout Replication |
 | :--- | :--- | :---: |
-| **Unassisted "business analyst" prompt** | Under-counted how many queries were run; promoted small-slice results ($N \approx 36\text{–}41$). | **47% – 82%** |
-| **"Act as a PhD statistician" prompt** | Better, but still promoted small slices or mis-estimated the number of tests. | **38% – 50%** |
+| **Unassisted "business analyst" prompt** | Under-counted how many queries were run; promoted small-slice results ($N \approx 36\text{-}41$). | **14% - 41%** (0% - 27% under a plain holdout test) |
+| **"Act as a PhD statistician" prompt** | Declined to report the small slices in every run; reported only large, well-supported effects. | **0%** |
 | **SignalGuard verdicts provided** | Model reported only findings SignalGuard verified. | **0%** |
 
-On the binary-target marts (Lending Club, Bank Marketing) the gap is much smaller: unassisted failure rates averaged roughly 4–8% (up to 17–20% in individual runs).
+On the binary-target SQL marts (Lending Club, Bank Marketing) the `business_analyst` failure rates were about 4-8% (0-2% under a plain holdout test).
+
+> [!WARNING]
+> **Reproducibility notice.** An earlier version of this brief quoted 47-82% (business analyst) and 38-50% (statistician prompt) for this table, taken from summary tables that **do not reproduce** when the cached LLM reports are re-scored. The figures above are the re-scored values. See the [reproducibility notice in `REPORT.md`](REPORT.md#executive-summary) for details; the cause of the discrepancy is still being investigated.
 
 > [!IMPORTANT]
 > **How to read these numbers.** The exploration path was scripted (the models chose what to *report*, not what to *query*), and the small slices were deliberately included as traps. The holdout check also treats very small samples as non-replicating, which overlaps with SignalGuard's own small-sample rule, so the 0% figure partly reflects that shared criterion. These results show the failure mode is real and that the guardrail mechanism works as designed. They are **not** an independent estimate of false discovery rates in production. Some findings SignalGuard rejects may be real but under-powered effects. See [Benchmark Design & Limitations](REPORT.md#benchmark-design--limitations).
 
-**Takeaway:** prompting helps somewhat, but LLMs don't reliably track how many hypotheses they've tested or how sample size affects what "significant" means. An external, deterministic check is more dependable than asking the model to police itself.
+**Takeaway:** in this benchmark, a model prompted as a skeptical statistician mostly avoided the small-slice traps on its own, while a business-analyst-style prompt did not. A guardrail's value is therefore less "fixing a model that can't be careful" and more **enforcing carefulness deterministically and auditing it** (a fixed hypothesis count and a rising bar, regardless of how the model is prompted). Verified-only reporting is also more conservative: it surfaced fewer of the holdout-significant candidates on the King County SQL mart (34% recall vs 53% for the unassisted statistician prompt).
 
 ---
 

@@ -5,6 +5,21 @@
 
 ---
 
+> [!WARNING]
+> **Reproducibility notice (under review).** Re-scoring the cached LLM reports in this repository with [`scripts/rescore_cached_runs.py`](scripts/rescore_cached_runs.py) (no API calls; per-run results in [`Data/rescored_plain_holdout_per_run.csv`](Data/rescored_plain_holdout_per_run.csv)) reproduces most, but **not all**, of the Real FDR values in Tables 1-2 and Figures 4 and 7. Re-scoring with the original pre-rename code gives the same numbers, so the gap predates the rename and its cause is not yet identified.
+>
+> | King County continuous SQL mart, Real FDR | `claude-opus-5-5` | `claude-sonnet-5-5` | `gemini-3.5-flash-lite` | `gpt-6.1-sol` |
+> | :--- | :---: | :---: | :---: | :---: |
+> | `business_analyst`: shown in Table 2 | 51.4% | 46.8% | 70.0% | 82.1% |
+> | `business_analyst`: re-scored (same criterion) | 14.3% | 20.6% | 23.3% | 41.1% |
+> | `business_analyst`: re-scored (plain holdout $p < 0.05$) | 4.8% | 4.8% | 0.0% | 27.4% |
+> | `statistician_unassisted`: shown in Table 2 | 37.8% | 40.0% | 50.0% | 40.0% |
+> | `statistician_unassisted`: re-scored (either criterion) | 0.0% | 0.0% | 0.0% | 0.0% |
+>
+> The cached `statistician_unassisted` reports on this mart explicitly decline to report the small slices, so they score 0%. A few `bank_marketing` rows (Table 1 `business_analyst`; Table 2 `gemini-3.5-flash-lite` unassisted) also differ. The `statistician_signalguard` rows (0% FDR) do reproduce. **Treat the unassisted-FDR figures in this report as unverified until the tables and figures are regenerated from the re-scored data.**
+>
+> Two further reproducible findings: (1) under a plain holdout test, i.e. without the small-cell rule shared with SignalGuard's gate, pooled `business_analyst` FDR is 5.6% (SQL) and 3.8% (tabular) versus 16.9% and 15.7% under the original criterion; (2) a signal-recall check (share of holdout-significant candidates surfaced in the transcript that the persona reported) shows verified-only reporting is more conservative on the King County SQL mart (34% recall for `statistician_signalguard` vs 53% for `statistician_unassisted`).
+
 ## Executive Summary
 
 When autonomous LLM agents and automated feature-engineering pipelines (`agentune`-style AutoML) explore production datasets via Python or SQL `GROUP BY` / `CUBE` queries, they operate as **high-throughput implicit hypothesis generators**. A single multi-turn agentic session routinely evaluates $M = 20$ to $1{,}000+$ marginal, interaction, and conditional slice hypotheses (`WHERE slice = x`) before promoting only the top cherry-picked findings in its final executive narrative.
