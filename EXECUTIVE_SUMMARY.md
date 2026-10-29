@@ -4,6 +4,8 @@
 
 *A 3-minute guide for Engineering Directors, VPs of Operations, and Finance Leaders.*
 
+> 🎨 **Interactive Visual Dashboard:** An interactive visual explainer version of this brief featuring live multi-testing simulations, visual side-by-side diagrams, and 1-click PDF export is available at [docs/index.html](docs/index.html).
+
 ---
 
 ## 1. The Problem: "The Ghost in the Data Warehouse"

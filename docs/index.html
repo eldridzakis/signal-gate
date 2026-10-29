@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SignalGuard — Executive Brief for Engineering & Business Leadership</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root {
+      --background: #0f172a;
+      --card: #1e293b;
+      --border: #334155;
+      --foreground: #f8fafc;
+      --muted-foreground: #94a3b8;
+      --primary: #2563eb;
+      --primary-foreground: #ffffff;
+      --accent: #334155;
+    }
+    @media (prefers-color-scheme: light) {
+      :root {
+        --background: #f8fafc;
+        --card: #ffffff;
+        --border: #e2e8f0;
+        --foreground: #0f172a;
+        --muted-foreground: #64748b;
+        --primary: #2563eb;
+        --primary-foreground: #ffffff;
+        --accent: #f1f5f9;
+      }
+    }
+    @media print {
+      body { background: white !important; color: black !important; padding: 0 !important; }
+      .no-print { display: none !important; }
+      .page-break { page-break-before: always; }
+      .card { border: 1px solid #ddd !important; box-shadow: none !important; }
+    }
+  </style>
+</head>
+<body class="bg-[var(--background)] text-[var(--foreground)] antialiased p-4 md:p-8 min-h-screen">
+
+  <div class="max-w-5xl mx-auto space-y-8">
+
+    <!-- Header Hero -->
+    <header class="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-6 md:p-8 shadow-sm">
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-semibold mb-3 border border-emerald-500/20">
+            <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            ENTERPRISE AI RELIABILITY BRIEF
+          </div>
+          <h1 class="text-2xl md:text-4xl font-extrabold tracking-tight text-[var(--foreground)]">
+            SignalGuard
+          </h1>
+          <p class="text-base md:text-lg text-[var(--muted-foreground)] mt-2 font-medium">
+            The Statistical Firewall for Autonomous LLM Agents, SQL Warehouses & AutoML
+          </p>
+        </div>
+        <div class="no-print flex items-center gap-2">
+          <button onclick="window.print()" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-[var(--primary)] text-[var(--primary-foreground)] shadow-sm hover:opacity-90 transition-opacity">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+            Print / Save as PDF
+          </button>
+        </div>
+      </div>
+
+      <!-- Quick Stats Banner -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6 pt-6 border-t border-[var(--border)]">
+        <div>
+          <div class="text-2xl font-bold text-emerald-500">0.0%</div>
+          <div class="text-xs text-[var(--muted-foreground)]">False Discovery Rate</div>
+        </div>
+        <div>
+          <div class="text-2xl font-bold text-blue-500">100%</div>
+          <div class="text-xs text-[var(--muted-foreground)]">Holdout Replication</div>
+        </div>
+        <div>
+          <div class="text-2xl font-bold text-amber-500">1.00x</div>
+          <div class="text-xs text-[var(--muted-foreground)]">Exact Ledger Tracking</div>
+        </div>
+        <div>
+          <div class="text-2xl font-bold text-purple-500">MCP Native</div>
+          <div class="text-xs text-[var(--muted-foreground)]">Zero Pipeline Latency</div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Section 1: The Problem Visualized -->
+    <section class="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-6 md:p-8 shadow-sm">
+      <h2 class="text-xl font-bold text-[var(--foreground)] mb-2">1. The Ghost in the Data Warehouse</h2>
+      <p class="text-sm text-[var(--muted-foreground)] mb-6">
+        When an LLM agent (via Claude, Cursor, or internal Text-to-SQL) answers an executive question, it rarely runs just one query. It secretly evaluates dozens of cuts behind the scenes—creating an invisible multiple-testing trap.
+      </p>
+
+      <div class="grid md:grid-cols-2 gap-6">
+        <!-- What Executives See -->
+        <div class="p-5 rounded-xl border border-rose-500/30 bg-rose-500/5">
+          <div class="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-rose-500 mb-3">
+            <span>What Leadership Sees</span>
+            <span class="px-2 py-0.5 rounded bg-rose-500/20">Slack / Dashboard</span>
+          </div>
+          <div class="bg-[var(--background)] p-4 rounded-lg border border-[var(--border)] text-sm space-y-2 font-mono">
+            <p class="text-[var(--foreground)]">🤖 <strong>AI Analytics Agent:</strong></p>
+            <p class="text-rose-600 dark:text-rose-400 font-sans">
+              "We discovered that customer segment <strong>West &amp; Age &lt; 25</strong> has a <strong>42% higher default rate</strong> (p = 0.03, statistically significant)!<br><br>
+              <strong>Recommendation:</strong> Halt lending to this segment immediately."
+            </p>
+          </div>
+          <p class="text-xs text-[var(--muted-foreground)] mt-3">
+            Looks convincing, urgent, and backed by a "significant" p-value.
+          </p>
+        </div>
+
+        <!-- What Actually Happened -->
+        <div class="p-5 rounded-xl border border-blue-500/30 bg-blue-500/5">
+          <div class="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-blue-500 mb-3">
+            <span>What Actually Happened</span>
+            <span class="px-2 py-0.5 rounded bg-blue-500/20">38 Hidden SQL Queries</span>
+          </div>
+          <div class="bg-[var(--background)] p-4 rounded-lg border border-[var(--border)] text-xs space-y-1.5 font-mono text-[var(--muted-foreground)] max-h-36 overflow-y-auto">
+            <div>• Query 01: region = 'East' (p = 0.42, no trend)</div>
+            <div>• Query 02: tenure &gt; 3 years (p = 0.18, no trend)</div>
+            <div>• Query 03: product = 'Premium' (p = 0.81, no trend)</div>
+            <div>• Query 04: income &gt; 100k (p = 0.35, no trend)</div>
+            <div>• ... [33 more queries quietly tested] ...</div>
+            <div class="text-amber-500 font-semibold">• Query 38: region='West' AND age&lt;25 (N = 35 rows, p = 0.03 by pure luck!)</div>
+          </div>
+          <p class="text-xs text-rose-500 font-medium mt-3">
+            ⚠️ The AI forgot the 37 failed queries and cherry-picked the 1 random noise spike.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 2: Interactive Casino Simulator -->
+    <section class="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-6 md:p-8 shadow-sm">
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-2 mb-4">
+        <div>
+          <h2 class="text-xl font-bold text-[var(--foreground)]">2. The Casino Pit Boss Analogy</h2>
+          <p class="text-sm text-[var(--muted-foreground)]">
+            If 1 person bets on roulette #17 and wins, that is remarkable. If 50 people bet 50 numbers, someone is guaranteed to hit it.
+          </p>
+        </div>
+        <span class="text-xs font-semibold px-2.5 py-1 rounded-md bg-[var(--accent)] text-[var(--foreground)]">
+          Interactive Tool
+        </span>
+      </div>
+
+      <!-- Simulator Slider Control -->
+      <div class="p-5 rounded-xl bg-[var(--background)] border border-[var(--border)] space-y-6">
+        <div>
+          <div class="flex justify-between items-center mb-2">
+            <label for="querySlider" class="text-sm font-semibold text-[var(--foreground)]">
+              Number of Hidden Queries Run by AI Agent (M):
+            </label>
+            <span id="sliderValue" class="text-lg font-bold text-blue-500 font-mono">38 queries</span>
+          </div>
+          <input id="querySlider" type="range" min="1" max="50" value="38" class="w-full h-2 bg-[var(--border)] rounded-lg appearance-none cursor-pointer accent-blue-600">
+          <div class="flex justify-between text-xs text-[var(--muted-foreground)] mt-1">
+            <span>1 (Single Test)</span>
+            <span>25 (Typical Agent)</span>
+            <span>50 (Deep Explorer)</span>
+          </div>
+        </div>
+
+        <!-- Live Calculation Cards -->
+        <div class="grid md:grid-cols-2 gap-4">
+          <div class="p-4 rounded-lg border border-[var(--border)] bg-[var(--card)]">
+            <div class="text-xs text-[var(--muted-foreground)] font-medium">Risk of False Alarm from Pure Noise</div>
+            <div id="falseAlarmRisk" class="text-3xl font-extrabold text-rose-500 mt-1">85.7%</div>
+            <p class="text-xs text-[var(--muted-foreground)] mt-2">
+              Formula: <code class="font-mono">1 - (1 - 0.05)^M</code>. With <span id="mCountText">38</span> queries, seeing a "statistically significant" ($p &lt; 0.05$) anomaly by chance is nearly guaranteed.
+            </p>
+          </div>
+
+          <div class="p-4 rounded-lg border border-[var(--border)] bg-[var(--card)]">
+            <div class="text-xs text-[var(--muted-foreground)] font-medium">SignalGuard Dynamic Verification Bar</div>
+            <div id="guardrailBar" class="text-3xl font-extrabold text-emerald-500 mt-1">0.191 RIG</div>
+            <p class="text-xs text-[var(--muted-foreground)] mt-2">
+              SignalGuard automatically scales the required evidence ceiling based on sample size and query count, rejecting small-slice hallucinations.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 3: Cost of Error by Leadership Role -->
+    <section class="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-6 md:p-8 shadow-sm">
+      <h2 class="text-xl font-bold text-[var(--foreground)] mb-2">3. Why Non-Data Scientists Care: The Cost of Error</h2>
+      <p class="text-sm text-[var(--muted-foreground)] mb-6">
+        Acting on unvalidated AI findings carries direct financial, operational, and architectural consequences.
+      </p>
+
+      <div class="grid md:grid-cols-3 gap-5">
+        <!-- Finance -->
+        <div class="p-5 rounded-xl border border-[var(--border)] bg-[var(--background)] flex flex-col justify-between">
+          <div>
+            <div class="w-9 h-9 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold text-lg mb-3">
+              💰
+            </div>
+            <h3 class="font-bold text-[var(--foreground)] text-base">Director of Finance &amp; FP&A</h3>
+            <p class="text-xs font-semibold text-rose-500 mt-1">Risk: The Winner's Curse &amp; Phantom ROI</p>
+            <p class="text-xs text-[var(--muted-foreground)] mt-3 leading-relaxed">
+              AI agents flag customer sub-segments with inflated profit margins or fake credit risks. Acting on them means cutting off good customers or sinking capital into phantom markets.
+            </p>
+          </div>
+          <div class="mt-4 pt-3 border-t border-[var(--border)] text-xs text-emerald-600 dark:text-emerald-400 font-semibold">
+            🛡️ SignalGuard ensures reported lifts replicate out-of-sample.
+          </div>
+        </div>
+
+        <!-- Operations -->
+        <div class="p-5 rounded-xl border border-[var(--border)] bg-[var(--background)] flex flex-col justify-between">
+          <div>
+            <div class="w-9 h-9 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-lg mb-3">
+              ⚙️
+            </div>
+            <h3 class="font-bold text-[var(--foreground)] text-base">VP of Operations &amp; Supply Chain</h3>
+            <p class="text-xs font-semibold text-rose-500 mt-1">Risk: Churn on Small-Sample Noise</p>
+            <p class="text-xs text-[var(--muted-foreground)] mt-3 leading-relaxed">
+              An agent flags an "urgent fulfillment bottleneck" based on a slice of 35 shipments. Teams spend sprints re-engineering dispatch routes for an issue that does not exist at scale.
+            </p>
+          </div>
+          <div class="mt-4 pt-3 border-t border-[var(--border)] text-xs text-blue-600 dark:text-blue-400 font-semibold">
+            🛡️ SignalGuard enforces minimum power &amp; cell sparsity gates.
+          </div>
+        </div>
+
+        <!-- Engineering -->
+        <div class="p-5 rounded-xl border border-[var(--border)] bg-[var(--background)] flex flex-col justify-between">
+          <div>
+            <div class="w-9 h-9 rounded-lg bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center font-bold text-lg mb-3">
+              🛠️
+            </div>
+            <h3 class="font-bold text-[var(--foreground)] text-base">Director of Engineering &amp; Platform</h3>
+            <p class="text-xs font-semibold text-rose-500 mt-1">Risk: Data Pipeline Pollution</p>
+            <p class="text-xs text-[var(--muted-foreground)] mt-3 leading-relaxed">
+              AI discoveries get handed to data engineers to build dbt transforms, materialized views, and feature stores for dead signals that decay to zero in production.
+            </p>
+          </div>
+          <div class="mt-4 pt-3 border-t border-[var(--border)] text-xs text-purple-600 dark:text-purple-400 font-semibold">
+            🛡️ Plugs into agent loops via MCP with zero row scanning.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 4: The Empirical Evidence (216 Live Frontier LLM Runs) -->
+    <section class="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-6 md:p-8 shadow-sm">
+      <h2 class="text-xl font-bold text-[var(--foreground)] mb-2">4. Verified Benchmark: 216 Frontier LLM Runs</h2>
+      <p class="text-sm text-[var(--muted-foreground)] mb-6">
+        Evaluated across Claude Opus 5.5, Claude Sonnet 5.5, GPT-6.1 Sol, and Gemini 3.5 Flash Lite on production tabular datasets (Lending Club, King County Housing, Bank Marketing) and local SQLite warehouses.
+      </p>
+
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-sm border-collapse">
+          <thead>
+            <tr class="border-b border-[var(--border)] text-[var(--muted-foreground)] text-xs uppercase tracking-wider">
+              <th class="py-3 px-4">Configuration</th>
+              <th class="py-3 px-4">Behavior Observed</th>
+              <th class="py-3 px-4 text-center">False Discovery Rate</th>
+              <th class="py-3 px-4 text-center">Holdout Replication</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-[var(--border)]">
+            <tr class="hover:bg-[var(--accent)]/30 transition-colors">
+              <td class="py-3.5 px-4 font-semibold text-[var(--foreground)]">
+                Unassisted Business Analyst
+              </td>
+              <td class="py-3.5 px-4 text-xs text-[var(--muted-foreground)]">
+                Under-reported query search space by 3.5x–8.9x; promoted high-variance small slices ($N &lt; 40$).
+              </td>
+              <td class="py-3.5 px-4 text-center font-bold text-rose-500">
+                14.3% – 41.1%
+              </td>
+              <td class="py-3.5 px-4 text-center text-[var(--muted-foreground)]">
+                58.9% – 85.7%
+              </td>
+            </tr>
+            <tr class="hover:bg-[var(--accent)]/30 transition-colors">
+              <td class="py-3.5 px-4 font-semibold text-[var(--foreground)]">
+                "PhD Statistician" Prompt
+              </td>
+              <td class="py-3.5 px-4 text-xs text-[var(--muted-foreground)]">
+                Declined small slices (0% FDR), but suffered <em>Multiplicity Paralysis</em> (captured only 34%–53% of genuine signals).
+              </td>
+              <td class="py-3.5 px-4 text-center font-semibold text-emerald-500">
+                0.0%
+              </td>
+              <td class="py-3.5 px-4 text-center text-amber-500 font-semibold">
+                Low Recall (34%)
+              </td>
+            </tr>
+            <tr class="bg-emerald-500/5 hover:bg-emerald-500/10 transition-colors font-semibold">
+              <td class="py-3.5 px-4 text-emerald-600 dark:text-emerald-400">
+                SignalGuard Guardrail Active
+              </td>
+              <td class="py-3.5 px-4 text-xs text-[var(--muted-foreground)] font-normal">
+                Stateful session ledger dynamically raised verification gate; verified true macro drivers without sacrificing power.
+              </td>
+              <td class="py-3.5 px-4 text-center font-extrabold text-emerald-600 dark:text-emerald-400">
+                0.0%
+              </td>
+              <td class="py-3.5 px-4 text-center font-extrabold text-emerald-600 dark:text-emerald-400">
+                100.0%
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Section 5: Architecture & The 3-Question Audit -->
+    <section class="grid md:grid-cols-2 gap-6">
+      <!-- Architecture -->
+      <div class="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-6 shadow-sm">
+        <h3 class="font-bold text-base text-[var(--foreground)] mb-2">Zero-Overhead Enterprise Architecture</h3>
+        <p class="text-xs text-[var(--muted-foreground)] mb-4">
+          Built natively on the Model Context Protocol (MCP) to fit existing enterprise agent toolchains without pipeline lag.
+        </p>
+
+        <div class="space-y-3 text-xs text-[var(--foreground)]">
+          <div class="flex items-start gap-2.5">
+            <span class="text-emerald-500 font-bold">✓</span>
+            <div><strong>Zero Database Overhead:</strong> Operates on aggregate summary statistics (`COUNT`, `AVG`, `STDDEV`) without re-scanning raw rows.</div>
+          </div>
+          <div class="flex items-start gap-2.5">
+            <span class="text-emerald-500 font-bold">✓</span>
+            <div><strong>Data Privacy by Design:</strong> Zero customer PII or raw records touch the guardrail; closed-form math guarantees security.</div>
+          </div>
+          <div class="flex items-start gap-2.5">
+            <span class="text-emerald-500 font-bold">✓</span>
+            <div><strong>Plug-and-Play:</strong> Native MCP integration for Claude Desktop, Cursor, LangGraph, or custom Python agent workflows.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3-Question Audit -->
+      <div class="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-6 shadow-sm">
+        <h3 class="font-bold text-base text-[var(--foreground)] mb-2">The 3-Question Leadership Reliability Audit</h3>
+        <p class="text-xs text-[var(--muted-foreground)] mb-4">
+          Ask your AI engineering leads these three questions before deploying LLMs with database access:
+        </p>
+
+        <div class="space-y-3 text-xs">
+          <div class="p-2.5 rounded-lg bg-[var(--background)] border border-[var(--border)]">
+            <strong>1. Session Tracking:</strong> "Does our agent track its cumulative query count ($M$), or is each SQL query evaluated in isolation?"
+          </div>
+          <div class="p-2.5 rounded-lg bg-[var(--background)] border border-[var(--border)]">
+            <strong>2. Small-Slice Thresholds:</strong> "When the agent narrows down to small cohorts ($N &lt; 50$), does the bar for calling something 'significant' automatically rise?"
+          </div>
+          <div class="p-2.5 rounded-lg bg-[var(--background)] border border-[var(--border)]">
+            <strong>3. Out-of-Sample Verification:</strong> "Do we mathematically verify that insights will replicate on unseen data before executives act on them?"
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="text-center text-xs text-[var(--muted-foreground)] pt-4 pb-12 border-t border-[var(--border)]">
+      SignalGuard Open Source Project • <a href="https://github.com/eldridzakis/signal-guard" class="underline hover:text-[var(--foreground)]">github.com/eldridzakis/signal-guard</a> • MIT Licensed
+    </footer>
+
+  </div>
+
+  <!-- Interactive Simulator Logic -->
+  <script>
+    const slider = document.getElementById('querySlider');
+    const sliderVal = document.getElementById('sliderValue');
+    const falseRisk = document.getElementById('falseAlarmRisk');
+    const mCount = document.getElementById('mCountText');
+    const guardrailBar = document.getElementById('guardrailBar');
+
+    function updateSimulation() {
+      const m = parseInt(slider.value);
+      sliderVal.textContent = `${m} ${m === 1 ? 'query' : 'queries'}`;
+      mCount.textContent = m;
+
+      // Probability of at least one false positive at alpha = 0.05
+      const risk = (1 - Math.pow(1 - 0.05, m)) * 100;
+      falseRisk.textContent = `${risk.toFixed(1)}%`;
+
+      if (risk > 50) {
+        falseRisk.className = 'text-3xl font-extrabold text-rose-500 mt-1';
+      } else if (risk > 20) {
+        falseRisk.className = 'text-3xl font-extrabold text-amber-500 mt-1';
+      } else {
+        falseRisk.className = 'text-3xl font-extrabold text-emerald-500 mt-1';
+      }
+
+      // Approximate Extreme Value / Bonferroni RIG noise ceiling on N=36
+      const baseChi2 = 3.84;
+      const bonfFactor = Math.log(m + 1.5) * 1.8;
+      const dynamicRIG = ((baseChi2 + bonfFactor) / (2 * 36 * 0.693)).toFixed(3);
+      guardrailBar.textContent = `${dynamicRIG} RIG`;
+    }
+
+    slider.addEventListener('input', updateSimulation);
+    updateSimulation();
+  </script>
+</body>
+</html>
