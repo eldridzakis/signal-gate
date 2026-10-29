@@ -1167,7 +1167,7 @@ class NativeGeminiModel:
 class NativeClaudeModel:
     """Lightweight zero-install Claude caller using Anthropic Messages REST API and standard library urllib."""
 
-    def __init__(self, model_name: str = "claude-3-5-haiku-20241022", temperature: float = 0.0):
+    def __init__(self, model_name: str = "claude-haiku-5-5", temperature: float = 0.0):
         self.model_name = model_name
         self.temperature = temperature
 
@@ -1315,6 +1315,9 @@ def _resolve_llm_model(model_name: str, temperature: float = 0.0) -> Tuple[Any, 
         "claude-opus-5.5": "claude-opus-5-5",
         "claude-opus-5-5": "claude-opus-5-5",
         "claude-opus": "claude-opus-5-5",
+        "claude-3-opus": "claude-opus-5-5",
+        "claude-3-opus-20240229": "claude-opus-5-5",
+        "claude-3.0-opus": "claude-opus-5-5",
         "claude-sonnet-5.5": "claude-sonnet-5-5",
         "claude-sonnet-5-5": "claude-sonnet-5-5",
         "claude-sonnet": "claude-sonnet-5-5",
@@ -1325,8 +1328,8 @@ def _resolve_llm_model(model_name: str, temperature: float = 0.0) -> Tuple[Any, 
         "claude-3.7-sonnet": "claude-3-7-sonnet-20250219",
         "claude-3-5-sonnet": "claude-3-5-sonnet-20241022",
         "claude-3.5-sonnet": "claude-3-5-sonnet-20241022",
-        "claude-3-5-haiku": "claude-3-5-haiku-20241022",
-        "claude-3.5-haiku": "claude-3-5-haiku-20241022",
+        "claude-3-5-haiku": "claude-haiku-5-5",
+        "claude-3.5-haiku": "claude-haiku-5-5",
         # OpenAI GPT-6 (2026 Frontier) & Reasoning Aliases
         "gpt-6-astra": "gpt-6-astra",
         "gpt-6.1-sol": "gpt-6.1-sol",
