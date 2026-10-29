@@ -1,0 +1,19 @@
+Benchmark,Dataset,Persona,Runs,Findings_Reported,Orig_FDR_pooled (%),Plain_FDR_pooled (%),Real_Pool_Findings,Signal_Recall_pooled (%)
+sql,bank_marketing,business_analyst,12.0,46.0,10.869565217391305,2.1739130434782608,84.0,53.57142857142857
+sql,bank_marketing,statistician_signalguard,12.0,60.0,0.0,0.0,84.0,71.42857142857143
+sql,bank_marketing,statistician_unassisted,12.0,57.0,0.0,0.0,84.0,67.85714285714286
+sql,king_county_continuous,business_analyst,12.0,70.0,27.142857142857142,11.428571428571429,96.0,63.541666666666664
+sql,king_county_continuous,statistician_signalguard,12.0,33.0,0.0,0.0,96.0,34.375
+sql,king_county_continuous,statistician_unassisted,12.0,52.0,0.0,0.0,96.0,53.125
+sql,lending_club,business_analyst,12.0,44.0,6.818181818181818,0.0,60.0,58.333333333333336
+sql,lending_club,statistician_signalguard,12.0,36.0,0.0,0.0,60.0,60.0
+sql,lending_club,statistician_unassisted,12.0,48.0,0.0,0.0,60.0,80.0
+tabular,bank_marketing,business_analyst,15.0,88.0,22.727272727272727,10.227272727272727,115.0,66.08695652173913
+tabular,bank_marketing,statistician_signalguard,15.0,75.0,2.6666666666666665,0.0,115.0,63.47826086956522
+tabular,bank_marketing,statistician_unassisted,15.0,58.0,5.172413793103448,0.0,115.0,48.69565217391305
+tabular,king_county,business_analyst,15.0,75.0,5.333333333333333,0.0,115.0,56.52173913043478
+tabular,king_county,statistician_signalguard,15.0,104.0,0.0,0.0,115.0,85.21739130434783
+tabular,king_county,statistician_unassisted,15.0,60.0,0.0,0.0,115.0,52.17391304347826
+tabular,lending_club,business_analyst,15.0,73.0,17.80821917808219,0.0,105.0,55.23809523809524
+tabular,lending_club,statistician_signalguard,15.0,81.0,3.7037037037037037,0.0,105.0,76.19047619047619
+tabular,lending_club,statistician_unassisted,15.0,68.0,4.411764705882353,0.0,105.0,64.76190476190476

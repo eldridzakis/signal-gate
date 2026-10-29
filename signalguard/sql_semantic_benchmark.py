@@ -36,6 +36,8 @@ from .real_world_benchmark import (
     load_real_world_benchmark_dataset,
     DEFAULT_REAL_WORLD_CACHE_PATH,
     _canonicalize_discovery_string,
+    plain_holdout_summary,
+    plain_holdout_signal_recall,
 )
 from .persona_benchmark import (
     PERSONA_PROMPTS,
@@ -708,6 +710,7 @@ def evaluate_sql_holdout_replication(
         "mean_decay_pct": round(mean_decay, 2),
         "under_reporting_ratio": round(under_rep, 2),
         "audit_table": audit_rows,
+        **plain_holdout_summary(audit_rows, alpha=alpha),
     }
 
 
@@ -722,8 +725,12 @@ def run_sql_semantic_frontier_eval(
     dry_run: bool = False,
     use_cache: bool = True,
     cache_path: str = DEFAULT_REAL_WORLD_CACHE_PATH,
+    cached_output: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Runs an end-to-end SQL + Semantic Layer benchmark evaluation with a frontier LLM."""
+    """Runs an end-to-end SQL + Semantic Layer benchmark evaluation with a frontier LLM.
+
+    If `cached_output` is given, that previously recorded LLM report is re-scored with no API call.
+    """
     _ensure_api_keys()
 
     guardrail_enabled = (persona == "statistician_signalguard")
@@ -746,7 +753,7 @@ def run_sql_semantic_frontier_eval(
         f"{STRUCTURED_REPORT_INSTRUCTION}"
     )
 
-    trace_cache = LLMEvalTraceCache(cache_path=cache_path) if use_cache else None
+    trace_cache = LLMEvalTraceCache(cache_path=cache_path) if (use_cache and cached_output is None) else None
     cache_key = (
         trace_cache.compute_key(
             model_name=model_name,
@@ -758,8 +765,8 @@ def run_sql_semantic_frontier_eval(
         else None
     )
 
-    output_text = ""
-    cache_hit = False
+    output_text = cached_output if cached_output is not None else ""
+    cache_hit = cached_output is not None
 
     if trace_cache is not None and cache_key is not None:
         cached = trace_cache.get(cache_key)
@@ -840,6 +847,13 @@ def run_sql_semantic_frontier_eval(
         warehouse=warehouse,
         self_reported_M=self_m,
         true_M_raw=true_m,
+    )
+    pool_audit = evaluate_sql_holdout_replication(
+        reported_discoveries=list(dict.fromkeys(telem_cands)),
+        warehouse=warehouse,
+    )
+    holdout_audit["signal_recall"] = plain_holdout_signal_recall(
+        holdout_audit["audit_table"], pool_audit["audit_table"]
     )
 
     return {

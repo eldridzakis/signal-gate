@@ -679,6 +679,49 @@ def _canonicalize_discovery_string(
     return clean
 
 
+
+def plain_holdout_summary(audit_table: Sequence[Dict[str, Any]], alpha: float = 0.05) -> Dict[str, Any]:
+    """Plain holdout criterion: a reported finding replicates iff its holdout p-value < alpha.
+
+    Unlike the primary criterion, this applies NO small-cell / sparsity rule, so it is independent of
+    SignalGuard's own small-sample gate. Hallucinated / unmatched features carry p = 1.0 and always fail.
+    """
+    n = len(audit_table)
+    ok = sum(1 for r in audit_table if float(r.get("holdout_p_value", 1.0)) < alpha)
+    return {
+        "plain_replicated_count": ok,
+        "plain_failed_count": n - ok,
+        "plain_replication_rate": (ok / n) if n > 0 else 1.0,
+        "plain_fdr": ((n - ok) / n) if n > 0 else 0.0,
+    }
+
+
+def plain_holdout_signal_recall(
+    reported_audit: Sequence[Dict[str, Any]],
+    pool_audit: Sequence[Dict[str, Any]],
+    alpha: float = 0.05,
+) -> Dict[str, Any]:
+    """Missed-signal (Type II) metric over the candidates surfaced in the exploration transcript.
+
+    The 'real-signal pool' is every candidate the agent surfaced whose holdout p-value clears a
+    Bonferroni-corrected threshold (alpha / pool size). Recall is the fraction of that pool the agent reported.
+    This is a proxy for ground truth (real data has none) and is itself limited by holdout power.
+    """
+    pool = {r["feature"]: float(r.get("holdout_p_value", 1.0)) for r in pool_audit}
+    if not pool:
+        return {"pool_size": 0, "real_pool_size": 0, "recovered": 0, "signal_recall": None}
+    thresh = alpha / len(pool)
+    real = {f for f, p in pool.items() if p < thresh}
+    reported = {r["feature"] for r in reported_audit}
+    recovered = len(real & reported)
+    return {
+        "pool_size": len(pool),
+        "real_pool_size": len(real),
+        "recovered": recovered,
+        "signal_recall": (recovered / len(real)) if real else None,
+    }
+
+
 def evaluate_real_world_holdout_replication(
     reported_discoveries: Sequence[str],
     train_df: pd.DataFrame,
@@ -712,6 +755,7 @@ def evaluate_real_world_holdout_replication(
             "mean_decay_pct": 0.0,
             "under_reporting_ratio": under_rep,
             "audit_table": [],
+            **plain_holdout_summary([]),
         }
 
     audit_table = []
@@ -851,6 +895,7 @@ def evaluate_real_world_holdout_replication(
         "mean_decay_pct": mean_decay,
         "under_reporting_ratio": under_rep,
         "audit_table": audit_table,
+        **plain_holdout_summary(audit_table),
     }
 
 
@@ -870,6 +915,7 @@ def run_real_world_frontier_eval(
     use_cache: bool = True,
     cache_path: str = DEFAULT_REAL_WORLD_CACHE_PATH,
     blind_unassisted_counts: bool = True,
+    cached_output: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Runs an empirical frontier LLM evaluation on real-world datasets with holdout auditing."""
     _ensure_api_keys()
@@ -910,7 +956,7 @@ def run_real_world_frontier_eval(
         f"{STRUCTURED_REPORT_INSTRUCTION}"
     )
 
-    trace_cache = LLMEvalTraceCache(cache_path=cache_path) if use_cache else None
+    trace_cache = LLMEvalTraceCache(cache_path=cache_path) if (use_cache and cached_output is None) else None
     cache_key = (
         trace_cache.compute_key(
             model_name=model_name,
@@ -922,8 +968,9 @@ def run_real_world_frontier_eval(
         else None
     )
 
-    output_text = ""
-    cache_hit = False
+    # `cached_output` lets callers re-score a previously recorded LLM report without any API call
+    output_text = cached_output if cached_output is not None else ""
+    cache_hit = cached_output is not None
 
     # 1. Check cache
     if trace_cache is not None and cache_key is not None:
@@ -1011,6 +1058,16 @@ def run_real_world_frontier_eval(
         self_reported_M=self_m,
         true_M_raw=true_m,
         telemetry_candidates=telem_cands,
+    )
+    pool_audit = evaluate_real_world_holdout_replication(
+        reported_discoveries=list(dict.fromkeys(telem_cands)),
+        train_df=train_df,
+        test_df=test_df,
+        target_col=target_col,
+        telemetry_candidates=telem_cands,
+    )
+    holdout_audit["signal_recall"] = plain_holdout_signal_recall(
+        holdout_audit["audit_table"], pool_audit["audit_table"]
     )
 
     return {
