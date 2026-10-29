@@ -1,4 +1,4 @@
-# SignalGuard: Information-Theoretic Multiplicity Guardrails for Autonomous Agentic SQL Analytics and AutoML
+# SignalGuard: Information-Theoretic Multiplicity Guardrails for Autonomous Agentic SQL Analytics
 
 **Authors:** SignalGuard Research Collective  
 **Preprint:** October 2026  
@@ -8,16 +8,16 @@
 
 ## Abstract
 
-When autonomous Large Language Model (LLM) agents and automated feature engineering engines explore production data warehouses via SQL `GROUP BY` and multi-slice queries, they operate as high-throughput, uncalibrated hypothesis generators. A single agentic session routinely evaluates dozens to hundreds of conditional subsets ($M = 20\text{--}1{,}000+$) before cherry-picking and promoting only the most striking findings to stakeholders. Because standard LLMs exhibit **multiplicity amnesia** (failing to account for the cumulative hypothesis search space across conversational turns) and lack sample-size-calibrated noise thresholds, unassisted models suffer from massive out-of-sample failure rates: up to **41.1% False Discovery Rate (FDR)** on continuous SQL slice exploration and **26.7% FDR** in automated feature engineering, degrading downstream classifier performance.
+When autonomous Large Language Model (LLM) data agents explore production data warehouses via SQL `GROUP BY` and multi-slice queries, they operate as high-throughput, uncalibrated hypothesis generators. A single agentic session routinely evaluates dozens to hundreds of conditional subsets ($M = 20\text{--}1{,}000+$) before cherry-picking and promoting only the most striking findings to stakeholders. Because standard LLMs exhibit **multiplicity amnesia** (failing to account for the cumulative hypothesis search space across conversational turns) and lack sample-size-calibrated noise thresholds, unassisted models suffer from massive out-of-sample failure rates: up to **41.1% False Discovery Rate (FDR)** on continuous SQL slice exploration.
 
 We introduce **SignalGuard**, an information-theoretic framework and stateful **Model Context Protocol (MCP)** server that acts as a real-time statistical firewall between autonomous agents and SQL data warehouses. SignalGuard establishes:
 1. Closed-form asymptotic scaling laws for null Relative Information Gain ($\text{RIG}$) via Wilks' Theorem and Gumbel Extreme Value Theory (EVT);
 2. An exact equivalence between Gaussian one-way ANOVA $F$-statistics and continuous mutual information, enabling closed-form gating of SQL `AVG`/`STDDEV` aggregations without accessing raw records; and
 3. A stateful session ledger that continuously tracks the effective hypothesis count ($M_{\text{eff}}$) via the Frobenius spectral participation ratio of the feature correlation matrix, eliminating collinear over-penalization (*Multiplicity Paralysis*).
 
-We evaluate SignalGuard across two extensive empirical phases totaling **408 live multi-turn agent sessions** and **3,000 AutoML candidate features** across four diverse real-world datasets (Lending Club loan defaults, King County housing sales, and UCI Bank Marketing campaigns):
+We evaluate SignalGuard across two extensive empirical phases totaling **408 live multi-turn agent sessions** across four real-world production datasets (Lending Club loan defaults, King County housing sales, and UCI Bank Marketing campaigns):
 * **Phase 1 (216 Scripted Multi-Turn Frontier Evaluations):** Evaluated across `claude-opus-5-5`, `claude-sonnet-5-5`, `gpt-6.1-sol`, and `gemini-3.5-flash-lite`. SignalGuard-governed agents achieved **100% holdout replication (0.0% FDR)** while retaining 30% higher verified out-of-sample signal power than unassisted Ph.D. statistician prompts.
-* **Phase 2 (192 Open-Ended Dynamic SQL Evaluations):** Evaluated across `claude-sonnet-5-5`, `gemini-3.5-flash-lite`, `gpt-6-luna`, and `claude-haiku-5-5` against strictly decoupled holdout test vaults without small-cell rules. SignalGuard achieved **0.0% FDR on flat null A/B experiments**, **100% precision on seeded heterogeneous treatment effects**, and democratized lightweight models—enabling a \$0.005/run model (`gemini-3.5-flash-lite`) to achieve **19 verified signals (0.499 Discovery F1)**, outperforming raw unassisted flagship models.
+* **Phase 2 (192 Open-Ended Dynamic SQL Evaluations):** Evaluated across `claude-sonnet-5-5`, `gemini-3.5-flash-lite`, `gpt-6-luna`, and `claude-haiku-5-5` against strictly decoupled holdout test vaults without small-cell rules. SignalGuard achieved **0.0% FDR on flat null A/B experiments**, **100% precision on seeded heterogeneous treatment effects**, and democratized lightweight models—enabling a \$0.005/run model (`gemini-3.5-flash-lite`) to achieve **19 verified signals (0.499 Discovery F1)**, outperforming raw unassisted flagship models. Finally, we demonstrate that the mathematical framework generalizes directly to classical automated feature discovery.
 
 ---
 
@@ -210,8 +210,8 @@ Every candidate insight promoted by the agent was audited against a strictly iso
 | **Bank Marketing** | `gemini-3.5-flash-lite` | `business_analyst` | 61.9% | **38.1%** | 0.0933 | 0.0749 | 7.56x |
 | **Bank Marketing** | `gemini-3.5-flash-lite` | **`statistician_signalguard`** | **100.0%** | **0.0%** | **0.0570** | **0.0526** | **1.00x** |
 
-### 4.3 Automated Feature Engineering (`agentune`-Style) Overfitting
-In automated feature engineering, greedy Top-$K$ selection on training mutual information systematically selects overfit interaction cubes. On Lending Club ($M = 1{,}000$ generated interaction candidates $\to$ Top-15 selected):
+### 4.3 Generalization to Classical Automated Feature Discovery
+To demonstrate that the asymptotic Wilks-EVT formulation generalizes beyond conversational agents to automated tabular feature synthesis, we evaluated candidate interaction selection on Lending Club ($M = 1{,}000$ generated interaction candidates $\to$ Top-15 selected):
 * **Unassisted Selection** promoted 4 fragile 3-way interactions that collapsed out-of-sample (**26.7% Real FDR**, **39.2% signal decay**), actively **degrading downstream test ROC AUC from 0.7010 to 0.6993**.
 * **SignalGuard Selection** filtered out overfit interactions, achieving **100% holdout replication**, cutting signal decay to **21.9%**, and **improving downstream test ROC AUC to 0.7028**.
 

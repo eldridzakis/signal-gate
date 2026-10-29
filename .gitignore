@@ -55,3 +55,8 @@ desktop.ini
 05_Peter_Testing.ipynb
 ./notebooks/05_Peter_Testing.ipynb
 ./archive/05_Peter_Testing.ipynb
+
+# Local test databases & dry-run caches
+*.db
+*_dry_run*
+

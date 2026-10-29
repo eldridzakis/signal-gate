@@ -5,7 +5,7 @@
 [![Tests](https://img.shields.io/badge/tests-69%20passed-brightgreen.svg)]()
 [![MCP Server](https://img.shields.io/badge/MCP-Protocol%20Ready-purple.svg)](https://modelcontextprotocol.io)
 
-> **Stateful statistical guardrails and Model Context Protocol (MCP) server for autonomous LLM data agents, Text-to-SQL semantic layers, and AutoML. Quantifying the Winner's Curse, estimating closed-form noise ceilings (both discrete contingency & continuous SQL ANOVA), and filtering out spurious insights.**
+> **Stateful statistical guardrails and Model Context Protocol (MCP) server for autonomous LLM data agents and Text-to-SQL semantic layers. Quantifying the Winner's Curse, estimating closed-form noise ceilings (both discrete contingency & continuous SQL ANOVA), and preventing agentic $p$-hacking.**
 >
 > 📄 **[Read the Full Standalone Technical & Empirical Report (`REPORT.md`)](REPORT.md)** — *Featuring 216 foundation frontier evaluations + 192 open-ended multi-turn agentic SQL evaluations across Google, Anthropic, and OpenAI (`claude-sonnet-5-5`, `claude-haiku-5-5`, `gpt-6-luna`, `gemini-3.5-flash-lite`).*
 >
