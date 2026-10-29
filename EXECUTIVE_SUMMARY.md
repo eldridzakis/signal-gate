@@ -4,7 +4,7 @@
 
 *A 3-minute guide for Engineering Directors, VPs of Operations, and Finance Leaders.*
 
-> 🎨 **Interactive Visual Dashboard:** An interactive visual explainer version of this brief featuring live multi-testing simulations, visual side-by-side diagrams, and 1-click PDF export is available at [docs/index.html](docs/index.html).
+> 🎨 **Interactive Visual Dashboard:** An interactive visual explainer version of this brief featuring live multi-testing simulations, visual side-by-side diagrams, and 1-click PDF export is available live at **[eldridzakis.github.io/signal-guard](https://eldridzakis.github.io/signal-guard/)** (or via [docs/index.html](docs/index.html)).
 
 ---
 

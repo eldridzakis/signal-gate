@@ -9,7 +9,7 @@
 >
 > 📄 **[Read the Full Standalone Technical & Empirical Report (`REPORT.md`)](REPORT.md)** — *Featuring 216 live frontier LLM evaluations (`claude-opus-5-5`, `claude-sonnet-5-5`, `gpt-6.1-sol`, `gemini-3.5-flash-lite`) and the 3,000-candidate AutoML benchmark across Lending Club, King County Housing, and UCI Bank Marketing.*
 >
-> 🎨 **[Open the Interactive Visual Executive Dashboard (docs/index.html)](docs/index.html)** — *A visual explainer for leadership with interactive multi-testing simulations, role-based cost cards, and 1-click PDF export.*
+> 🎨 **[Open the Interactive Visual Executive Dashboard](https://eldridzakis.github.io/signal-guard/)** ([source](docs/index.html)) — *A visual explainer for leadership with interactive multi-testing simulations, role-based cost cards, and 1-click PDF export.*
 >
 > 👔 **[Read the Executive Brief for Non-Data Scientists (`EXECUTIVE_SUMMARY.md`)](EXECUTIVE_SUMMARY.md)** — *A 3-minute guide for Engineering Directors, VPs of Operations, and Finance Leaders on why AI-generated data insights need statistical guardrails.*
 
