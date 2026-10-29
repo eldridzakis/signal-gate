@@ -59,4 +59,6 @@ desktop.ini
 # Local test databases & dry-run caches
 *.db
 *_dry_run*
+*.zip
+*.tar.gz
 
