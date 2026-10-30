@@ -44,11 +44,11 @@ Behind the scenes, an agent executes an iterative loop:
 ```
 
 ### 1.1 The Multiplicity Amnesia Failure Mode
-This workflow suffers from a severe, structural statistical flaw: **agentic $p$-hacking through Multiplicity Amnesia**. When a human data scientist tests 50 hypotheses, standard scientific practice mandates multiplicity corrections (e.g., Bonferroni Family-Wise Error Rate control \cite{bonferroni1936} or Benjamini-Hochberg False Discovery Rate control \cite{benjamini1995}). 
+This workflow suffers from a severe, structural statistical flaw: **agentic $p$-hacking through Multiplicity Amnesia**. When a human data scientist tests 50 hypotheses, standard scientific practice mandates multiplicity corrections (e.g., Bonferroni Family-Wise Error Rate control [[4]](#ref-4) or Benjamini-Hochberg False Discovery Rate control [[3]](#ref-3)). 
 
 However, LLM agents evaluate hypotheses sequentially across stateless context windows. In our benchmarks, unassisted models:
 * **Under-report their hypothesis denominator ($M$) by $3.5\times\text{ to }8.9\times$**, presenting the final cherry-picked slice as if it were a pre-registered primary hypothesis;
-* **Succumb to the Winner's Curse \cite{ioannidis2005}**, promoting small conditional cells ($N < 40$) where high sample variance produces spurious metric inflation; and
+* **Succumb to the Winner's Curse [[8]](#ref-8)**, promoting small conditional cells ($N < 40$) where high sample variance produces spurious metric inflation; and
 * **Produce up to 41.1% out-of-sample replication failure**, leading organizations to misallocate capital based on phantom effects.
 
 ### 1.2 Multiplicity Paralysis in Frontier Reasoning Models
@@ -66,11 +66,11 @@ To resolve this dilemma, we present **SignalGuard**, making the following contri
 ## 2. Mathematical Framework
 
 ### 2.1 Relative Information Gain and Wilks' Theorem
-Let $X \in \{1, \dots, R\}$ denote a discrete or binned candidate feature and $Y \in \{1, \dots, C\}$ denote a categorical target observed over $N$ independent samples. The reduction in target uncertainty is quantified by Relative Information Gain ($\text{RIG}$), defined as the ratio of mutual information $I(X; Y)$ to target prior entropy $H(Y)$ \cite{cover2006}:
+Let $X \in \{1, \dots, R\}$ denote a discrete or binned candidate feature and $Y \in \{1, \dots, C\}$ denote a categorical target observed over $N$ independent samples. The reduction in target uncertainty is quantified by Relative Information Gain ($\text{RIG}$), defined as the ratio of mutual information $I(X; Y)$ to target prior entropy $H(Y)$ [[7]](#ref-7):
 
 $$\text{RIG}(X, Y) = \frac{I(X; Y)}{H(Y)} = \frac{H(Y) - H(Y \mid X)}{H(Y)}$$
 
-Under the null hypothesis of statistical independence $H_0: X \perp Y$, Wilks' Theorem \cite{wilks1938} establishes that the deviance statistic asymptotically converges to a Chi-squared distribution:
+Under the null hypothesis of statistical independence $H_0: X \perp Y$, Wilks' Theorem [[1]](#ref-1) establishes that the deviance statistic asymptotically converges to a Chi-squared distribution:
 
 $$2 N \ln(2) \cdot I(X; Y) \xrightarrow{d} \chi^2_k, \qquad k = (R - 1)(C - 1)$$
 
@@ -86,7 +86,7 @@ Theoretical Scaling Properties:
 ```
 
 ### 2.2 Extreme Value Theory (EVT) Noise Ceilings
-When an autonomous agent searches over $M$ independent candidate hypotheses, the maximum spurious metric observed under the null hypothesis follows Gumbel Extreme Value Theory \cite{gumbel1958}. The expected maximum noise floor $\tau_{\text{EVT}}$ satisfies:
+When an autonomous agent searches over $M$ independent candidate hypotheses, the maximum spurious metric observed under the null hypothesis follows Gumbel Extreme Value Theory [[2]](#ref-2). The expected maximum noise floor $\tau_{\text{EVT}}$ satisfies:
 
 $$\tau_{\text{EVT}}(N, k, M) = \frac{F^{-1}_{\chi^2_k}\left(1 - \frac{1}{M}\right)}{2 N \ln(2) \, H(Y)}$$
 
@@ -123,7 +123,7 @@ This enables SignalGuard to gate any SQL continuous aggregation directly from `C
 ### 2.4 Collinear Effective Rank Adjustment ($M_{\text{eff}}$)
 In real-world data warehouses, candidate features are highly collinear (e.g., `sqft_living`, `sqft_above`, `bathrooms`, `grade`). Standard Bonferroni adjustments assume orthogonality, severely over-penalizing correlated feature clusters.
 
-SignalGuard computes the spectral participation ratio from the eigenvalues $\lambda_1, \dots, \lambda_M$ of the pairwise correlation matrix $R$ \cite{cheverud1995, nyholt2004}:
+SignalGuard computes the spectral participation ratio from the eigenvalues $\lambda_1, \dots, \lambda_M$ of the pairwise correlation matrix $R$ [[5]](#ref-5), [[6]](#ref-6):
 
 $$M_{\text{eff}} = \frac{\left(\sum_{i=1}^M \lambda_i\right)^2}{\sum_{i=1}^M \lambda_i^2} = \frac{(\text{Tr}(R))^2}{\|R\|_F^2} = \frac{M^2}{\sum_{i=1}^M \sum_{j=1}^M r_{ij}^2}$$
 
@@ -136,7 +136,7 @@ When features are perfectly collinear ($r_{ij} = 1$), $M_{\text{eff}} = 1$. When
 
 ## 3. System Architecture & MCP Integration
 
-SignalGuard is engineered as a stateful middleware layer operating via the Model Context Protocol (MCP) \cite{mcp2024}.
+SignalGuard is engineered as a stateful middleware layer operating via the Model Context Protocol (MCP) [[10]](#ref-10).
 
 ![Figure 2: Real-Time Multi-Turn Agentic Trajectory & Dynamic Threshold Escalation](figures/fig2_agentic_trajectory.png)
 *Figure 2: Real-time agentic query trajectory. As the agent tests successive SQL slices, SignalGuard dynamically elevates the verification threshold ($\tau_{\text{sig}}$) to neutralize search space inflation.*
@@ -269,9 +269,9 @@ We evaluated four models representing both Flagship Production Workhorses and Ev
 
 ## 6. Related Work
 
-* **Multiple Hypothesis Testing & FDR Control:** Classical methodologies control the Family-Wise Error Rate (FWER) via Bonferroni \cite{bonferroni1936} or the False Discovery Rate (FDR) via Benjamini-Hochberg \cite{benjamini1995}. Effective test corrections using correlation eigenvalues were pioneered by Cheverud \cite{cheverud1995} and Nyholt \cite{nyholt2004}. SignalGuard generalizes these principles into stateful agentic execution ledgers.
-* **Information Theory & Asymptotic Testing:** Mutual information estimation and Wilks' likelihood ratio asymptotics \cite{wilks1938, cover2006} have long underpinned feature selection. SignalGuard bridges discrete contingency analysis and continuous Gaussian ANOVA into a unified closed-form information metric.
-* **Automated Data Science & Text-to-SQL:** Benchmarks like BIRD \cite{bird2023} evaluate LLM syntactic accuracy in SQL generation. SignalGuard addresses the orthogonal, unstudied problem: statistical validity and multiple-testing bias in autonomous exploratory data analytics.
+* **Multiple Hypothesis Testing & FDR Control:** Classical methodologies control the Family-Wise Error Rate (FWER) via Bonferroni [[4]](#ref-4) or the False Discovery Rate (FDR) via Benjamini-Hochberg [[3]](#ref-3). Effective test corrections using correlation eigenvalues were pioneered by Cheverud [[5]](#ref-5) and Nyholt [[6]](#ref-6). SignalGuard generalizes these principles into stateful agentic execution ledgers.
+* **Information Theory & Asymptotic Testing:** Mutual information estimation and Wilks' likelihood ratio asymptotics [[1]](#ref-1), [[7]](#ref-7) have long underpinned feature selection. SignalGuard bridges discrete contingency analysis and continuous Gaussian ANOVA into a unified closed-form information metric.
+* **Automated Data Science & Text-to-SQL:** Benchmarks like BIRD [[11]](#ref-11) evaluate LLM syntactic accuracy in SQL generation. SignalGuard addresses the orthogonal, unstudied problem: statistical validity and multiple-testing bias in autonomous exploratory data analytics.
 
 ---
 
@@ -283,15 +283,38 @@ As autonomous AI agents assume direct execution roles over enterprise data wareh
 
 ## References
 
+<a id="ref-1"></a>
 1. S. S. Wilks, "The Large-Sample Distribution of the Likelihood Ratio for Testing Composite Hypotheses," *Ann. Math. Statist.*, vol. 9, no. 1, pp. 60–62, 1938.
+
+<a id="ref-2"></a>
 2. E. J. Gumbel, *Statistics of Extremes*, Columbia University Press, 1958.
+
+<a id="ref-3"></a>
 3. Y. Benjamini and Y. Hochberg, "Controlling the False Discovery Rate: A Practical and Powerful Approach to Multiple Testing," *J. R. Stat. Soc. Ser. B*, vol. 57, no. 1, pp. 289–300, 1995.
+
+<a id="ref-4"></a>
 4. C. E. Bonferroni, "Teoria statistica delle classi e calcolo delle probabilità," *Pubbl. del R Ist. Super. di Sci. Econ. e Commer. di Firenze*, vol. 8, pp. 3–62, 1936.
+
+<a id="ref-5"></a>
 5. J. M. Cheverud, "A simple correction for unenumerated comparisons," *J. Evol. Biol.*, vol. 14, no. 3, pp. 403–408, 2001.
+
+<a id="ref-6"></a>
 6. D. R. Nyholt, "A simple correction for multiple testing for single-nucleotide polymorphisms in linkage disequilibrium with each other," *Am. J. Hum. Genet.*, vol. 74, no. 4, pp. 765–769, 2004.
+
+<a id="ref-7"></a>
 7. T. M. Cover and J. A. Thomas, *Elements of Information Theory*, 2nd ed., John Wiley & Sons, 2006.
+
+<a id="ref-8"></a>
 8. J. P. A. Ioannidis, "Why Most Published Research Findings Are False," *PLoS Med.*, vol. 2, no. 8, p. e124, 2005.
+
+<a id="ref-9"></a>
 9. J. M. Kanter and K. Veeramachaneni, "Deep feature synthesis: Towards automating data science endeavors," in *Proc. IEEE DSAA*, 2015, pp. 1–10.
+
+<a id="ref-10"></a>
 10. Anthropic, "Model Context Protocol (MCP) Specification," https://modelcontextprotocol.io, 2024.
+
+<a id="ref-11"></a>
 11. J. Li et al., "Can LLM Already Serve as a Database Interface? A BIRD for Statistical Estimation and Reasoning," *arXiv:2305.03111*, 2023.
+
+<a id="ref-12"></a>
 12. A. Gelman, J. Hill, and M. Yajima, "Why We (Usually) Don't Have to Worry About Multiple Comparisons," *J. Res. Educ. Eff.*, vol. 5, no. 2, pp. 189–211, 2012.
