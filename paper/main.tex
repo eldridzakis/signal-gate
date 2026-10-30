@@ -116,12 +116,19 @@ Defining continuous Relative Information Gain with unit reference entropy $H_{\t
 \text{RIG}_{\text{ANOVA, null}} \sim \frac{\chi^2_{K-1}}{2 N \ln(2)}
 \end{equation}
 
+\noindent\textbf{Remark 1 (Scale-Invariance of Reference Entropy).} While $\text{RIG}_{\text{ANOVA}}$ is expressed in bits by adopting unit reference entropy $H_{\text{ref}} = 1.0\text{ bit}$, any arbitrary choice of reference entropy $H_{\text{ref}} > 0$ cancels identically from both sides of the gating decision rule $\text{RIG}_{\text{ANOVA}} > \tau_{\text{sig}}(N, K-1, M, \alpha)$, rendering the statistical gate \textbf{strictly scale-invariant} with respect to the units and scale of $Y$.
+
+\vspace{0.2cm}
+\noindent\textbf{Remark 2 (Heavy-Tailed Targets \& Warehouse Normality).} The Gaussian assumption $Y \sim \mathcal{N}(\mu, \sigma^2)$ is standard in ANOVA partitions. For heavy-tailed or right-skewed financial metrics (e.g., transaction volumes, loss severities, home sale prices), applying monotonic transformations such as $\log(Y)$ or quantile-binning in the SQL semantic layer restores asymptotic normality for the Wilks ANOVA gate (as demonstrated with $\log(\text{price})$ on the King County housing mart).
+
 \subsection{Collinear Effective Rank Adjustment ($M_{\text{eff}}$)}
 In real-world data warehouses, candidate features are highly collinear. SignalGuard computes the spectral participation ratio from the eigenvalues $\lambda_1, \dots, \lambda_M$ of the pairwise correlation matrix $R$ \cite{cheverud1995, nyholt2004}:
 \begin{equation}
 M_{\text{eff}} = \frac{\left(\sum_{i=1}^M \lambda_i\right)^2}{\sum_{i=1}^M \lambda_i^2} = \frac{(\text{Tr}(R))^2}{\|R\|_F^2} = \frac{M^2}{\sum_{i=1}^M \sum_{j=1}^M r_{ij}^2}
 \end{equation}
 When features are perfectly collinear ($r_{ij} = 1$), $M_{\text{eff}} = 1$. When features are mutually orthogonal ($r_{ij} = 0$), $M_{\text{eff}} = M$. Replacing $M$ with $M_{\text{eff}}$ in the EVT threshold guarantees family-wise error protection while preserving statistical power for correlated discovery.
+
+\noindent\textbf{Dual-Mode Correlation Evaluation:} In tabular in-memory mode, $R = Z^T Z$ is evaluated directly across candidate feature vectors. In SQL warehouse mode, to preserve zero-row-scan execution, the MCP server evaluates $M_{\text{eff}}$ across queried dimensions using a lightweight schema correlation matrix ($R_{\text{schema}}$ cached once from standard catalog metadata or an initial sample pass). For ad-hoc slice conditions, query-level degrees of freedom $k = (R-1)(C-1)$ are determined from the returned contingency grid dimensions, while the cumulative effective hypothesis count tracks the union of explored dimension subspaces.
 
 \begin{figure}[htbp]
   \centering
@@ -215,7 +222,14 @@ Phase~2 evaluated \textbf{192 live multi-turn agent evaluations} across four mod
 \begin{figure}[htbp]
   \centering
   \includegraphics[width=\linewidth]{figures/fig7_sql_semantic_layer_benchmark.png}
-  \caption{\textbf{Phase 2 Empirical Benchmark Across 192 Live Multi-Turn SQL Evaluations.} Evaluating \texttt{claude-sonnet-5-5}, \texttt{gemini-3.5-flash-lite}, \texttt{gpt-6-luna}, and \texttt{claude-haiku-5-5} across four statistical arms and isolated holdout test vaults.}
+  \caption{\textbf{SQL Semantic Layer Integration and Closed-Form Continuous ANOVA Gate.} (Left) SQLite warehouse search space tracking demonstrating that unassisted agents under-report exploration depth by $3.5\times\text{--}6.0\times$. (Right) Closed-form continuous ANOVA gate on King County housing $\log(\text{price})$.}
+  \label{fig:sql_semantic}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\linewidth]{figures/fig8_phase2_model_matrix.png}
+  \caption{\textbf{Phase 2 Empirical Benchmark Across 192 Live Multi-Turn SQL Evaluations.} Cross-model evaluation across four statistical arms. (Left) Out-of-sample Discovery F1 score. (Right) Replicated signal volume on untouched holdout vaults, proving that lightweight models scaffolded by SignalGuard match or outperform unassisted frontier flagships.}
   \label{fig:phase2_benchmark}
 \end{figure}
 
@@ -225,6 +239,7 @@ Phase~2 evaluated \textbf{192 live multi-turn agent evaluations} across four mod
     \item \textbf{Democratization of Lightweight Models:} Pairing \texttt{gemini-3.5-flash-lite} with SignalGuard achieved the \textbf{highest verified signal volume (19 replicated signals)} and highest Discovery F1 (0.499), outperforming unassisted flagship models in systematic signal hunting.
     \item \textbf{Flagship Reasoning Rebuffs Omnibus Statistics:} In King County Housing, \texttt{claude-sonnet-5-5} explicitly reasoned that multi-variable SQL ANOVA tests are omnibus table metrics rather than individual cell guarantees, declining to report uncorrected sub-segments and achieving \textbf{0.0\% False Discovery Rate across all 48 runs}.
     \item \textbf{Accelerated Seeded Discovery:} In \texttt{bank\_marketing\_seeded\_hte}, \texttt{claude-sonnet-5-5} under SignalGuard identified and verified the true planted treatment effect (\texttt{poutcome = 'success'}) in \textbf{100\% of seed splits}, requiring only \textbf{3.67 queries on average} to reach statistical confirmation.
+    \item \textbf{Behavioral Dynamics of Mid-Loop Rejection in Smaller Models:} In Table 2, while \texttt{gemini-3.5-flash-lite} effectively used SignalGuard to achieve the highest Discovery F1 (0.499 vs. 0.389 unassisted), high-speed compact models (\texttt{claude-haiku-5-5} and \texttt{gpt-6-luna}) exhibited a distinct behavioral dynamic: upon encountering mid-loop \texttt{REJECT\_SPURIOUS} directives, these models frequently abandoned broader macro-dimensions and pivoted to narrower, noisier multi-column slices (\texttt{WHERE region='West' AND age<25}), occasionally exhausting their 8-turn budget before locking in a final report. Conversely, unassisted runs with these smaller models simply reported the first naive slices encountered, which happened to include prominent main effects in those tasks. This demonstrates that statistical guardrails interact directly with agent planning capacity: for smaller models, negative statistical vetoes are most effective when accompanied by constructive guidance (e.g. pivoting back to broader cohort strata).
 \end{enumerate}
 
 \section{Conclusion}

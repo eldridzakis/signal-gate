@@ -120,6 +120,10 @@ $$\text{RIG}_{\text{ANOVA, null}} \sim \frac{\chi^2_{K-1}}{2 N \ln(2)}$$
 
 This enables SignalGuard to gate any SQL continuous aggregation directly from `COUNT(*)`, `AVG(y)`, and `AVG(y*y)` without scanning underlying records.
 
+> **Remark 1 (Scale-Invariance of Reference Entropy):** While $\text{RIG}_{\text{ANOVA}}$ is expressed in bits by adopting unit reference entropy $H_{\text{ref}} = 1.0\text{ bit}$, any arbitrary choice of reference entropy $H_{\text{ref}} > 0$ cancels identically from both sides of the gating decision rule $\text{RIG}_{\text{ANOVA}} > \tau_{\text{sig}}(N, K-1, M, \alpha)$, rendering the statistical gate **strictly scale-invariant** with respect to the units and scale of $Y$.
+
+> **Remark 2 (Heavy-Tailed Targets & Warehouse Normality):** The Gaussian assumption $Y \sim \mathcal{N}(\mu, \sigma^2)$ is standard in ANOVA partitions. For heavy-tailed or right-skewed financial metrics (e.g., transaction volumes, loss severities, home sale prices), applying monotonic transformations such as $\log(Y)$ or quantile-binning in the SQL semantic layer restores asymptotic normality for the Wilks ANOVA gate (as demonstrated with $\log(\text{price})$ on the King County housing mart).
+
 ### 2.4 Collinear Effective Rank Adjustment ($M_{\text{eff}}$)
 In real-world data warehouses, candidate features are highly collinear (e.g., `sqft_living`, `sqft_above`, `bathrooms`, `grade`). Standard Bonferroni adjustments assume orthogonality, severely over-penalizing correlated feature clusters.
 
@@ -128,6 +132,10 @@ SignalGuard computes the spectral participation ratio from the eigenvalues $\lam
 $$M_{\text{eff}} = \frac{\left(\sum_{i=1}^M \lambda_i\right)^2}{\sum_{i=1}^M \lambda_i^2} = \frac{(\text{Tr}(R))^2}{\|R\|_F^2} = \frac{M^2}{\sum_{i=1}^M \sum_{j=1}^M r_{ij}^2}$$
 
 When features are perfectly collinear ($r_{ij} = 1$), $M_{\text{eff}} = 1$. When features are mutually orthogonal ($r_{ij} = 0$), $M_{\text{eff}} = M$. Replacing $M$ with $M_{\text{eff}}$ in the EVT threshold guarantees family-wise error protection while preserving statistical power for correlated discovery.
+
+**Dual-Mode Correlation Evaluation:**
+1. *Tabular / In-Memory Mode:* $R = Z^T Z$ is evaluated directly across candidate feature vectors.
+2. *SQL Warehouse / Semantic Layer Mode:* To preserve zero-row-scan execution, the MCP server evaluates $M_{\text{eff}}$ across queried dimensions using a lightweight, pre-computed schema correlation matrix ($R_{\text{schema}}$ cached once from standard catalog metadata or a sample pass). For ad-hoc slice conditions, query-level degrees of freedom $k = (R-1)(C-1)$ are determined from the returned contingency grid dimensions, while the cumulative effective hypothesis count tracks the union of explored dimension subspaces.
 
 ![Figure 3: Resolving Multiplicity Paralysis via Frobenius Spectral Effective Hypothesis Count](figures/fig3_collinear_power_gap.png)
 *Figure 3: Comparison of nominal Bonferroni hypothesis inflation ($M$) versus Frobenius spectral effective rank ($M_{\text{eff}}$), resolving multiplicity paralysis across collinear feature spaces.*
@@ -235,8 +243,8 @@ To eliminate the constraints of scripted exploration transcripts and shared smal
 
 We evaluated four models representing both Flagship Production Workhorses and Everyday High-Speed Tiers: `claude-sonnet-5-5`, `gemini-3.5-flash-lite`, `gpt-6-luna`, and `claude-haiku-5-5`.
 
-![Figure 7: Phase 2 Dynamic Agentic SQL Benchmark Across 192 Live Sessions](figures/fig7_sql_semantic_layer_benchmark.png)
-*Figure 7: Phase 2 empirical benchmark results comparing query depth, holdout replication, Discovery F1, and empirical FDR across everyday and flagship models.*
+![Figure 7: SQL Semantic Layer Integration and Closed-Form Continuous ANOVA Gate](figures/fig7_sql_semantic_layer_benchmark.png)
+*Figure 7: (Left) SQLite warehouse search space tracking demonstrating that unassisted agents under-report exploration depth by $3.5\times\text{--}6.0\times$. (Right) Closed-form continuous ANOVA gate on King County housing $\log(\text{price})$.*
 
 #### Table 2: Phase 2 Master Cross-Model Empirical Matrix (192 Live Evaluations)
 | Model Tier | Model ID | Statistical Arm | Avg Queries / Session | Total Reported | Replicated on Holdout | Empirical FDR ($\downarrow$) | Precision ($\uparrow$) | Signal Recall ($\uparrow$) | Discovery F1 ($\uparrow$) |
@@ -258,12 +266,16 @@ We evaluated four models representing both Flagship Production Workhorses and Ev
 | | | `bonferroni` | 3.92 | 7 | 5 | **11.1%** | 30.6% | 33.3% | 0.317 |
 | | | `benjamini_hochberg` | 4.00 | 2 | 2 | **0.0%** | 8.3% | 8.3% | 0.083 |
 
+![Figure 8: Phase 2 Empirical Benchmark Across 192 Live Multi-Turn SQL Evaluations](figures/fig8_phase2_model_matrix.png)
+*Figure 8: Phase 2 cross-model benchmark across 192 live evaluations. (Left) Discovery F1 score across statistical arms. (Right) Replicated signal count on decoupled holdout vaults, illustrating that lightweight everyday models paired with SignalGuard match or exceed unassisted frontier flagships.*
+
 ### 5.3 Key Phase 2 Insights
 
 1. **Universal Rejection of Flat Nulls (0.0% FDR Across All 4 Models):** In the pure null A/B test (`bank_marketing_null_ab`), across all 48 evaluations (12 per model $\times$ 4 arms), **not a single model hallucinated a false demographic finding**. Modern LLMs across all three major providers recognize when overall treatment lift is zero and refuse to manufacture sub-segment lift.
 2. **SignalGuard Democratizes Lightweight Models:** Pairing `gemini-3.5-flash-lite` with SignalGuard achieved the **highest overall signal discovery volume (19 replicated signals)** and the **highest Discovery F1 (0.499)** in the benchmark. SignalGuard provides the statistical scaffolding necessary for cheap, high-speed models to systematically out-perform unassisted flagship models.
 3. **Flagship Reasoning Rebuffs Omnibus Statistics:** In King County Housing, `claude-sonnet-5-5` recognized that multi-variable SQL ANOVA tests are omnibus table metrics rather than individual subgroup guarantees. It explicitly refused to report uncorrected individual cells, achieving **0.0% False Discovery Rate across all 48 runs**.
 4. **Accelerated Heterogeneous Effect Discovery:** On `bank_marketing_seeded_hte`, `claude-sonnet-5-5` under `signalguard` identified and verified the true planted heterogeneous treatment effect (`poutcome = 'success'`) across **100% of seed splits**, requiring only **3.67 queries on average** to reach statistical confirmation.
+5. **Behavioral Dynamics of Mid-Loop Rejection in Everyday Models:** In Table 2, while `gemini-3.5-flash-lite` effectively used SignalGuard to lead the benchmark in Discovery F1 (0.499 vs. 0.389 unassisted), high-speed compact models (`claude-haiku-5-5` and `gpt-6-luna`) exhibited a distinct behavioral pattern: upon receiving `REJECT_SPURIOUS` directives, these models frequently abandoned broader macro-dimensions and pivoted to narrower, noisier multi-column slices (`WHERE region='West' AND age<25`), occasionally exhausting their 8-turn conversational budget before synthesizing a final report. Conversely, unassisted runs with these smaller models simply reported the first naive slices encountered, which happened to include prominent main effects in those tasks. This demonstrates that statistical guardrails interact directly with agent planning capacity: for smaller models, negative statistical vetoes are most effective when accompanied by constructive guidance (e.g. pivoting back to broader cohort strata).
 
 ---
 
