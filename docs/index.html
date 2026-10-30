@@ -77,8 +77,8 @@
           <div class="text-xs text-[var(--muted-foreground)]">Google, Anthropic &amp; OpenAI</div>
         </div>
         <div>
-          <div class="text-2xl font-bold text-amber-500">0.0% FDR</div>
-          <div class="text-xs text-[var(--muted-foreground)]">On Flat Null A/B Tests</div>
+          <div class="text-2xl font-bold text-amber-500">0.0% False Alarms</div>
+          <div class="text-xs text-[var(--muted-foreground)]">On Flat Null A/B Tests (0% FDR)</div>
         </div>
         <div>
           <div class="text-2xl font-bold text-purple-500">MCP Native</div>
@@ -192,18 +192,18 @@
           </div>
 
           <div class="p-4 rounded-lg border border-[var(--border)] bg-[var(--card)]">
-            <div class="text-xs text-[var(--muted-foreground)] font-medium">Observed Live Agent Failure Rate</div>
+            <div class="text-xs text-[var(--muted-foreground)] font-medium">Observed Agent Failure Rate (FDR)</div>
             <div id="empiricalFDRCard" class="text-3xl font-extrabold text-rose-500 mt-1">18.1% – 38.9%</div>
             <p id="empiricalFDRText" class="text-xs text-[var(--muted-foreground)] mt-2">
-              In our Phase 2 live SQL sessions (<i>M</i> ≈ 6–8), unassisted LLMs suffered up to 38.9% FDR on Lending Club and 18.1% on GPT-6.1 Sol.
+              <strong>False Discovery Rate (FDR):</strong> The % of findings that failed on unseen data. In our live SQL sessions (<i>M</i> ≈ 6–8), unassisted LLMs suffered up to 38.9% FDR on Lending Club and 18.1% on GPT-6.1 Sol.
             </p>
           </div>
 
           <div class="p-4 rounded-lg border border-[var(--border)] bg-[var(--card)]">
-            <div class="text-xs text-[var(--muted-foreground)] font-medium">SignalGuard Verification Bar</div>
+            <div class="text-xs text-[var(--muted-foreground)] font-medium">SignalGuard Signal Bar (RIG)</div>
             <div id="guardrailBar" class="text-3xl font-extrabold text-emerald-500 mt-1">0.158 RIG</div>
             <p class="text-xs text-[var(--muted-foreground)] mt-2">
-              Dynamically scales the required evidence ceiling based on sample size and query count, rejecting small-slice hallucinations.
+              <strong>Relative Information Gain (RIG):</strong> Predictive signal strength (0 = random noise, 1 = true signal). SignalGuard dynamically raises this bar as queries increase, rejecting small-slice hallucinations.
             </p>
           </div>
         </div>
@@ -285,16 +285,41 @@
         </span>
       </div>
 
+      <!-- Plain-English Executive Metric Guide -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3 p-4 mb-5 rounded-xl bg-[var(--background)] border border-[var(--border)] text-xs text-[var(--muted-foreground)]">
+        <div>
+          <div class="font-bold text-[var(--foreground)] mb-1">🚨 False Discovery Rate (FDR)</div>
+          <p>The percentage of AI-recommended findings that collapsed when tested on new, unseen data. <strong>Lower is better (0.0% is ideal).</strong></p>
+        </div>
+        <div>
+          <div class="font-bold text-[var(--foreground)] mb-1">🎯 Signal Recall</div>
+          <p>The percentage of genuine underlying business drivers that the AI agent successfully detected. <strong>Higher is better (100% is ideal).</strong></p>
+        </div>
+        <div>
+          <div class="font-bold text-[var(--foreground)] mb-1">⚖️ Discovery F1 Score</div>
+          <p>The overall reliability score balancing true signal discovery against false alarms (harmonic mean of precision and recall, scaled 0.0 to 1.0).</p>
+        </div>
+      </div>
+
       <div class="overflow-x-auto mb-6">
         <table class="w-full text-left text-sm border-collapse">
           <thead>
             <tr class="border-b border-[var(--border)] text-[var(--muted-foreground)] text-xs uppercase tracking-wider">
-              <th class="py-3 px-4">Model & Tier</th>
+              <th class="py-3 px-4">Model &amp; Tier</th>
               <th class="py-3 px-4">Statistical Arm</th>
               <th class="py-3 px-4 text-center">Avg Queries</th>
-              <th class="py-3 px-4 text-center">Empirical FDR</th>
-              <th class="py-3 px-4 text-center">Signal Recall</th>
-              <th class="py-3 px-4 text-center">Discovery F1</th>
+              <th class="py-3 px-4 text-center">
+                False Discovery Rate (FDR)
+                <span class="text-[10px] text-rose-400 block font-normal normal-case">Failed in Validation (↓)</span>
+              </th>
+              <th class="py-3 px-4 text-center">
+                Signal Recall
+                <span class="text-[10px] text-emerald-400 block font-normal normal-case">True Signals Found (↑)</span>
+              </th>
+              <th class="py-3 px-4 text-center">
+                Discovery F1
+                <span class="text-[10px] text-blue-400 block font-normal normal-case">Overall Reliability (↑)</span>
+              </th>
             </tr>
           </thead>
           <tbody class="divide-y divide-[var(--border)]">
@@ -476,13 +501,13 @@
       // Empirical Live Agent Benchmark Connection
       if (m <= 12) {
         empiricalFDRCard.textContent = "18.1% – 38.9%";
-        empiricalFDRText.innerHTML = `In our Phase 2 live SQL sessions (<i>M</i> ≈ 6–8), unassisted LLMs suffered up to <strong>38.9% FDR</strong> on Lending Club credit subgroups and <strong>18.1% FDR</strong> on GPT-6.1 Sol.`;
+        empiricalFDRText.innerHTML = `<strong>False Discovery Rate (FDR: % of findings that failed out-of-sample):</strong> In our Phase 2 live SQL sessions (<i>M</i> ≈ 6–8), unassisted LLMs suffered up to <strong>38.9% FDR</strong> on Lending Club credit subgroups and <strong>18.1% FDR</strong> on GPT-6.1 Sol.`;
       } else if (m <= 25) {
         empiricalFDRCard.textContent = "22.2% – 38.9%";
-        empiricalFDRText.innerHTML = `In multi-turn exploratory investigations, uncalibrated multiple testing causes Benjamini-Hochberg FDR to inflate to <strong>22.2%</strong> and unassisted exploration to reach <strong>38.9%</strong>.`;
+        empiricalFDRText.innerHTML = `<strong>False Discovery Rate (FDR):</strong> In multi-turn exploratory investigations, uncalibrated multiple testing causes Benjamini-Hochberg FDR to inflate to <strong>22.2%</strong> and unassisted exploration to reach <strong>38.9%</strong>.`;
       } else {
         empiricalFDRCard.textContent = "41.1% FDR";
-        empiricalFDRText.innerHTML = `In our continuous King County warehouse exploration (<i>M</i> = 38 queries), unassisted BA agents suffered a peak <strong>41.1% False Discovery Rate</strong> on holdout validation.`;
+        empiricalFDRText.innerHTML = `<strong>False Discovery Rate (FDR):</strong> In deep continuous King County warehouse exploration (<i>M</i> = 38 queries), unassisted BA agents suffered a peak <strong>41.1% False Discovery Rate</strong> on holdout validation.`;
       }
 
       // Approximate Extreme Value / Bonferroni RIG noise ceiling on N=36
