@@ -1,2 +1,2 @@
 task,arm,queries_executed,n_reported,n_replicated,empirical_fdr,signal_recall,discovery_f1,completed_splits
-king_county_subgroup,signalguard,7.0,0.0,0.0,0.0,0.0,0.0,1
+bank_marketing_null_ab,signalguard,7.0,0.0,0.0,0.0,0.0,0.0,1

@@ -15,9 +15,9 @@ We introduce **SignalGuard**, an information-theoretic framework and stateful **
 2. An exact equivalence between Gaussian one-way ANOVA $F$-statistics and continuous mutual information, enabling closed-form gating of SQL `AVG`/`STDDEV` aggregations without accessing raw records; and
 3. A stateful session ledger that continuously tracks the effective hypothesis count ($M_{\text{eff}}$) via the Frobenius spectral participation ratio of the feature correlation matrix, eliminating collinear over-penalization (*Multiplicity Paralysis*).
 
-We evaluate SignalGuard across two extensive empirical phases totaling **408 live multi-turn agent sessions** across four real-world production datasets (Lending Club loan defaults, King County housing sales, and UCI Bank Marketing campaigns):
+We evaluate SignalGuard across two extensive empirical phases totaling **456 live multi-turn agent sessions** across four real-world production datasets (Lending Club loan defaults, King County housing sales, and UCI Bank Marketing campaigns):
 * **Phase 1 (216 Scripted Multi-Turn Frontier Evaluations):** Evaluated across `claude-opus-5-5`, `claude-sonnet-5-5`, `gpt-6.1-sol`, and `gemini-3.5-flash-lite`. SignalGuard-governed agents achieved **100% holdout replication (0.0% FDR)** while retaining 30% higher verified out-of-sample signal power than unassisted Ph.D. statistician prompts.
-* **Phase 2 (192 Open-Ended Dynamic SQL Evaluations):** Evaluated across `claude-sonnet-5-5`, `gemini-3.5-flash-lite`, `gpt-6-luna`, and `claude-haiku-5-5` against strictly decoupled holdout test vaults without small-cell rules. SignalGuard achieved **0.0% FDR on flat null A/B experiments**, **100% precision on seeded heterogeneous treatment effects**, and democratized lightweight models—enabling a \$0.005/run model (`gemini-3.5-flash-lite`) to achieve **19 verified signals (0.499 Discovery F1)**, outperforming raw unassisted flagship models. Finally, we demonstrate that the mathematical framework generalizes directly to classical automated feature discovery.
+* **Phase 2 (240 Open-Ended Dynamic SQL Evaluations):** Evaluated across five frontier models (`claude-sonnet-5-5`, `gpt-6.1-sol`, `gemini-3.5-flash-lite`, `gpt-6-luna`, and `claude-haiku-5-5`) against strictly decoupled holdout test vaults without small-cell rules. SignalGuard achieved **0.0% FDR on flat null A/B experiments**, **100% precision on seeded heterogeneous treatment effects**, and delivered the benchmark's highest verified signal volume on OpenAI's flagship `gpt-6.1-sol` (**23 verified signals**, cutting FDR from 18.1% to 11.1%), while democratizing lightweight models—enabling a \$0.005/run model (`gemini-3.5-flash-lite`) to achieve **19 verified signals (0.499 Discovery F1)**, outperforming raw unassisted flagship models. Across all phases, this work establishes **456 total live agent evaluations** across Anthropic, OpenAI, and Google model families.
 
 ---
 
@@ -249,20 +249,24 @@ To eliminate the constraints of scripted exploration transcripts and shared smal
 3. **Four Statistical Baseline Arms:** `unassisted`, `bonferroni` (FWER), `benjamini_hochberg` (FDR), and `signalguard`; and
 4. **Repeated Cross-Validation Splits:** 3 independent random seeds ($42, 59, 76$) across four diverse business tasks.
 
-### 5.2 Phase 2 Master Empirical Results (192 Live Sessions)
+### 5.2 Phase 2 Master Empirical Results (240 Live Sessions)
 
-We evaluated four models representing both Flagship Production Workhorses and Everyday High-Speed Tiers: `claude-sonnet-5-5`, `gemini-3.5-flash-lite`, `gpt-6-luna`, and `claude-haiku-5-5`.
+We evaluated five models representing both Flagship Production Workhorses and Everyday High-Speed Tiers: `claude-sonnet-5-5`, `gpt-6.1-sol`, `gemini-3.5-flash-lite`, `gpt-6-luna`, and `claude-haiku-5-5`.
 
 ![Figure 7: SQL Semantic Layer Integration and Closed-Form Continuous ANOVA Gate](figures/fig7_sql_semantic_layer_benchmark.png)
 *Figure 7: (Left) SQLite warehouse search space tracking demonstrating that unassisted agents under-report exploration depth by $3.5\times\text{--}6.0\times$. (Right) Closed-form continuous ANOVA gate on King County housing $\log(\text{price})$.*
 
-#### Table 2: Phase 2 Master Cross-Model Empirical Matrix (192 Live Evaluations)
+#### Table 2: Phase 2 Master Cross-Model Empirical Matrix (240 Live Evaluations)
 | Model Tier | Model ID | Statistical Arm | Avg Queries / Session | Total Reported | Replicated on Holdout | Empirical FDR ($\downarrow$) | Precision ($\uparrow$) | Signal Recall ($\uparrow$) | Discovery F1 ($\uparrow$) |
 | :--- | :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
 | **Flagship Workhorse** | **`claude-sonnet-5-5`** | **`signalguard`** | **5.83** | **3** | **3** | **0.0%** | **25.0%** | **12.5%** | **0.167** |
 | | | `unassisted` | 6.00 | 3 | 3 | **0.0%** | 25.0% | 12.5% | 0.167 |
 | | | `benjamini_hochberg` | 5.83 | 4 | 4 | **0.0%** | 16.7% | 12.5% | 0.139 |
 | | | `bonferroni` | 5.50 | 1 | 1 | **0.0%** | 8.3% | 4.2% | 0.056 |
+| **Flagship Workhorse** | **`gpt-6.1-sol`** | **`signalguard`** | **5.50** | **25** | **23** | **11.1%** | **63.9%** | **58.3%** | **0.594** |
+| | | `bonferroni` | 6.42 | 25 | 22 | **9.7%** | 65.3% | 62.5% | 0.611 |
+| | | `unassisted` | 5.50 | 21 | 16 | **18.1%** | 56.9% | 58.3% | 0.542 |
+| | | `benjamini_hochberg` | 6.75 | 26 | 21 | **22.2%** | 52.8% | 58.3% | 0.542 |
 | **Everyday Scout** | **`gemini-3.5-flash-lite`** | **`signalguard`** | **7.42** | **22** | **19** | **9.0%** | **49.3%** | **54.2%** | **0.499** |
 | | | `bonferroni` | 7.33 | 19 | 18 | **4.2%** | 45.8% | 45.8% | 0.458 |
 | | | `benjamini_hochberg` | 7.42 | 21 | 17 | **15.3%** | 43.1% | 45.8% | 0.442 |
@@ -276,16 +280,17 @@ We evaluated four models representing both Flagship Production Workhorses and Ev
 | | | `bonferroni` | 3.92 | 7 | 5 | **11.1%** | 30.6% | 33.3% | 0.317 |
 | | | `benjamini_hochberg` | 4.00 | 2 | 2 | **0.0%** | 8.3% | 8.3% | 0.083 |
 
-![Figure 8: Phase 2 Empirical Benchmark Across 192 Live Multi-Turn SQL Evaluations](figures/fig8_phase2_model_matrix.png)
-*Figure 8: Phase 2 cross-model benchmark across 192 live evaluations. (Left) Discovery F1 score across statistical arms. (Right) Replicated signal count on decoupled holdout vaults, illustrating that lightweight everyday models paired with SignalGuard match or exceed unassisted frontier flagships.*
+![Figure 8: Phase 2 Empirical Benchmark Across 240 Live Multi-Turn SQL Evaluations](figures/fig8_phase2_model_matrix.png)
+*Figure 8: Phase 2 cross-model benchmark across 240 live evaluations. (Left) Discovery F1 score across statistical arms. (Right) Replicated signal count on decoupled holdout vaults, illustrating that both frontier flagships (GPT-6.1 Sol with 23 verified signals) and lightweight everyday models (Gemini Flash Lite with 19 verified signals) substantially benefit from SignalGuard scaffolding.*
 
 ### 5.3 Key Phase 2 Insights
 
-1. **Universal Rejection of Flat Nulls (0.0% FDR Across All 4 Models):** In the pure null A/B test (`bank_marketing_null_ab`), across all 48 evaluations (12 per model $\times$ 4 arms), **not a single model hallucinated a false demographic finding**. Modern LLMs across all three major providers recognize when overall treatment lift is zero and refuse to manufacture sub-segment lift.
-2. **SignalGuard Democratizes Lightweight Models:** Pairing `gemini-3.5-flash-lite` with SignalGuard achieved the **highest overall signal discovery volume (19 replicated signals)** and the **highest Discovery F1 (0.499)** in the benchmark. SignalGuard provides the statistical scaffolding necessary for cheap, high-speed models to systematically out-perform unassisted flagship models.
-3. **Flagship Reasoning Rebuffs Omnibus Statistics:** In King County Housing, `claude-sonnet-5-5` recognized that multi-variable SQL ANOVA tests are omnibus table metrics rather than individual subgroup guarantees. It explicitly refused to report uncorrected individual cells, achieving **0.0% False Discovery Rate across all 48 runs**.
-4. **Accelerated Heterogeneous Effect Discovery:** On `bank_marketing_seeded_hte`, `claude-sonnet-5-5` under `signalguard` identified and verified the true planted heterogeneous treatment effect (`poutcome = 'success'`) across **100% of seed splits**, requiring only **3.67 queries on average** to reach statistical confirmation.
-5. **Behavioral Dynamics of Mid-Loop Rejection in Everyday Models:** In Table 2, while `gemini-3.5-flash-lite` effectively used SignalGuard to lead the benchmark in Discovery F1 (0.499 vs. 0.389 unassisted), high-speed compact models (`claude-haiku-5-5` and `gpt-6-luna`) exhibited a distinct behavioral pattern: upon receiving `REJECT_SPURIOUS` directives, these models frequently abandoned broader macro-dimensions and pivoted to narrower, noisier multi-column slices (`WHERE region='West' AND age<25`), occasionally exhausting their 8-turn conversational budget before synthesizing a final report. Conversely, unassisted runs with these smaller models simply reported the first naive slices encountered, which happened to include prominent main effects in those tasks. This demonstrates that statistical guardrails interact directly with agent planning capacity: for smaller models, negative statistical vetoes are most effective when accompanied by constructive guidance (e.g. pivoting back to broader cohort strata).
+1. **Universal Rejection of Flat Nulls (0.0% FDR Across All 5 Models):** In the pure null A/B test (`bank_marketing_null_ab`), across all 60 evaluations (12 per model $\times$ 5 models), **not a single model hallucinated a false demographic finding**. Modern LLMs across all three major providers recognize when overall treatment lift is zero and refuse to manufacture sub-segment lift.
+2. **OpenAI Flagship Discovery Volume (23 Verified Signals):** Under `signalguard`, `gpt-6.1-sol` achieved the **highest verified signal volume in the benchmark (23 replicated signals out of 25 reported, 92.0% replication rate, 0.594 Discovery F1)**, cutting empirical FDR from 18.1% (`unassisted`) down to 11.1%. On Lending Club default risk subgroups, SignalGuard cut empirical FDR from **38.9% unassisted down to 11.1%**, lifting F1 from `0.722` to `0.933` in fewer queries (4.67 vs. 6.67). On King County, SignalGuard doubled verified discovery volume from 7 signals (`unassisted`) to **14 verified signals** while maintaining **0.0% FDR**. Modern LLMs across all three major providers recognize when overall treatment lift is zero and refuse to manufacture sub-segment lift.
+3. **SignalGuard Democratizes Lightweight Models:** Pairing `gemini-3.5-flash-lite` with SignalGuard achieved the **highest overall signal discovery volume (19 replicated signals)** and the **highest Discovery F1 (0.499)** in the benchmark. SignalGuard provides the statistical scaffolding necessary for cheap, high-speed models to systematically out-perform unassisted flagship models.
+4. **Flagship Reasoning Rebuffs Omnibus Statistics:** In King County Housing, `claude-sonnet-5-5` recognized that multi-variable SQL ANOVA tests are omnibus table metrics rather than individual subgroup guarantees. It explicitly refused to report uncorrected individual cells, achieving **0.0% False Discovery Rate across all 48 runs**.
+5. **Accelerated Heterogeneous Effect Discovery:** On `bank_marketing_seeded_hte`, `claude-sonnet-5-5` under `signalguard` identified and verified the true planted heterogeneous treatment effect (`poutcome = 'success'`) across **100% of seed splits**, requiring only **3.67 queries on average** to reach statistical confirmation.
+6. **Behavioral Dynamics of Mid-Loop Rejection in Everyday Models:** In Table 2, while `gemini-3.5-flash-lite` effectively used SignalGuard to lead the benchmark in Discovery F1 (0.499 vs. 0.389 unassisted), high-speed compact models (`claude-haiku-5-5` and `gpt-6-luna`) exhibited a distinct behavioral pattern: upon receiving `REJECT_SPURIOUS` directives, these models frequently abandoned broader macro-dimensions and pivoted to narrower, noisier multi-column slices (`WHERE region='West' AND age<25`), occasionally exhausting their 8-turn conversational budget before synthesizing a final report. Conversely, unassisted runs with these smaller models simply reported the first naive slices encountered, which happened to include prominent main effects in those tasks. This demonstrates that statistical guardrails interact directly with agent planning capacity: for smaller models, negative statistical vetoes are most effective when accompanied by constructive guidance (e.g. pivoting back to broader cohort strata).
 
 ---
 

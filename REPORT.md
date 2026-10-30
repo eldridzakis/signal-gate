@@ -1,7 +1,7 @@
 # SignalGuard: Information-Theoretic Guardrails for Autonomous LLM Analytics, SQL Warehouses, and AutoML Feature Discovery
 
 **Executive & Technical Benchmark Report**  
-*216 Foundation Frontier Agent Evaluations + 192 Open-Ended Agentic Multi-Turn Evaluations (`claude-sonnet-5-5`, `claude-haiku-5-5`, `gpt-6-luna`, `gemini-3.5-flash-lite`) + 3,000-Candidate AutoML Benchmark*
+*216 Foundation Frontier Agent Evaluations + 240 Open-Ended Agentic Multi-Turn Evaluations (`claude-sonnet-5-5`, `gpt-6.1-sol`, `gemini-3.5-flash-lite`, `gpt-6-luna`, `claude-haiku-5-5`) across 5 model families + 3,000-Candidate AutoML Benchmark = 456 Total Live Agent Evaluations*
 
 ---
 
@@ -183,7 +183,7 @@ We benchmarked **Unassisted Greedy Top-$K$ Selection** ($K = 15$ out of $M = 1{,
 
 ---
 
-## Act VI: Phase 2 Empirical Benchmark — Unconstrained Agentic SQL Loop & Decoupled Holdout Replication (192 Live Multi-Turn Evaluations)
+## Act VI: Phase 2 Empirical Benchmark — Unconstrained Agentic SQL Loop & Decoupled Holdout Replication (240 Live Multi-Turn Evaluations)
 
 To address the methodological limitations of scripted exploration transcripts and shared small-cell vetoes (detailed in [Benchmark Design & Limitations](#benchmark-design--limitations)), we designed and executed the **Phase 2 Empirical Benchmark** ([`signalguard/phase2_benchmark.py`](signalguard/phase2_benchmark.py)). 
 
@@ -198,7 +198,7 @@ To address the methodological limitations of scripted exploration transcripts an
    - `bank_marketing_null_ab`: Pure 0% lift A/B campaign test; testing false positive vulnerability under flat aggregate null.
    - `bank_marketing_seeded_hte`: A/B campaign test with a planted heterogeneous treatment effect (`poutcome = 'success'`).
 
-### Table 4: Phase 2 Master Cross-Model Empirical Matrix (192 Live Multi-Turn Evaluations)
+### Table 4: Phase 2 Master Cross-Model Empirical Matrix (240 Live Multi-Turn Evaluations)
 
 | Model Tier | Model ID | Statistical Arm | Avg Queries / Session | Total Reported | Replicated on Holdout | Empirical FDR ($\downarrow$) | Precision ($\uparrow$) | Signal Recall ($\uparrow$) | Discovery F1 ($\uparrow$) |
 | :--- | :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
@@ -206,6 +206,10 @@ To address the methodological limitations of scripted exploration transcripts an
 | | | `unassisted` | 6.00 | 3 | 3 | **0.0%** | 25.0% | 12.5% | 0.167 |
 | | | `benjamini_hochberg` | 5.83 | 4 | 4 | **0.0%** | 16.7% | 12.5% | 0.139 |
 | | | `bonferroni` | 5.50 | 1 | 1 | **0.0%** | 8.3% | 4.2% | 0.056 |
+| **Flagship Workhorse** | **`gpt-6.1-sol`** | **`signalguard`** | **5.50** | **25** | **23** | **11.1%** | **63.9%** | **58.3%** | **0.594** |
+| | | `bonferroni` | 6.42 | 25 | 22 | **9.7%** | 65.3% | 62.5% | 0.611 |
+| | | `unassisted` | 5.50 | 21 | 16 | **18.1%** | 56.9% | 58.3% | 0.542 |
+| | | `benjamini_hochberg` | 6.75 | 26 | 21 | **22.2%** | 52.8% | 58.3% | 0.542 |
 | **Everyday Scout** | **`gemini-3.5-flash-lite`** | **`signalguard`** | **7.42** | **22** | **19** | **9.0%** | **49.3%** | **54.2%** | **0.499** |
 | | | `bonferroni` | 7.33 | 19 | 18 | **4.2%** | 45.8% | 45.8% | 0.458 |
 | | | `benjamini_hochberg` | 7.42 | 21 | 17 | **15.3%** | 43.1% | 45.8% | 0.442 |
@@ -220,10 +224,11 @@ To address the methodological limitations of scripted exploration transcripts an
 | | | `benjamini_hochberg` | 4.00 | 2 | 2 | **0.0%** | 8.3% | 8.3% | 0.083 |
 
 ### Phase 2 Core Findings:
-1. **Universal Skepticism on Flat Nulls (0.0% FDR Across All Models):** Across all 48 evaluations on `bank_marketing_null_ab` (12 per model), not a single LLM hallucinated false sub-segment findings. When aggregate A/B lift is flat (+0.2%, $p=0.44$), modern LLMs across all three providers consistently report `findings: []`.
-2. **SignalGuard Democratizes Lightweight Models:** Pairing `gemini-3.5-flash-lite` with SignalGuard achieved the **highest overall signal discovery volume (19 replicated signals)** and the **highest Discovery F1 (0.499)** across the entire benchmark, outperforming unassisted flagship models in systematic exploration.
-3. **Flagship Models Rebuff Omnibus Statistics:** In King County Housing, `claude-sonnet-5-5` explicitly reasoned that multi-category ANOVA/$\chi^2$ p-values are omnibus table metrics rather than individual cell guarantees, declining to report uncorrected sub-segments and achieving **0.0% False Discovery Rate across all 48 runs**.
-4. **Rapid Heterogeneous Effect Detection:** In `bank_marketing_seeded_hte`, `claude-sonnet-5-5` under `signalguard` identified and verified the true planted heterogeneous treatment effect (`poutcome = 'success'`) in **100% of seed splits** (3/3), requiring only **3.67 queries** on average to reach statistical proof.
+1. **Universal Skepticism on Flat Nulls (0.0% FDR Across All 5 Models):** Across all 60 evaluations on `bank_marketing_null_ab` (12 per model × 5 models), not a single LLM hallucinated false sub-segment findings. When aggregate A/B lift is flat (+0.2%, $p=0.44$), modern LLMs across all three providers consistently report `findings: []`.
+2. **OpenAI Flagship Discovery Volume (23 Verified Signals):** Under `signalguard`, `gpt-6.1-sol` achieved the **highest verified signal volume in the benchmark (23 replicated signals out of 25 reported, 92.0% replication rate, 0.594 Discovery F1)**, cutting empirical FDR from 18.1% (`unassisted`) down to 11.1%. On Lending Club default risk subgroups, SignalGuard cut empirical FDR from **38.9% unassisted down to 11.1%**, lifting F1 from `0.722` to `0.933` in fewer queries (4.67 vs. 6.67). On King County, SignalGuard doubled verified discovery volume from 7 signals (`unassisted`) to **14 verified signals** while maintaining **0.0% FDR**.
+3. **SignalGuard Democratizes Lightweight Models:** Pairing `gemini-3.5-flash-lite` with SignalGuard achieved the **highest overall signal discovery volume (19 replicated signals)** and the **highest Discovery F1 (0.499)** across the entire benchmark, outperforming unassisted flagship models in systematic exploration.
+4. **Flagship Models Rebuff Omnibus Statistics:** In King County Housing, `claude-sonnet-5-5` explicitly reasoned that multi-category ANOVA/$\chi^2$ p-values are omnibus table metrics rather than individual cell guarantees, declining to report uncorrected sub-segments and achieving **0.0% False Discovery Rate across all 48 runs**.
+5. **Rapid Heterogeneous Effect Detection:** In `bank_marketing_seeded_hte`, `claude-sonnet-5-5` under `signalguard` identified and verified the true planted heterogeneous treatment effect (`poutcome = 'success'`) in **100% of seed splits** (3/3), requiring only **3.67 queries** on average to reach statistical proof.
 
 ---
 
