@@ -184,7 +184,7 @@
             <div class="text-xs text-[var(--muted-foreground)] font-medium">Risk of False Alarm from Pure Noise</div>
             <div id="falseAlarmRisk" class="text-3xl font-extrabold text-amber-500 mt-1">33.7%</div>
             <p class="text-xs text-[var(--muted-foreground)] mt-2">
-              Formula: <code class="font-mono">1 - (1 - 0.05)^M</code>. Theoretical chance of at least one spurious noise spike clearing naive $p &lt; 0.05$.
+              Formula: <code class="font-mono">1 - (1 - 0.05)<sup>M</sup></code>. Theoretical chance of at least one spurious noise spike clearing naive <i>p</i> &lt; 0.05.
             </p>
           </div>
 
@@ -192,7 +192,7 @@
             <div class="text-xs text-[var(--muted-foreground)] font-medium">Observed Live Agent Failure Rate</div>
             <div id="empiricalFDRCard" class="text-3xl font-extrabold text-rose-500 mt-1">18.1% – 38.9%</div>
             <p id="empiricalFDRText" class="text-xs text-[var(--muted-foreground)] mt-2">
-              In our Phase 2 live SQL sessions ($M pprox 6	ext{--}8$), unassisted LLMs suffered up to 38.9% FDR on Lending Club and 18.1% on GPT-6.1 Sol.
+              In our Phase 2 live SQL sessions (<i>M</i> ≈ 6–8), unassisted LLMs suffered up to 38.9% FDR on Lending Club and 18.1% on GPT-6.1 Sol.
             </p>
           </div>
 
@@ -421,10 +421,10 @@
 
         <div class="space-y-3 text-xs">
           <div class="p-2.5 rounded-lg bg-[var(--background)] border border-[var(--border)]">
-            <strong>1. Session Tracking:</strong> "Does our agent track its cumulative query count ($M$), or is each SQL query evaluated in isolation?"
+            <strong>1. Session Tracking:</strong> "Does our agent track its cumulative query count (<i>M</i>), or is each SQL query evaluated in isolation?"
           </div>
           <div class="p-2.5 rounded-lg bg-[var(--background)] border border-[var(--border)]">
-            <strong>2. Small-Slice Thresholds:</strong> "When the agent narrows down to small cohorts ($N &lt; 50$), does the bar for calling something 'significant' automatically rise?"
+            <strong>2. Small-Slice Thresholds:</strong> "When the agent narrows down to small cohorts (<i>N</i> &lt; 50), does the bar for calling something 'significant' automatically rise?"
           </div>
           <div class="p-2.5 rounded-lg bg-[var(--background)] border border-[var(--border)]">
             <strong>3. Out-of-Sample Verification:</strong> "Do we mathematically verify that insights will replicate on unseen data before executives act on them?"
@@ -473,7 +473,7 @@
       // Empirical Live Agent Benchmark Connection
       if (m <= 12) {
         empiricalFDRCard.textContent = "18.1% – 38.9%";
-        empiricalFDRText.innerHTML = `In our Phase 2 live SQL sessions ($M \approx 6\text{--}8$), unassisted LLMs suffered up to <strong>38.9% FDR</strong> on Lending Club credit subgroups and <strong>18.1% FDR</strong> on GPT-6.1 Sol.`;
+        empiricalFDRText.innerHTML = `In our Phase 2 live SQL sessions (<i>M</i> ≈ 6–8), unassisted LLMs suffered up to <strong>38.9% FDR</strong> on Lending Club credit subgroups and <strong>18.1% FDR</strong> on GPT-6.1 Sol.`;
       } else if (m <= 25) {
         empiricalFDRCard.textContent = "22.2% – 38.9%";
         empiricalFDRText.innerHTML = `In multi-turn exploratory investigations, uncalibrated multiple testing causes Benjamini-Hochberg FDR to inflate to <strong>22.2%</strong> and unassisted exploration to reach <strong>38.9%</strong>.`;
