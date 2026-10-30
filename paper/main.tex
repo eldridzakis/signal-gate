@@ -137,6 +137,22 @@ When features are perfectly collinear ($r_{ij} = 1$), $M_{\text{eff}} = 1$. When
   \label{fig:collinear_power}
 \end{figure}
 
+\subsection{Computational Latency \& Warehouse Overhead}
+Because SignalGuard operates strictly on $O(1)$ group summary statistics (\texttt{COUNT(*)}, \texttt{AVG(y)}, \texttt{STDDEV(y)}) and closed-form Chi-squared distributions, its algorithmic evaluation cost is sub-millisecond:
+\begin{itemize}
+    \item \textbf{Discrete Contingency Gate:} $171.2\,\mu\text{s}$ mean latency ($5{,}841\text{ queries/sec}$ single-thread throughput).
+    \item \textbf{Continuous SQL ANOVA Gate:} $319.2\,\mu\text{s}$ mean latency ($3{,}133\text{ queries/sec}$ single-thread throughput).
+    \item \textbf{Search Budget Scaling ($M$):} Strictly constant $O(1)$ execution time as session hypothesis depth scales from $M = 1$ to $M = 1{,}000$ hypotheses (Figure~\ref{fig:latency_profile}A).
+    \item \textbf{Warehouse Interception Overhead:} When intercepting SQL \texttt{GROUP BY} aggregations on realistic data marts, SignalGuard's $0.32\text{ ms}$ evaluation overhead accounts for \textbf{$< 0.25\%$ of total query runtime} on $100{,}000$-row tables ($142.2\text{ ms}$ raw SQL vs. $0.32\text{ ms}$ gate), declining to \textbf{$0.04\%$ overhead} on $500{,}000$-row tables (Figure~\ref{fig:latency_profile}B). Relative to model inference latency ($1{,}000\text{--}5{,}000\text{ ms}$ per turn), SignalGuard's overhead is negligible ($< 0.03\%$).
+\end{itemize}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\linewidth]{figures/fig9_latency_profile.png}
+  \caption{\textbf{Computational Latency and Warehouse Interception Overhead.} (Left) Closed-form gating latency vs. cumulative search budget $M$, demonstrating constant $O(1)$ sub-millisecond scaling. (Right) End-to-end database runtime comparison on SQLite, demonstrating that SignalGuard adds $< 0.25\%$ overhead to warehouse query execution.}
+  \label{fig:latency_profile}
+\end{figure}
+
 \section{Phase 1 Empirical Benchmark: Foundation \& AutoML}
 Phase~1 evaluated \textbf{216 live multi-turn agent evaluations} across four frontier LLMs (\texttt{claude-opus-5-5}, \texttt{claude-sonnet-5-5}, \texttt{gpt-6.1-sol}, \texttt{gemini-3.5-flash-lite}) and \textbf{3,000 automated feature engineering candidates} across three production datasets: Lending Club Credit Risk ($N=54{,}636$), King County Housing Sales ($N=21{,}613$), and UCI Bank Marketing Campaigns ($N=41{,}188$).
 

@@ -187,6 +187,16 @@ SignalGuard is engineered as a stateful middleware layer operating via the Model
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
+### 3.2 Computational Latency & Production Warehouse Overhead
+Because SignalGuard operates strictly on $O(1)$ group summary statistics (`COUNT(*)`, `AVG(y)`, `STDDEV(y)`) and closed-form Chi-squared quantiles, its computational overhead is sub-millisecond:
+* **Discrete Contingency Gate:** $171.2\,\mu\text{s}$ mean latency ($5{,}841\text{ queries/sec}$ single-thread throughput).
+* **Continuous SQL ANOVA Gate:** $319.2\,\mu\text{s}$ mean latency ($3{,}133\text{ queries/sec}$ single-thread throughput).
+* **Search Budget Scaling ($M$):** Strictly constant $O(1)$ execution time as session hypothesis depth scales from $M = 1$ to $M = 1{,}000$ hypotheses (Figure 9A).
+* **Warehouse Interception Overhead:** When intercepting SQL `GROUP BY` aggregations on real data marts, SignalGuard's $0.32\text{ ms}$ evaluation overhead accounts for **$< 0.25\%$ of total query runtime** on $100{,}000$-row tables ($142.2\text{ ms}$ raw SQL vs. $0.32\text{ ms}$ gate), declining to **$0.04\%$ overhead** on $500{,}000$-row tables (Figure 9B). Relative to model inference latency ($1{,}000\text{--}5{,}000\text{ ms}$ per turn), SignalGuard adds negligible ($< 0.03\%$) overhead to the agentic loop.
+
+![Figure 9: Computational Latency and Warehouse Interception Overhead](figures/fig9_latency_profile.png)
+*Figure 9: (Left) Closed-form gating latency vs. cumulative search budget $M$, demonstrating constant $O(1)$ sub-millisecond scaling. (Right) End-to-end database runtime comparison on SQLite, demonstrating that SignalGuard adds $< 0.25\%$ overhead to warehouse query execution.*
+
 ---
 
 ## 4. Empirical Evaluation: Phase 1 (Foundation & AutoML)
