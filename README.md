@@ -41,7 +41,9 @@ If your organization connects autonomous LLM agents (Claude Code, Cursor, LangCh
 **What SignalGuard Does:**  
 SignalGuard is a **statistical firewall** for agent workflows, exposed as an MCP server and as OpenAI/Anthropic tool schemas. It keeps a running count of how many hypotheses the agent has tested ($M$), raises the significance bar accordingly, and flags findings that do not clear the noise ceiling for that sample size and search budget. For SQL `GROUP BY` results it works from aggregate statistics (`COUNT`, `AVG`, `STDDEV`) rather than raw rows.
 
-> **In our benchmark:** when the LLM was given SignalGuard's verdicts and instructed to report only verified findings, none of its reported findings failed holdout replication. Because the benchmark uses scripted exploration transcripts and a replication criterion that shares SignalGuard's small-sample rule, this demonstrates the mechanism rather than an independent estimate of production false discovery rates. See [Benchmark Design & Limitations](REPORT.md#benchmark-design--limitations).
+> **Benchmark Progression:**  
+> * **Phase 1 (Proof-of-Mechanism, 216 runs):** In our scripted baseline benchmark, when the LLM was given SignalGuard's verdicts and instructed to report only verified findings, none of its reported findings failed holdout replication (demonstrating the gating mechanism under fixed transcripts and shared small-cell rules; see [Benchmark Design & Limitations](REPORT.md#benchmark-design--limitations)).
+> * **Phase 2 (Independent Agentic Evaluation, 240 live runs):** To provide an unconstrained, independent estimate of production behavior, Phase 2 eliminated scripted transcripts (agents freely write, execute, and iterate their own SQL) and decoupled holdout replication (zero shared small-cell rules). Under this open-ended evaluation across 5 model families, SignalGuard produced a robust **9.0%–11.1% empirical FDR** with up to **23 verified holdout signals** (on gpt-6.1-sol), while protecting models from the **18%–39% error spikes** seen in unassisted exploration. See [Phase 2 Master Benchmark](REPORT.md#act-vi-phase-2-master-benchmark--open-weights-evaluation-240-live-sql-sessions).
 
 👉 *Want the full executive context? Read [`EXECUTIVE_SUMMARY.md`](EXECUTIVE_SUMMARY.md).*
 
@@ -49,7 +51,7 @@ SignalGuard is a **statistical firewall** for agent workflows, exposed as an MCP
 
 ## 📌 Overview
 
-Automated Machine Learning (AutoML) engines and autonomous LLM data agents (e.g. Claude Code, Cursor, LangGraph pipelines, Text-to-SQL slice explorers) explore massive hypothesis spaces—evaluating thousands to millions of candidate transformations, numerical cuts, n-grams, and database segments.
+Autonomous LLM data agents (e.g. Claude Code, Cursor, LangGraph pipelines, Text-to-SQL slice explorers) and Automated Machine Learning (AutoML) engines explore massive hypothesis spaces—evaluating thousands to millions of candidate transformations, numerical cuts, n-grams, and database segments.
 
 Selecting features or reporting insights that maximize sample metrics introduces **selection bias (The Winner's Curse)**:
 1. **Spurious Discoveries Pass as Genuine:** Random noise slices and features inevitably achieve high sample metric scores purely by chance.

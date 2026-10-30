@@ -152,31 +152,55 @@
             <label for="querySlider" class="text-sm font-semibold text-[var(--foreground)]">
               Number of Hidden Queries Run by AI Agent (M):
             </label>
-            <span id="sliderValue" class="text-lg font-bold text-blue-500 font-mono">38 queries</span>
+            <span id="sliderValue" class="text-lg font-bold text-blue-500 font-mono">8 queries</span>
           </div>
-          <input id="querySlider" type="range" min="1" max="50" value="38" class="w-full h-2 bg-[var(--border)] rounded-lg appearance-none cursor-pointer accent-blue-600">
+          <input id="querySlider" type="range" min="1" max="50" value="8" class="w-full h-2 bg-[var(--border)] rounded-lg appearance-none cursor-pointer accent-blue-600">
           <div class="flex justify-between text-xs text-[var(--muted-foreground)] mt-1">
             <span>1 (Single Test)</span>
-            <span>25 (Typical Agent)</span>
+            <span>8 (Phase 2 Session Avg)</span>
+            <span>20 (Multi-Step)</span>
+            <span>38 (Phase 1 Deep Mart)</span>
             <span>50 (Deep Explorer)</span>
+          </div>
+
+          <!-- Quick Scenario Presets -->
+          <div class="flex flex-wrap gap-2 mt-3 pt-3 border-t border-[var(--border)]">
+            <span class="text-xs text-[var(--muted-foreground)] self-center font-medium mr-1">Benchmark Presets:</span>
+            <button type="button" onclick="setSliderM(8)" class="text-xs font-semibold px-2.5 py-1 rounded-md bg-[var(--card)] hover:bg-[var(--accent)] border border-[var(--border)] text-[var(--foreground)] transition-colors">
+              ⚡ 8 Queries (Phase 2 Live Session Avg)
+            </button>
+            <button type="button" onclick="setSliderM(20)" class="text-xs font-semibold px-2.5 py-1 rounded-md bg-[var(--card)] hover:bg-[var(--accent)] border border-[var(--border)] text-[var(--foreground)] transition-colors">
+              🔍 20 Queries (Multi-Turn Investigation)
+            </button>
+            <button type="button" onclick="setSliderM(38)" class="text-xs font-semibold px-2.5 py-1 rounded-md bg-[var(--card)] hover:bg-[var(--accent)] border border-[var(--border)] text-[var(--foreground)] transition-colors">
+              📊 38 Queries (Phase 1 Deep Mart Exploration)
+            </button>
           </div>
         </div>
 
         <!-- Live Calculation Cards -->
-        <div class="grid md:grid-cols-2 gap-4">
+        <div class="grid md:grid-cols-3 gap-4">
           <div class="p-4 rounded-lg border border-[var(--border)] bg-[var(--card)]">
             <div class="text-xs text-[var(--muted-foreground)] font-medium">Risk of False Alarm from Pure Noise</div>
-            <div id="falseAlarmRisk" class="text-3xl font-extrabold text-rose-500 mt-1">85.7%</div>
+            <div id="falseAlarmRisk" class="text-3xl font-extrabold text-amber-500 mt-1">33.7%</div>
             <p class="text-xs text-[var(--muted-foreground)] mt-2">
-              Formula: <code class="font-mono">1 - (1 - 0.05)^M</code>. With <span id="mCountText">38</span> queries, seeing a "statistically significant" ($p &lt; 0.05$) anomaly by chance is nearly guaranteed.
+              Formula: <code class="font-mono">1 - (1 - 0.05)^M</code>. Theoretical chance of at least one spurious noise spike clearing naive $p &lt; 0.05$.
             </p>
           </div>
 
           <div class="p-4 rounded-lg border border-[var(--border)] bg-[var(--card)]">
-            <div class="text-xs text-[var(--muted-foreground)] font-medium">SignalGuard Dynamic Verification Bar</div>
-            <div id="guardrailBar" class="text-3xl font-extrabold text-emerald-500 mt-1">0.191 RIG</div>
+            <div class="text-xs text-[var(--muted-foreground)] font-medium">Observed Live Agent Failure Rate</div>
+            <div id="empiricalFDRCard" class="text-3xl font-extrabold text-rose-500 mt-1">18.1% – 38.9%</div>
+            <p id="empiricalFDRText" class="text-xs text-[var(--muted-foreground)] mt-2">
+              In our Phase 2 live SQL sessions ($M pprox 6	ext{--}8$), unassisted LLMs suffered up to 38.9% FDR on Lending Club and 18.1% on GPT-6.1 Sol.
+            </p>
+          </div>
+
+          <div class="p-4 rounded-lg border border-[var(--border)] bg-[var(--card)]">
+            <div class="text-xs text-[var(--muted-foreground)] font-medium">SignalGuard Verification Bar</div>
+            <div id="guardrailBar" class="text-3xl font-extrabold text-emerald-500 mt-1">0.158 RIG</div>
             <p class="text-xs text-[var(--muted-foreground)] mt-2">
-              SignalGuard automatically scales the required evidence ceiling based on sample size and query count, rejecting small-slice hallucinations.
+              Dynamically scales the required evidence ceiling based on sample size and query count, rejecting small-slice hallucinations.
             </p>
           </div>
         </div>
@@ -421,24 +445,41 @@
     const slider = document.getElementById('querySlider');
     const sliderVal = document.getElementById('sliderValue');
     const falseRisk = document.getElementById('falseAlarmRisk');
-    const mCount = document.getElementById('mCountText');
+    const empiricalFDRCard = document.getElementById('empiricalFDRCard');
+    const empiricalFDRText = document.getElementById('empiricalFDRText');
     const guardrailBar = document.getElementById('guardrailBar');
+
+    function setSliderM(val) {
+      slider.value = val;
+      updateSimulation();
+    }
 
     function updateSimulation() {
       const m = parseInt(slider.value);
       sliderVal.textContent = `${m} ${m === 1 ? 'query' : 'queries'}`;
-      mCount.textContent = m;
 
       // Probability of at least one false positive at alpha = 0.05
       const risk = (1 - Math.pow(1 - 0.05, m)) * 100;
       falseRisk.textContent = `${risk.toFixed(1)}%`;
 
-      if (risk > 50) {
+      if (risk > 60) {
         falseRisk.className = 'text-3xl font-extrabold text-rose-500 mt-1';
-      } else if (risk > 20) {
+      } else if (risk > 25) {
         falseRisk.className = 'text-3xl font-extrabold text-amber-500 mt-1';
       } else {
         falseRisk.className = 'text-3xl font-extrabold text-emerald-500 mt-1';
+      }
+
+      // Empirical Live Agent Benchmark Connection
+      if (m <= 12) {
+        empiricalFDRCard.textContent = "18.1% – 38.9%";
+        empiricalFDRText.innerHTML = `In our Phase 2 live SQL sessions ($M \approx 6\text{--}8$), unassisted LLMs suffered up to <strong>38.9% FDR</strong> on Lending Club credit subgroups and <strong>18.1% FDR</strong> on GPT-6.1 Sol.`;
+      } else if (m <= 25) {
+        empiricalFDRCard.textContent = "22.2% – 38.9%";
+        empiricalFDRText.innerHTML = `In multi-turn exploratory investigations, uncalibrated multiple testing causes Benjamini-Hochberg FDR to inflate to <strong>22.2%</strong> and unassisted exploration to reach <strong>38.9%</strong>.`;
+      } else {
+        empiricalFDRCard.textContent = "41.1% FDR";
+        empiricalFDRText.innerHTML = `In our continuous King County warehouse exploration ($M = 38$ queries), unassisted BA agents suffered a peak <strong>41.1% False Discovery Rate</strong> on holdout validation.`;
       }
 
       // Approximate Extreme Value / Bonferroni RIG noise ceiling on N=36
