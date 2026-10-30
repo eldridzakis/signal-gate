@@ -7,7 +7,7 @@
 
 > **Stateful statistical guardrails and Model Context Protocol (MCP) server for autonomous LLM data agents and Text-to-SQL semantic layers. Quantifying the Winner's Curse, estimating closed-form noise ceilings (both discrete contingency & continuous SQL ANOVA), and preventing agentic $p$-hacking.**
 >
-> 📄 **[Read the Full Standalone Technical & Empirical Report (`REPORT.md`)](REPORT.md)** — *Featuring 216 foundation frontier evaluations + 192 open-ended multi-turn agentic SQL evaluations across Google, Anthropic, and OpenAI (`claude-sonnet-5-5`, `claude-haiku-5-5`, `gpt-6-luna`, `gemini-3.5-flash-lite`).*
+> 📄 **[Read the Full Standalone Technical & Empirical Report (`REPORT.md`)](REPORT.md)** — *Featuring 216 foundation frontier evaluations + 240 open-ended multi-turn agentic SQL evaluations across Google, Anthropic, and OpenAI (`claude-sonnet-5-5`, `gpt-6.1-sol`, `gemini-3.5-flash-lite`, `gpt-6-luna`, `claude-haiku-5-5`), totaling 456 live evaluations.*
 >
 > 🎨 **[Open the Interactive Visual Executive Dashboard](https://eldridzakis.github.io/signal-guard/)** ([source](docs/index.html)) — *A visual explainer for leadership with interactive multi-testing simulations, role-based cost cards, and 1-click PDF export.*
 >

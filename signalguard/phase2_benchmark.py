@@ -491,41 +491,72 @@ class Phase2InteractiveAgentRunner:
                 data = json.loads(resp.read().decode("utf-8"))
                 return data["choices"][0]["message"]["content"].strip()
 
-        # 3. Google Gemini (with safe 4.2s pacing)
-        elif "gemini" in m_lower:
-            key = os.environ.get("GOOGLE_API_KEY")
+        # 3. Google Gemini & Gemma (with safe rate limit pacing and exponential backoff retry)
+        elif any(k in m_lower for k in ("gemini", "gemma")):
+            key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
             if not key:
-                raise ValueError("GOOGLE_API_KEY not found in environment.")
+                raise ValueError("GOOGLE_API_KEY or GEMINI_API_KEY not found in environment.")
 
-            # Gemini rate limit pacing: ensure >= 4.2s between calls for 15 RPM safety
-            time.sleep(4.2)
+            # Rate limit pacing: 30 RPM for Gemma (>= 2.1s), 15 RPM for Gemini (>= 4.2s)
+            pacing = 2.1 if "gemma" in m_lower else 4.2
+            time.sleep(pacing)
 
             contents = []
-            sys_inst = None
+            sys_text = None
             for m in messages:
                 if m["role"] == "system":
-                    sys_inst = {"parts": [{"text": m["content"]}]}
+                    sys_text = m["content"]
                 else:
                     role_tag = "user" if m["role"] == "user" else "model"
                     contents.append({"role": role_tag, "parts": [{"text": m["content"]}]})
 
-            body = {"contents": contents}
-            if sys_inst:
-                body["systemInstruction"] = sys_inst
+            body: Dict[str, Any] = {}
+            if "gemma" in m_lower:
+                # Open-weights Gemma models in Google AI Studio reject separate systemInstruction API param;
+                # prepend system prompt to initial user message and clamp generationConfig
+                if sys_text and contents:
+                    first_text = contents[0]["parts"][0]["text"]
+                    contents[0]["parts"][0]["text"] = f"[SYSTEM INSTRUCTION]\n{sys_text}\n\n[USER TASK]\n{first_text}"
+                body["contents"] = contents
+                body["generationConfig"] = {
+                    "maxOutputTokens": 650,
+                    "temperature": self.temperature,
+                }
+            else:
+                body["contents"] = contents
+                if sys_text:
+                    body["systemInstruction"] = {"parts": [{"text": sys_text}]}
 
             clean_name = self.model_name.replace("models/", "")
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{clean_name}:generateContent?key={key}"
-            req = urllib.request.Request(
-                url,
-                data=json.dumps(body).encode("utf-8"),
-                headers={"Content-Type": "application/json"},
-            )
-            with urllib.request.urlopen(req) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
-                candidates = data.get("candidates", [])
-                if candidates:
-                    return candidates[0]["content"]["parts"][0]["text"].strip()
-                return ""
+
+            # Robust retry loop with exponential backoff for transient cluster load
+            max_retries = 4
+            for attempt in range(max_retries):
+                try:
+                    req = urllib.request.Request(
+                        url,
+                        data=json.dumps(body).encode("utf-8"),
+                        headers={"Content-Type": "application/json"},
+                    )
+                    with urllib.request.urlopen(req, timeout=45) as resp:
+                        data = json.loads(resp.read().decode("utf-8"))
+                        candidates = data.get("candidates", [])
+                        if candidates:
+                            return candidates[0]["content"]["parts"][0]["text"].strip()
+                        return ""
+                except urllib.error.HTTPError as e:
+                    if attempt < max_retries - 1 and e.code in (500, 503, 429):
+                        backoff = 3.0 * (attempt + 1)
+                        time.sleep(backoff)
+                        continue
+                    raise
+                except Exception:
+                    if attempt < max_retries - 1:
+                        backoff = 3.0 * (attempt + 1)
+                        time.sleep(backoff)
+                        continue
+                    raise
 
         raise ValueError(f"Unsupported model family for {self.model_name}")
 

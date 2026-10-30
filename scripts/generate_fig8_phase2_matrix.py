@@ -1,4 +1,4 @@
-"""Generate Figure 8: Phase 2 Empirical Cross-Model Matrix across 192 Live Sessions."""
+"""Generate Figure 8: Phase 2 Empirical Cross-Model Matrix across 240 Live Sessions."""
 
 from pathlib import Path
 import matplotlib.pyplot as plt

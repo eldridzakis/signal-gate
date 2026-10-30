@@ -244,7 +244,7 @@
       </div>
     </section>
 
-    <!-- Section 4: The Empirical Evidence (192 Live Multi-Turn Runs + 216 Foundation Runs) -->
+    <!-- Section 4: The Empirical Evidence (240 Live Multi-Turn Runs + 216 Foundation Runs = 456 Total Live Agent Runs) -->
     <section class="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-6 md:p-8 shadow-sm">
       <div class="flex flex-col md:flex-row md:items-center justify-between gap-2 mb-4">
         <div>
@@ -350,15 +350,15 @@
       <div class="grid md:grid-cols-3 gap-4 pt-4 border-t border-[var(--border)] text-xs">
         <div class="p-3 rounded-lg bg-[var(--background)] border border-[var(--border)]">
           <div class="font-bold text-emerald-500 mb-1">0.0% Null False Alarms</div>
-          <p class="text-[var(--muted-foreground)]">Across 48 runs on a 0% lift A/B test, no model hallucinated false demographic sub-segments.</p>
+          <p class="text-[var(--muted-foreground)]">Across 60 runs on a 0% lift A/B test (5 models), not a single LLM hallucinated false demographic sub-segments.</p>
         </div>
         <div class="p-3 rounded-lg bg-[var(--background)] border border-[var(--border)]">
           <div class="font-bold text-blue-500 mb-1">Lightweight Democratization</div>
           <p class="text-[var(--muted-foreground)]">A $0.005/run model (Gemini Flash Lite) + SignalGuard achieved the highest verified signal count (19) and highest F1 (0.499).</p>
         </div>
         <div class="p-3 rounded-lg bg-[var(--background)] border border-[var(--border)]">
-          <div class="font-bold text-purple-500 mb-1">100% Seeded HTE Precision</div>
-          <p class="text-[var(--muted-foreground)]">Claude Sonnet 5.5 under SignalGuard discovered the true planted treatment effect in 100% of splits in only 3.67 queries.</p>
+          <div class="font-bold text-emerald-400 mb-1">Frontier Discovery Leader</div>
+          <p class="text-[var(--muted-foreground)]">GPT-6.1 Sol + SignalGuard achieved the benchmark high of 23 verified signals (92.0% replication, 0.594 F1), cutting FDR from 18.1% to 11.1%.</p>
         </div>
       </div>
     </section>
