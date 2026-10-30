@@ -114,13 +114,17 @@ Every promoted discovery was audited against a **strictly unseen Holdout Test Va
 In enterprise BI and data-warehouse environments, agents do not pull raw row-level DataFrames into Python—they query a **governed semantic layer** via SQL `GROUP BY` aggregations returning `COUNT(*)`, `AVG(y)`, and `STDDEV(y)`. Furthermore, many critical business targets (such as house sale prices `log_price`, revenue, or latency) are **continuous**, where arbitrary target binning destroys information.
 
 #### Closed-Form Continuous Metric Gate (`ANOVA F -> RIG`)
-In [`signalguard/threshold.py`](signalguard/threshold.py) ([`anova_rig_from_group_stats`](signalguard/threshold.py#L648-L735)), we derived and implemented a closed-form continuous information gate directly from SQL `GROUP BY` sufficient statistics $\{(n_g, \bar{y}_g, s_g)\}_{g=1}^K$. Using the exact Gaussian / one-way ANOVA mutual information identity:
+In [`signalguard/threshold.py`](signalguard/threshold.py) ([`anova_rig_from_group_stats`](signalguard/threshold.py#L648-L735)), we derived and implemented a closed-form continuous information gate directly from SQL `GROUP BY` sufficient statistics (group counts $n_g$, group means $\bar{y}_g$, and group variances $s_g^2$ for groups $g = 1, \dots, K$). Using the exact Gaussian / one-way ANOVA mutual information identity:
 
 $$SS_{\text{between}} = \sum_{g=1}^K n_g (\bar{y}_g - \bar{y}_{\text{grand}})^2, \qquad SS_{\text{within}} = \sum_{g=1}^K (n_g - 1) s_g^2, \qquad \eta^2 = \frac{SS_{\text{between}}}{SS_{\text{between}} + SS_{\text{within}}}$$
 
 $$I_{\text{ANOVA}}(X; Y) = -\frac{1}{2} \log_2(1 - \eta^2) \text{ bits}, \qquad \text{RIG}_{\text{ANOVA}} = -\frac{1}{2} \log_2(1 - \eta^2)$$
 
-Because $F = \frac{SS_{\text{between}} / (K - 1)}{SS_{\text{within}} / (N - K)}$ satisfies $(K - 1) F \sim \chi^2_{K-1}$ under $H_0$, $\text{RIG}_{\text{ANOVA}}$ obeys the **exact same asymptotic $\chi^2_{K-1} / (2 N \ln 2)$ scaling law** as discrete mutual information with unit reference entropy $H_{\text{ref}} = 1.0\text{ bit}$. This enables [`NoiseGateSessionLedger.evaluate_continuous_group_aggregation()`](signalguard/mcp_server.py) to gate any continuous SQL `GROUP BY` query without accessing raw rows!
+Because $F = \frac{SS_{\text{between}} / (K - 1)}{SS_{\text{within}} / (N - K)}$ satisfies $(K - 1) F \sim \chi^2_{K-1}$ under $H_0$, $\text{RIG}_{\text{ANOVA}}$ **obeys the exact same Wilks asymptotic scaling law** as discrete mutual information:
+
+$$\text{RIG}_{\text{ANOVA, null}} \sim \frac{\chi^2_{K-1}}{2 N \ln 2}$$
+
+with unit reference entropy $H_{\text{ref}} = 1.0\text{ bit}$. This enables [`NoiseGateSessionLedger.evaluate_continuous_group_aggregation()`](signalguard/mcp_server.py) to gate any continuous SQL `GROUP BY` query without accessing raw rows!
 
 ![Figure 7: Local SQLite Warehouse + Semantic Layer + Closed-Form Continuous ANOVA Gate](notebooks/figures/fig7_sql_semantic_layer_benchmark.png)
 
