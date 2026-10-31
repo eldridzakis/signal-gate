@@ -281,7 +281,7 @@ We evaluated five models representing both Flagship Production Workhorses and Ev
 | | | `benjamini_hochberg` | 4.00 | 2 | 2 | **0.0%** | 8.3% | 8.3% | 0.083 |
 
 ![Figure 8: Phase 2 Empirical Benchmark Across 240 Live Multi-Turn SQL Evaluations](figures/fig8_phase2_model_matrix.png)
-*Figure 8: Phase 2 cross-model benchmark across 240 live evaluations. (Left) Discovery F1 score across statistical arms. (Right) Replicated signal count on decoupled holdout vaults, illustrating that both frontier flagships (GPT-6.1 Sol with 23 verified signals) and lightweight everyday models (Gemini Flash Lite with 19 verified signals) substantially benefit from SignalGuard scaffolding.*
+*Figure 8: Phase 2 cross-model benchmark across 240 live evaluations. (Left) Out-of-sample Discovery F1 score across statistical arms. (Right) Replicated signal volume on decoupled holdout vaults. Results show that statistical guardrail efficacy is moderated by upstream query hygiene: flagships (GPT-6.1 Sol with 23 verified signals) and scouts with bounded query formulation (Gemini Flash Lite with 19 verified signals) achieve substantial gains under SignalGuard, whereas models prone to high-cardinality Cartesian explosions (GPT-6 Luna) require upstream dimensionality constraints to avoid preview truncation.*
 
 ### 5.3 Key Phase 2 Insights
 

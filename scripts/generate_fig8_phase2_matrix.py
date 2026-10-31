@@ -78,7 +78,7 @@ for idx, (arm, label, color) in enumerate(zip(arms, arm_labels, arm_colors)):
                          ha="center", va="bottom", fontsize=8.5, fontweight="bold")
 
 ax1.set_ylabel("Discovery F1 Score (Out-of-Sample)")
-ax1.set_title("(A) Holdout Discovery F1 Across 240 Live Sessions:\nFrontier Flagships and Scaffolded Scouts Both Benefit from SignalGuard", fontweight="bold")
+ax1.set_title("(A) Holdout Discovery F1 Across 240 Live Sessions:\nPerformance Moderated by Model Tier and SQL Query Hygiene", fontweight="bold")
 ax1.set_xticks(x)
 ax1.set_xticklabels(models)
 ax1.set_ylim(0, 0.72)
