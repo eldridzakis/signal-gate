@@ -285,19 +285,28 @@
         </span>
       </div>
 
-      <!-- Plain-English Executive Metric Guide -->
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-3 p-4 mb-5 rounded-xl bg-[var(--background)] border border-[var(--border)] text-xs text-[var(--muted-foreground)]">
-        <div>
-          <div class="font-bold text-[var(--foreground)] mb-1">🚨 False Discovery Rate (FDR)</div>
-          <p>The percentage of AI-recommended findings that collapsed when tested on new, unseen data. <strong>Lower is better (0.0% is ideal).</strong></p>
+      <!-- Plain-English Executive Metric & Diagnostic Guide -->
+      <div class="p-4 mb-5 rounded-xl bg-[var(--background)] border border-[var(--border)] text-xs text-[var(--muted-foreground)] space-y-3">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div>
+            <div class="font-bold text-[var(--foreground)] mb-1">🚨 False Discovery Rate (FDR)</div>
+            <p>The percentage of AI-recommended findings that collapsed when tested on new, unseen data. <strong>Lower is better (0.0% is ideal).</strong></p>
+          </div>
+          <div>
+            <div class="font-bold text-[var(--foreground)] mb-1">🎯 Signal Recall</div>
+            <p>The percentage of genuine underlying business drivers that the AI agent successfully detected. <strong>Higher is better (100% is ideal).</strong></p>
+          </div>
+          <div>
+            <div class="font-bold text-[var(--foreground)] mb-1">⚖️ Discovery F1 Score</div>
+            <p>The overall reliability score balancing true signal discovery against false alarms (harmonic mean of precision and recall, scaled 0.0 to 1.0).</p>
+          </div>
         </div>
-        <div>
-          <div class="font-bold text-[var(--foreground)] mb-1">🎯 Signal Recall</div>
-          <p>The percentage of genuine underlying business drivers that the AI agent successfully detected. <strong>Higher is better (100% is ideal).</strong></p>
-        </div>
-        <div>
-          <div class="font-bold text-[var(--foreground)] mb-1">⚖️ Discovery F1 Score</div>
-          <p>The overall reliability score balancing true signal discovery against false alarms (harmonic mean of precision and recall, scaled 0.0 to 1.0).</p>
+
+        <div class="pt-3 border-t border-[var(--border)] flex flex-col md:flex-row md:items-center justify-between gap-2">
+          <div>
+            <span class="font-bold text-[var(--foreground)]">🧭 Diagnostic Regimes (456 Runs):</span>
+            <span class="ml-1">Unassisted agents bifurcate between <strong>Multiplicity Amnesia</strong> (under-counting queries & reporting noisy slices) and <strong>Multiplicity Paralysis</strong> (epistemic hesitation or unadjusted collinear penalties). In open-ended SQL (Phase 2), flagship models with surgical query hygiene achieve high verified discovery, while lightweight models require cardinality guardrails.</span>
+          </div>
         </div>
       </div>
 
