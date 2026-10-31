@@ -1,9 +1,9 @@
 """Generate Hero Figure: Dual-Mechanism Discovery Engine.
 
 Combines:
-  Panel (A): The Problem — Multiplicity Amnesia & Selection Bias
-             (Exploration budget under-reporting ratio M_true / M_self and holdout failure spike)
-  Panel (B): The Solution — Phase 2 Verified Signal Yield & Discovery F1
+  Panel (A): The 2D Landscape — Resolving the Amnesia vs. Paralysis Dilemma
+             (2D Scatter of Empirical FDR vs. Signal Recall showing Paralysis Trap, Amnesia Trap, and SignalGuard Zone)
+  Panel (B): The Empirical Resolution — Phase 2 Verified Signal Yield & Discovery F1
              (SignalGuard governance delivering high verified yield while cutting FDR)
 """
 
@@ -25,135 +25,175 @@ plt.style.use("seaborn-v0_8-whitegrid" if "seaborn-v0_8-whitegrid" in plt.style.
 plt.rcParams.update({
     "font.family": "sans-serif",
     "font.size": 11,
-    "axes.labelsize": 12,
-    "axes.titlesize": 13,
-    "xtick.labelsize": 10.5,
-    "ytick.labelsize": 10.5,
-    "legend.fontsize": 10.5,
+    "axes.labelsize": 11.5,
+    "axes.titlesize": 12.5,
+    "xtick.labelsize": 10,
+    "ytick.labelsize": 10,
+    "legend.fontsize": 10,
     "figure.titlesize": 14,
 })
 
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6.2), dpi=300)
 
 # ==========================================
-# PANEL (A): The Problem — Multiplicity Amnesia & False Discovery Spikes
+# PANEL (A): The 2D Landscape — Amnesia vs. Paralysis Traps
 # ==========================================
-models = [
-    "Claude Sonnet 5.5\n(Anthropic Flagship)",
-    "GPT-6.1 Sol\n(OpenAI Flagship)",
-    "Gemini Flash Lite\n(Google Scout)",
-    "GPT-6 Luna\n(OpenAI Scout)",
+
+# 1. Shaded Background Zones
+# (a) Paralysis Trap (Bottom-Left: Low FDR, but near-zero Recall due to over-penalization)
+ax1.axvspan(-2, 13, ymin=0, ymax=0.32, color='#fef3c7', alpha=0.65, zorder=1)
+ax1.text(5.5, 12, "PARALYSIS TRAP\n(Power Collapse: Recall ≤ 17%)\nBonferroni & Over-Skepticism", 
+         color='#92400e', fontsize=8.5, fontweight='bold', ha='center', va='center', zorder=2)
+
+# (b) Amnesia Trap (Right: High FDR due to unassisted multi-testing and noise exploitation)
+ax1.axvspan(17, 44, ymin=0, ymax=1.0, color='#fee2e2', alpha=0.6, zorder=1)
+ax1.text(30.5, 45, "AMNESIA TRAP\n(Noise Exploitation: FDR ≥ 18%)\nUnassisted Multi-Testing Spikes", 
+         color='#991b1b', fontsize=8.5, fontweight='bold', ha='center', va='center', zorder=2)
+
+# (c) SignalGuard Optimal Sweet Spot (Upper-Left: Controlled FDR ≤ 10% + High Recall ≥ 70%)
+ax1.axvspan(-2, 13, ymin=0.65, ymax=1.0, color='#dcfce7', alpha=0.7, zorder=1)
+ax1.text(5.5, 90, "SIGNALGUARD OPTIMAL ZONE\n(FDR ≤ 10%, Recall ≥ 70%)\nCalibrated M_eff Governance", 
+         color='#166534', fontsize=8.5, fontweight='bold', ha='center', va='center', zorder=2)
+
+# 2. Data Points from 240 Live Phase 2 Sessions: (FDR, Recall, Label, Arm, Color, Marker)
+points = [
+    # Paralysis points
+    (0.0, 5.6, "Sonnet (Bonf)", "bonf", "#d97706", "s"),
+    (0.0, 11.1, "Haiku (BH)", "bh", "#ea580c", "^"),
+    (0.0, 16.7, "Sonnet (Unassisted)", "unassist", "#64748b", "o"),
+    (0.0, 16.7, "Sonnet (SignalGuard)", "sg", "#1e40af", "D"),
+    
+    # Amnesia points
+    (23.8, 77.8, "Sol (Unassisted)", "unassist", "#64748b", "o"),
+    (22.2, 77.8, "Sol (BH)", "bh", "#ea580c", "^"),
+    (19.0, 61.1, "Flash-Lite (BH)", "bh", "#ea580c", "^"),
+    (38.9, 72.2, "Sol (Unassisted LC peak)", "unassist", "#ef4444", "P"),
+    
+    # Intermediate / other points
+    (0.0, 50.0, "Flash-Lite (Unassisted)", "unassist", "#64748b", "o"),
+    (4.2, 61.1, "Flash-Lite (Bonf)", "bonf", "#d97706", "s"),
+    (9.7, 83.3, "Sol (Bonf)", "bonf", "#d97706", "s"),
+    (10.4, 50.0, "Haiku (SignalGuard)", "sg", "#1e40af", "D"),
+    (8.3, 66.7, "Haiku (Unassisted)", "unassist", "#64748b", "o"),
+    
+    # SignalGuard Sweet Spot points
+    (8.0, 77.8, "Sol (SignalGuard)", "sg", "#1e40af", "D"),
+    (9.0, 72.2, "Flash-Lite (SignalGuard)", "sg", "#1e40af", "D"),
 ]
 
-x = np.arange(len(models))
-width = 0.36
+for fdr, rec, lbl, arm, col, m in points:
+    size = 85 if arm == 'sg' else (75 if m == 'P' else 60)
+    ax1.scatter(fdr, rec, color=col, s=size, marker=m, zorder=5, edgecolor='black', linewidth=0.7)
 
-# Metric 1: Ratio of True Tested Hypotheses to Self-Reported (M_true / M_self)
-# In Phase 1 & Phase 2, unassisted agents under-count by 3.5x to 7.7x
-under_reporting = [4.6, 5.1, 6.7, 5.3]
+# 3. Dynamic Rescue Trajectory Arrows
+# Arrow A: Sol rescued from Amnesia (cutting FDR spike)
+ax1.annotate("", xy=(8.0, 77.8), xytext=(23.8, 77.8),
+             arrowprops=dict(arrowstyle="->", color="#1e40af", lw=2.2, mutation_scale=16), zorder=6)
+ax1.text(16.0, 81.5, "Sol: -16% FDR Spike\n(16 -> 23 Replicated)", color="#1e40af", fontsize=8, fontweight='bold', ha='center')
 
-# Metric 2: Peak Unassisted False Discovery Rate on Complex Slices (%)
-peak_fdr = [12.1, 38.9, 32.1, 12.5]  # Lending Club / King County unassisted peak FDR
+# Arrow B: Flash-Lite boosted into high recall
+ax1.annotate("", xy=(9.0, 72.2), xytext=(0.0, 50.0),
+             arrowprops=dict(arrowstyle="->", color="#16a34a", lw=2.2, mutation_scale=16), zorder=6)
+ax1.text(7.2, 60.5, "Flash-Lite: +22% Recall\n(13 -> 19 Replicated)", color="#16a34a", fontsize=8, fontweight='bold', ha='center')
 
-color_under = "#6366f1"  # Indigo
-color_fdr = "#ef4444"    # Red / Spurious
+# Arrow C: Sonnet lifted from deep paralysis
+ax1.annotate("", xy=(0.0, 16.7), xytext=(0.0, 5.6),
+             arrowprops=dict(arrowstyle="->", color="#d97706", lw=1.8, linestyle="--", mutation_scale=13), zorder=6)
+ax1.text(1.8, 8.5, "Sonnet:\nRecovers 3x", color="#b45309", fontsize=7.5, fontweight='bold')
 
-rects1 = ax1.bar(x - width/2, under_reporting, width, label="Search Amnesia Ratio (M_true / M_self)", color=color_under, alpha=0.9, edgecolor="black", linewidth=0.6)
+# Axis formatting
+ax1.set_xlim(-2, 44)
+ax1.set_ylim(-2, 102)
+ax1.set_xlabel("Empirical False Discovery Rate (Real FDR % on Holdout)", fontweight="bold")
+ax1.set_ylabel("Out-of-Sample Signal Recall (%)", fontweight="bold")
+ax1.set_title("(A) The 2D Landscape: Resolving Amnesia vs. Paralysis Traps\nSignalGuard Navigates Models to the Low-FDR / High-Recall Sweet Spot", fontweight="bold")
 
-# Create twin axis for FDR %
-ax1_twin = ax1.twinx()
-rects2 = ax1_twin.bar(x + width/2, peak_fdr, width, label="Unassisted Peak Out-of-Sample FDR (%)", color=color_fdr, alpha=0.85, hatch="//", edgecolor="black", linewidth=0.6)
+# Legend for Panel A
+from matplotlib.lines import Line2D
+legend_elements_a = [
+    Line2D([0], [0], marker='D', color='w', label='SignalGuard (Ours)', markerfacecolor='#1e40af', markeredgecolor='black', markersize=9),
+    Line2D([0], [0], marker='o', color='w', label='Unassisted Explorer', markerfacecolor='#64748b', markeredgecolor='black', markersize=8),
+    Line2D([0], [0], marker='s', color='w', label='Bonferroni (FWER)', markerfacecolor='#d97706', markeredgecolor='black', markersize=8),
+    Line2D([0], [0], marker='^', color='w', label='Benjamini-Hochberg', markerfacecolor='#ea580c', markeredgecolor='black', markersize=8),
+]
+ax1.legend(handles=legend_elements_a, loc='center right', framealpha=0.9, fontsize=9)
+ax1.grid(True, linestyle="--", alpha=0.35)
 
-ax1.set_ylabel("Hypothesis Under-Counting Ratio (x)", color=color_under, fontweight="bold")
-ax1_twin.set_ylabel("Peak Empirical False Discovery Rate (%)", color=color_fdr, fontweight="bold")
-ax1.set_title("(A) The Vulnerability: Multiplicity Amnesia & Noise Exploitation\nAgents Under-Report Search Spaces by 4.6x–6.7x, Spiking Real FDR up to 39%", fontweight="bold")
-
-ax1.set_xticks(x)
-ax1.set_xticklabels(models)
-ax1.set_ylim(0, 8.5)
-ax1_twin.set_ylim(0, 50)
-ax1.axhline(1.0, color="#10b981", linestyle="--", linewidth=1.5, alpha=0.8, label="Ideal 1.0x Calibration")
-
-# Value annotations
-for r in rects1:
-    h = r.get_height()
-    ax1.annotate(f"{h:.1f}x", xy=(r.get_x() + r.get_width() / 2, h), xytext=(0, 3),
-                 textcoords="offset points", ha="center", va="bottom", fontsize=10, fontweight="bold", color=color_under)
-
-for r in rects2:
-    h = r.get_height()
-    ax1_twin.annotate(f"{h:.1f}%", xy=(r.get_x() + r.get_width() / 2, h), xytext=(0, 3),
-                      textcoords="offset points", ha="center", va="bottom", fontsize=10, fontweight="bold", color=color_fdr)
-
-# Combine legends
-lines1, labels1 = ax1.get_legend_handles_labels()
-lines2, labels2 = ax1_twin.get_legend_handles_labels()
-ax1.legend(lines1 + lines2, labels1 + labels2, loc="upper left", framealpha=0.9)
-ax1_twin.grid(False)
 
 # ==========================================
-# PANEL (B): The Solution — Phase 2 Verified Signal Yield & Discovery F1
+# PANEL (B): The Resolution — Phase 2 Verified Signal Yield & F1 Lift
 # ==========================================
-p2_models = [
+models_b = [
     "GPT-6.1 Sol\n(Flagship)",
     "Gemini Flash Lite\n(Scout)",
 ]
 
-x2 = np.arange(len(p2_models))
-w2 = 0.22
+x_b = np.arange(len(models_b))
+width_b = 0.22
 
-# Verified Discoveries (Count)
-verified_unassisted = [16, 13]
-verified_signalguard = [23, 19]
+# Verified Replicated Signals Count
+unassisted_reps = [16, 13]
+signalguard_reps = [23, 19]
 
-# Discovery F1 Score
-f1_unassisted = [0.542, 0.389]
-f1_signalguard = [0.594, 0.499]
+# Out-of-sample Discovery F1 Score
+unassisted_f1 = [0.542, 0.389]
+signalguard_f1 = [0.594, 0.499]
 
-c_unass = "#94a3b8"  # Slate Gray
-c_guard = "#1d4ed8"  # Royal Blue
+color_unassist_bar = "#94a3b8"  # Slate gray
+color_sg_bar = "#2563eb"        # Royal blue
+color_unassist_f1 = "#64748b"   # Dark slate
+color_sg_f1 = "#16a34a"         # Emerald green
 
-b1 = ax2.bar(x2 - w2*1.5, verified_unassisted, w2, label="Unassisted Replications (Count)", color=c_unass, alpha=0.8, edgecolor="black", linewidth=0.6)
-b2 = ax2.bar(x2 - w2*0.5, verified_signalguard, w2, label="SignalGuard Replications (Count)", color=c_guard, alpha=0.9, edgecolor="black", linewidth=0.6)
+# Plot Counts (Left Axis)
+b1 = ax2.bar(x_b - width_b*1.5, unassisted_reps, width_b, label="Unassisted Replications (Count)", color=color_unassist_bar, edgecolor="black", linewidth=0.6)
+b2 = ax2.bar(x_b - width_b*0.5, signalguard_reps, width_b, label="SignalGuard Replications (Count)", color=color_sg_bar, edgecolor="black", linewidth=0.6)
 
-# Twin axis for F1
+# Create twin axis for Discovery F1
 ax2_twin = ax2.twinx()
-b3 = ax2_twin.bar(x2 + w2*0.5, f1_unassisted, w2, label="Unassisted Discovery F1", color="#64748b", hatch="..", alpha=0.7, edgecolor="black", linewidth=0.6)
-b4 = ax2_twin.bar(x2 + w2*1.5, f1_signalguard, w2, label="SignalGuard Discovery F1", color="#059669", alpha=0.85, edgecolor="black", linewidth=0.6)
+b3 = ax2_twin.bar(x_b + width_b*0.5, unassisted_f1, width_b, label="Unassisted Discovery F1", color=color_unassist_f1, hatch="...", alpha=0.85, edgecolor="black", linewidth=0.6)
+b4 = ax2_twin.bar(x_b + width_b*1.5, signalguard_f1, width_b, label="SignalGuard Discovery F1", color=color_sg_f1, alpha=0.9, edgecolor="black", linewidth=0.6)
 
-ax2.set_ylabel("Verified Holdout Discoveries ($p < 0.05$ on Vault)", color=c_guard, fontweight="bold")
-ax2_twin.set_ylabel("Discovery F1 Score (Harmonic Mean)", color="#059669", fontweight="bold")
-ax2.set_title("(B) The Resolution: Stateful Governance in Live Agentic SQL (Phase 2)\nSignalGuard Expands Verified Discoveries (+44%) While Elevating Discovery F1", fontweight="bold")
+# Add exact value labels on bars
+def autolabel_counts(rects, ax_target):
+    for rect in rects:
+        h = rect.get_height()
+        ax_target.annotate(f"{int(h)}",
+                           xy=(rect.get_x() + rect.get_width() / 2, h),
+                           xytext=(0, 3), textcoords="offset points",
+                           ha='center', va='bottom', fontsize=9.5, fontweight="bold")
 
-ax2.set_xticks(x2)
-ax2.set_xticklabels(p2_models)
+def autolabel_floats(rects, ax_target, color):
+    for rect in rects:
+        h = rect.get_height()
+        ax_target.annotate(f"{h:.3f}",
+                           xy=(rect.get_x() + rect.get_width() / 2, h),
+                           xytext=(0, 3), textcoords="offset points",
+                           ha='center', va='bottom', fontsize=9, fontweight="bold", color=color)
+
+autolabel_counts(b1, ax2)
+autolabel_counts(b2, ax2)
+autolabel_floats(b3, ax2_twin, "#1e293b")
+autolabel_floats(b4, ax2_twin, "#15803d")
+
+ax2.set_xticks(x_b)
+ax2.set_xticklabels(models_b, fontweight="bold")
+ax2.set_ylabel("Verified Holdout Discoveries (p < 0.05 on Vault)", color="#1e3a8a", fontweight="bold")
+ax2_twin.set_ylabel("Discovery F1 Score (Harmonic Mean)", color="#15803d", fontweight="bold")
 ax2.set_ylim(0, 30)
 ax2_twin.set_ylim(0, 0.8)
 
-for b in b1:
-    h = b.get_height()
-    ax2.annotate(f"{int(h)}", xy=(b.get_x() + b.get_width() / 2, h), xytext=(0, 3), textcoords="offset points", ha="center", va="bottom", fontsize=10, fontweight="bold")
-for b in b2:
-    h = b.get_height()
-    ax2.annotate(f"{int(h)}", xy=(b.get_x() + b.get_width() / 2, h), xytext=(0, 3), textcoords="offset points", ha="center", va="bottom", fontsize=10, fontweight="bold", color=c_guard)
+ax2.set_title("(B) The Resolution: Stateful Governance in Live Agentic SQL (Phase 2)\nSignalGuard Expands Verified Discoveries (+44%) While Elevating Discovery F1", fontweight="bold")
 
-for b in b3:
-    h = b.get_height()
-    ax2_twin.annotate(f"{h:.3f}", xy=(b.get_x() + b.get_width() / 2, h), xytext=(0, 3), textcoords="offset points", ha="center", va="bottom", fontsize=9.5)
-for b in b4:
-    h = b.get_height()
-    ax2_twin.annotate(f"{h:.3f}", xy=(b.get_x() + b.get_width() / 2, h), xytext=(0, 3), textcoords="offset points", ha="center", va="bottom", fontsize=9.5, fontweight="bold", color="#059669")
-
-lines_b1, labels_b1 = ax2.get_legend_handles_labels()
+# Combine legends for Panel B
+lines_b, labels_b = ax2.get_legend_handles_labels()
 lines_b2, labels_b2 = ax2_twin.get_legend_handles_labels()
-ax2.legend(lines_b1 + lines_b2, labels_b1 + labels_b2, loc="upper left", framealpha=0.9, fontsize=9.5)
-ax2_twin.grid(False)
+ax2.legend(lines_b + lines_b2, labels_b + labels_b2, loc="upper left", framealpha=0.9, fontsize=8.5)
 
 plt.tight_layout()
 
 for fd in FIG_DIRS:
-    out_png = fd / "fig_hero_dual_mechanism.png"
-    plt.savefig(out_png, dpi=300)
-    print(f"Saved: {out_png}")
+    out_file = fd / "fig_hero_dual_mechanism.png"
+    plt.savefig(out_file, dpi=300)
+    print(f"Saved: {out_file}")
 
-plt.close()
+print("Hero figure regenerated successfully.")
