@@ -9,25 +9,25 @@
 
 When autonomous LLM agents (Claude Code, Cursor, LangGraph SQL explorers) and automated feature-engineering engines explore enterprise datasets, they operate as **high-velocity implicit hypothesis generators**. A single multi-turn session evaluates dozens to thousands of candidate cuts, interaction cubes, and conditional slices (`WHERE slice = x`) before reporting only the most striking discoveries in an executive narrative.
 
-Because unassisted agents lack stateful memory of their cumulative exploration budget ($M$) and rely on sample-size-blind heuristics ("looks like a $3\times$ lift"), they suffer from two complementary failure modes:
-1. **Multiplicity Amnesia (`business_analyst` / unassisted mode):** Agents systematically under-count their explored search space by **$3.5\times\text{ to }8.9\times$**, promoting tiny conditional slices ($N < 40$) that collapse on unseen holdout data—driving out-of-sample False Discovery Rates (Real FDR) up to **$30.2\%\text{--}38.9\%$**.
-2. **Multiplicity Paralysis (`statistician_unassisted` mode):** When prompted for extreme skepticism, agents suffer **exploratory recall collapse**—either through heuristic post-hoc refusal to claim individual cells from omnibus tables, unadjusted collinear power loss, or (in `claude-opus-5-5` on tabular data) **over-guessing** their denominator ($M_{\text{self}} = 200\text{--}300$ vs. $M_{\text{raw}} = 46$), over-penalizing genuine moderate signals.
+Because unassisted agents lack stateful memory of their cumulative exploration budget (*M*) and rely on sample-size-blind heuristics ("looks like a 3× lift"), they suffer from two complementary failure modes:
+1. **Multiplicity Amnesia (`business_analyst` / unassisted mode):** Agents systematically under-count their explored search space by **3.5× to 8.9×**, promoting tiny conditional slices (*N* < 40) that collapse on unseen holdout data—driving out-of-sample False Discovery Rates (Real FDR) up to **30.2%–38.9%**.
+2. **Multiplicity Paralysis (`statistician_unassisted` mode):** When prompted for extreme skepticism, agents suffer **exploratory recall collapse**—either through heuristic post-hoc refusal to claim individual cells from omnibus tables, unadjusted collinear power loss, or (in `claude-opus-5-5` on tabular data) **over-guessing** their denominator (*M*<sub>self</sub> = 200–300 vs. *M*<sub>raw</sub> = 46), over-penalizing genuine moderate signals.
 
 ![Hero Figure: The Dual-Mechanism Discovery Engine](notebooks/figures/fig_hero_dual_mechanism.png)
-*Figure 1 (Hero Figure): The Dual-Mechanism Discovery Engine. (A) The Vulnerability: Across model families, unassisted data agents under-report their true search spaces by $4.6\times\text{--}6.7\times$, causing peak holdout false discovery rates to reach up to $38.9\%$. (B) The Resolution: In live, unconstrained agentic SQL exploration (Phase 2), SignalGuard's stateful ledger expands verified holdout discoveries by $+44\%$ on flagship models (from 16 to 23 verified signals) and lifts lightweight scout Discovery F1 from $0.389$ to $0.499$.*
+*Figure 1 (Hero Figure): The Dual-Mechanism Discovery Engine. (A) The Vulnerability: Across model families, unassisted data agents under-report their true search spaces by 4.6×–6.7×, causing peak holdout false discovery rates to reach up to 38.9%. (B) The Resolution: In live, unconstrained agentic SQL exploration (Phase 2), SignalGuard's stateful ledger expands verified holdout discoveries by +44% on flagship models (from 16 to 23 verified signals) and lifts lightweight scout Discovery F1 from 0.389 to 0.499.*
 
 ### The Core Contribution: A Deterministic Statistical Layer
 **SignalGuard** acts as a stateful **Model Context Protocol (MCP) & SQL Semantic Layer Firewall** between the LLM agent and the data warehouse:
-* **Dynamic Information-Theoretic Noise Thresholds:** Closed-form Wilks' $\chi^2$ and Gaussian Extreme Value Theory (EVT) bounds that automatically adapt to sample size $N$, degrees of freedom $k$, and cumulative exploration $M$.
-* **Spectral Eigenvalue Rank Adjustment ($M_{\text{eff}}$):** Uses the Frobenius-norm participation ratio of feature correlation matrices to avoid over-penalizing collinear feature clusters.
-* **Empirical Validation Across 456 Runs:** In open-ended Phase 2 live SQL exploration (240 evaluations with decoupled pure holdout testing), SignalGuard delivered **$9.0\%\text{--}11.1\%$ empirical FDR** while certifying up to **23 out-of-sample verified signals** on `gpt-6.1-sol` and **19 verified signals** on `gemini-3.5-flash-lite`.
+* **Dynamic Information-Theoretic Noise Thresholds:** Closed-form Wilks' χ² and Gaussian Extreme Value Theory (EVT) bounds that automatically adapt to sample size *N*, degrees of freedom *k*, and cumulative exploration *M*.
+* **Spectral Eigenvalue Rank Adjustment (*M*<sub>eff</sub>):** Uses the Frobenius-norm participation ratio of feature correlation matrices to avoid over-penalizing collinear feature clusters.
+* **Empirical Validation Across 456 Runs:** In open-ended Phase 2 live SQL exploration (240 evaluations with decoupled pure holdout testing), SignalGuard delivered **9.0%–11.1% empirical FDR** while certifying up to **23 out-of-sample verified signals** on `gpt-6.1-sol` and **19 verified signals** on `gemini-3.5-flash-lite`.
 
 ---
 
 ## 2. Theoretical Foundations: Closed-Form Noise Ceilings & Collinear Power
 
 ### 2.1 The Asymptotic Scaling Law of Spurious Information Gain
-Why do rule-of-thumb thresholds ("promote any segment with Relative Information Gain $\text{RIG} > 2\%$") inevitably fail in agentic analytics?
+Why do rule-of-thumb thresholds ("promote any segment with Relative Information Gain RIG > 2%") inevitably fail in agentic analytics?
 
 By Wilks' Theorem, under the null hypothesis of independence $H_0: X \perp Y$, the sample mutual information $\hat{I}(X; Y)$ (in bits) between a $K$-category feature $X$ and a $C$-class target $Y$ over $N$ rows scales asymptotically as a scaled Chi-square random variable with $k = (K-1)(C-1)$ degrees of freedom:
 $$2N \ln(2) \cdot \hat{I}(X; Y) \xrightarrow{d} \chi^2_k$$
@@ -39,24 +39,24 @@ When an agent searches across $M$ candidate queries, extreme value theory (Fishe
 $$\tau_{\text{sig}}(N, k, M, \alpha) = \frac{F_{\chi^2_k}^{-1}\left( (1 - \alpha)^{1/M} \right)}{2N \ln(2) \cdot H(Y)}$$
 
 ![Figure 2: Information-Theoretic Scaling Laws & Multi-Turn Trajectory](notebooks/figures/fig1_scaling_laws.png)
-*Figure 2: Information-Theoretic Scaling Laws. As candidate search budget $M$ expands from 1 to $1{,}000$, spurious information gain escalates logarithmically. SignalGuard dynamically raises significance thresholds to match the noise ceiling.*
+*Figure 2: Information-Theoretic Scaling Laws. As candidate search budget *M* expands from 1 to 1,000, spurious information gain escalates logarithmically. SignalGuard dynamically raises significance thresholds to match the noise ceiling.*
 
-### 2.2 Collinear Multiplicity Adjustment ($M_{\text{eff}}$) & Power Recovery
-Real-world data mart features (such as `sqft_living`, `grade`, and `bathrooms` in housing data) are highly correlated. Naive Bonferroni penalties assume $M$ orthogonal tests and crush statistical power. 
+### 2.2 Collinear Multiplicity Adjustment (*M*<sub>eff</sub>) & Power Recovery
+Real-world data mart features (such as `sqft_living`, `grade`, and `bathrooms` in housing data) are highly correlated. Naive Bonferroni penalties assume *M* orthogonal tests and crush statistical power. 
 
-Using the Cheverud-Nyholt Frobenius participation ratio of the feature correlation matrix $R$:
+Using the Cheverud-Nyholt Frobenius participation ratio of the feature correlation matrix *R*:
 $$M_{\text{eff}} = \frac{\left(\sum_{i=1}^M \lambda_i\right)^2}{\sum_{i=1}^M \lambda_i^2} = \frac{M^2}{\|R\|_F^2}$$
 
-SignalGuard clusters collinear tests into effective dimensions. On King County housing data, `statistician_signalguard` achieves **$30\%$ higher verified out-of-sample Holdout RIG ($0.2184$ vs. $0.1676$)** and **lower signal decay ($2.6\%$ vs. $3.4\%$)** than unassisted statistician prompts.
+SignalGuard clusters collinear tests into effective dimensions. On King County housing data, `statistician_signalguard` achieves **30% higher verified out-of-sample Holdout RIG (0.2184 vs. 0.1676)** and **lower signal decay (2.6% vs. 3.4%)** than unassisted statistician prompts.
 
 ---
 
 ## 3. Headline Benchmark: Unconstrained Agentic SQL Exploration (Phase 2, 240 Live Runs)
 
-In Phase 2, models operate in an open-ended multi-turn loop against an in-memory SQLite analytical warehouse, writing, executing, and refining their own SQL queries across 4 production datasets (King County housing, Lending Club loans, Bank Marketing seeded treatment effect, and Bank Marketing flat null A/B test). Holdout verification is strictly decoupled: a finding replicates if and only if $p_{\text{holdout}} < 0.05$ with matching directional sign.
+In Phase 2, models operate in an open-ended multi-turn loop against an in-memory SQLite analytical warehouse, writing, executing, and refining their own SQL queries across 4 production datasets (King County housing, Lending Club loans, Bank Marketing seeded treatment effect, and Bank Marketing flat null A/B test). Holdout verification is strictly decoupled: a finding replicates if and only if *p*<sub>holdout</sub> < 0.05 with matching directional sign.
 
 ![Figure 3: Phase 2 Empirical Cross-Model Matrix](notebooks/figures/fig8_phase2_model_matrix.png)
-*Figure 3: Phase 2 Cross-Model Empirical Matrix across 240 live evaluations. (A) Out-of-sample Discovery F1 score across statistical arms. (B) Replicated signal volume on decoupled holdout vaults ($p < 0.05$). Flagships (`gpt-6.1-sol`) and scaffolded scouts (`gemini-3.5-flash-lite`) achieve peak verified discovery under SignalGuard governance.*
+*Figure 3: Phase 2 Cross-Model Empirical Matrix across 240 live evaluations. (A) Out-of-sample Discovery F1 score across statistical arms. (B) Replicated signal volume on decoupled holdout vaults (*p* < 0.05). Flagships (`gpt-6.1-sol`) and scaffolded scouts (`gemini-3.5-flash-lite`) achieve peak verified discovery under SignalGuard governance.*
 
 ### Table 1: Master Phase 2 Cross-Model Empirical Matrix (240 Live Sessions)
 
@@ -84,10 +84,10 @@ In Phase 2, models operate in an open-ended multi-turn loop against an in-memory
 | | | `benjamini_hochberg` | 4.00 | 2 | 2 | **0.0%** | 8.3% | 8.3% | 0.083 |
 
 ### 3.1 Key Phase 2 Insights
-1. **Universal Skepticism on Flat Nulls (0.0% FDR Across All 5 Models):** Across all 60 evaluations on `bank_marketing_null_ab`, modern LLMs consistently reported `findings: []`. When aggregate A/B lift is flat ($+0.2\%, p=0.44$), models do not hallucinate demographic sub-segments.
+1. **Universal Skepticism on Flat Nulls (0.0% FDR Across All 5 Models):** Across all 60 evaluations on `bank_marketing_null_ab`, modern LLMs consistently reported `findings: []`. When aggregate A/B lift is flat (+0.2%, *p* = 0.44), models do not hallucinate demographic sub-segments.
 2. **Flagship Discovery Volume (23 Verified Signals):** Under `signalguard`, `gpt-6.1-sol` achieved the **highest verified signal volume in the benchmark (23 replicated signals out of 25 reported, 92.0% replication rate, 0.594 Discovery F1)**, cutting empirical FDR from 18.1% down to 11.1%. On Lending Club default risk subgroups, SignalGuard cut empirical FDR from **38.9% down to 11.1%**, lifting F1 from `0.722` to `0.933`.
 3. **Scout Democratization:** Pairing `gemini-3.5-flash-lite` with SignalGuard achieved **19 replicated signals** and a **0.499 Discovery F1**, outperforming unassisted flagship models in systematic exploration.
-4. **Epistemic Caution in Claude Sonnet 5.5:** In King County Housing, `claude-sonnet-5-5` recognized that multi-category ANOVA/$\chi^2$ p-values are omnibus table metrics rather than individual cell guarantees. Declining to report uncorrected sub-segments, it achieved **0.0% FDR across all 48 runs**.
+4. **Epistemic Caution in Claude Sonnet 5.5:** In King County Housing, `claude-sonnet-5-5` recognized that multi-category ANOVA/χ² p-values are omnibus table metrics rather than individual cell guarantees. Declining to report uncorrected sub-segments, it achieved **0.0% FDR across all 48 runs**.
 5. **The Upstream SQL Cardinality & Preview Confounder (Flagships vs. Scouts):**
    * *Flagships (`gpt-6.1-sol`):* Formulate surgical contrasts (50.0% of runs utilize targeted `CASE WHEN` constructs, averaging 7 to 42 cells), avoiding context bloat.
    * *Lightweight Scouts (`gpt-6-luna`):* Frequently formulate unconstrained 6-way Cartesian aggregations (`GROUP BY grade, purpose, term, addr_state, home_ownership, emp_length`), generating up to 13,106 rows. Because production agent harnesses truncate result previews to 25 rows (`df_res.head(25)`), candidates in alphabetized tails are hidden outside the agent's context window. On bounded schemas (`king_county_subgroup`), `gpt-6-luna` achieves **0.667 F1** across all arms; on high-cardinality schemas (`lending_club`), unassisted queries exhaust the 8-turn cap.
@@ -96,12 +96,12 @@ In Phase 2, models operate in an open-ended multi-turn loop against an in-memory
 
 ## 4. Generalization Beyond LLMs: Automated Feature Discovery (`agentune`-Style AutoML)
 
-To verify that multiple-testing selection bias is a general property of automated exploration, we benchmarked greedy feature synthesis ($K = 15$ selected from $M = 1{,}000$ generated candidates) against SignalGuard governance across all 3 datasets.
+To verify that multiple-testing selection bias is a general property of automated exploration, we benchmarked greedy feature synthesis (*K* = 15 selected from *M* = 1,000 generated candidates) against SignalGuard governance across all 3 datasets.
 
 ![Figure 4: AutoML Downstream Classifier Generalization Gap](notebooks/figures/fig6_agentune_downstream_overfitting_gap.png)
 *Figure 4: Downstream Classifier Generalization Gap. Unassisted greedy top-15 selection promotes high-cardinality interaction cubes that degrade holdout ROC AUC. SignalGuard EVT + sparsity gating restores generalization lift.*
 
-### Table 2: AutoML Feature Engineering Benchmark ($M = 1{,}000$ Candidates $\to$ Top-15 Selected)
+### Table 2: AutoML Feature Engineering Benchmark (*M* = 1,000 Candidates → Top-15 Selected)
 
 | Dataset | Selection Pipeline | Holdout Replication Rate | Real FDR (%) | Mean Train RIG | Mean Holdout RIG | Out-of-Sample Decay (%) | Downstream Holdout ROC AUC |
 | :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
@@ -113,7 +113,7 @@ To verify that multiple-testing selection bias is a general property of automate
 | **Bank Marketing** | Unassisted Greedy Top-15 | 100.0% (15/15) | 0.0% | 0.1168 | 0.1173 | 7.3% | — |
 | **Bank Marketing** | **SignalGuard-Governed Top-15** | **100.0% (15/15)** | **0.0%** | **0.0892** | **0.0917** | **6.4%** | — |
 
-* **Key AutoML Takeaway:** On Lending Club, greedy Top-15 selection promotes 4 high-cardinality 3-way interaction cubes that look strong on Train ($\text{RIG} \approx 0.033$) but collapse near zero on the Holdout Vault ($\text{RIG} < 0.002$, **26.7% Real FDR**, **39.2% mean signal decay**), actively **degrading downstream Holdout ROC AUC** from `0.7010` down to `0.6993`. SignalGuard filters out overfit interactions, achieving **100.0% feature replication**, cutting signal decay in half (**21.9%**), and **improving downstream Holdout ROC AUC to `0.7028`**.
+* **Key AutoML Takeaway:** On Lending Club, greedy Top-15 selection promotes 4 high-cardinality 3-way interaction cubes that look strong on Train (RIG ≈ 0.033) but collapse near zero on the Holdout Vault (RIG < 0.002, **26.7% Real FDR**, **39.2% mean signal decay**), actively **degrading downstream Holdout ROC AUC** from `0.7010` down to `0.6993`. SignalGuard filters out overfit interactions, achieving **100.0% feature replication**, cutting signal decay in half (**21.9%**), and **improving downstream Holdout ROC AUC to `0.7028`**.
 
 ---
 
@@ -121,9 +121,9 @@ To verify that multiple-testing selection bias is a general property of automate
 
 ### 5.1 Sub-Millisecond Database Interception
 A core systems requirement for enterprise semantic layers is near-zero gating latency. Profiling closed-form mathematical evaluations against SQLite analytical warehouses demonstrates sub-millisecond overhead:
-* **Discrete Contingency Gate:** $0.17\text{ ms}$ ($5{,}800\text{ QPS}$ on a single core).
-* **Continuous Gaussian ANOVA Gate:** $0.32\text{ ms}$ ($3{,}100\text{ QPS}$ on a single core).
-* **Warehouse Overhead:** On tables with $N \ge 100{,}000$ rows, SignalGuard adds **$< 0.25\%$ overhead** ($0.32\text{ ms}$ gate vs. $142.2\text{ ms}$ SQL scan), shrinking to **$0.04\%$** on $500{,}000$ rows.
+* **Discrete Contingency Gate:** 0.17 ms (5,800 QPS on a single core).
+* **Continuous Gaussian ANOVA Gate:** 0.32 ms (3,100 QPS on a single core).
+* **Warehouse Overhead:** On tables with *N* ≥ 100,000 rows, SignalGuard adds **< 0.25% overhead** (0.32 ms gate vs. 142.2 ms SQL scan), shrinking to **0.04%** on 500,000 rows.
 
 ### 5.2 Grammar-Constrained Decoding vs. Statistical Query Hygiene
 A natural systems question is whether schema-constrained grammar decoders—such as PICARD (Scholak et al., EMNLP 2021), Synchromesh (Poesia et al., ICLR 2022), or Outlines (Willard & Louf, 2023)—can resolve the agentic query formulation failures identified in Phase 2. While grammar-constrained generation guarantees syntactic validity (ensuring output tokens parse into valid SQL ASTs against database schemas), it cannot enforce statistical query hygiene. A 6-way Cartesian cross-tab (`GROUP BY grade, purpose, term, addr_state, home_ownership, emp_length`) is syntactically flawless SQL; however, it is statistically catastrophic, generating thousands of sparse cells that exhaust agent context budgets and inflate multi-testing penalties. Grammar decoding operates at the syntactic token layer, whereas statistical governance requires semantic and epistemic boundaries: enforcing contrast isolation (Target vs. Rest), bounding exploratory cardinality, and auditing sequential hypothesis multiplicity.
@@ -157,7 +157,7 @@ All code, unit tests, datasets, cached transcripts, and figure scripts are self-
   * [`Data/phase2_stage1_cache.jsonl`](Data/phase2_stage1_cache.jsonl) — Complete persistent trace cache containing all 240 live agent sessions, SQL histories, and holdout replication audits.
   * [Data/phase2_stage1_summary.csv](Data/phase2_stage1_summary.csv), [Data/phase2_stage1_haiku_summary.csv](Data/phase2_stage1_haiku_summary.csv), [Data/phase2_stage1_luna_summary.csv](Data/phase2_stage1_luna_summary.csv), [Data/phase2_stage2_sonnet_summary.csv](Data/phase2_stage2_sonnet_summary.csv), [Data/phase2_stage2_sol_summary.csv](Data/phase2_stage2_sol_summary.csv) — Compiled summary CSVs across all 5 evaluated frontier and everyday models.
 * **Core Mathematical & Ledger Engine:**
-  * [`signalguard/threshold.py`](signalguard/threshold.py) — Closed-form Wilks' $\chi^2_k$ & Gumbel EVT RIG thresholds (`FeatureNoiseThreshold`), eigenvalue effective rank (`effective_number_of_tests`), and closed-form continuous SQL ANOVA gate (`anova_rig_from_group_stats`).
+  * [`signalguard/threshold.py`](signalguard/threshold.py) — Closed-form Wilks' χ²ₖ & Gumbel EVT RIG thresholds (`FeatureNoiseThreshold`), eigenvalue effective rank (`effective_number_of_tests`), and closed-form continuous SQL ANOVA gate (`anova_rig_from_group_stats`).
   * [`signalguard/mcp_server.py`](signalguard/mcp_server.py) — Stateful multiple-testing session ledger (`NoiseGateSessionLedger`) supporting discrete contingency tables and continuous SQL `GROUP BY` sufficient statistics.
 * **Figure Generation Scripts:**
   * [`scripts/generate_hero_figure.py`](scripts/generate_hero_figure.py) — Generates Figure 1 (Hero Figure).
