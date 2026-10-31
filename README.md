@@ -32,7 +32,7 @@ If your organization connects autonomous LLM agents (Claude Code, Cursor, LangCh
 ```
 
 1. **The Silent Multi-Testing Problem:** An LLM agent rarely executes a single query. To answer a high-level question, it slices, filters, and cross-tabulates data across dozens of tool calls, then reports only the most striking results.
-2. **Small Slices Produce Convincing Noise:** Test enough segments on small cohorts ($N < 50$) and some will look significant at $p < 0.05$ purely by chance. In our benchmark, frontier LLMs reading a 38-query SQL exploration transcript that contained such small-slice results sometimes promoted them: on the continuous King County mart, **14%–41% of `business_analyst` findings failed holdout replication** (0%–27% under a plain holdout test), while a skeptical-statistician prompt avoided them. See [Benchmark Design & Limitations](REPORT.md#benchmark-design--limitations) in the report.
+2. **Small Slices Produce Convincing Noise:** Test enough segments on small cohorts ($N < 50$) and some will look significant at $p < 0.05$ purely by chance. In our benchmark, frontier LLMs reading a 38-query SQL exploration transcript that contained such small-slice results sometimes promoted them: on the continuous King County mart, **14%–41% of `business_analyst` findings failed holdout replication** (0%–27% under a plain holdout test), while a skeptical-statistician prompt avoided them. See [Phase 1 Foundation Archive](REPORT.md#6-supplementary-materials--phase-1-foundation-archive) in the report.
 3. **The Business Fallout:**
    * 💰 **Finance & FP&A:** Budget and pricing decisions anchored on segment effects that do not hold up out-of-sample.
    * ⚙️ **Operations:** Workflows restructured around "bottlenecks" observed in a few dozen records.
@@ -42,8 +42,8 @@ If your organization connects autonomous LLM agents (Claude Code, Cursor, LangCh
 SignalGuard is a **statistical firewall** for agent workflows, exposed as an MCP server and as OpenAI/Anthropic tool schemas. It keeps a running count of how many hypotheses the agent has tested ($M$), raises the significance bar accordingly, and flags findings that do not clear the noise ceiling for that sample size and search budget. For SQL `GROUP BY` results it works from aggregate statistics (`COUNT`, `AVG`, `STDDEV`) rather than raw rows.
 
 > **Benchmark Progression:**  
-> * **Phase 1 (Proof-of-Mechanism, 216 runs):** In our scripted baseline benchmark, when the LLM was given SignalGuard's verdicts and instructed to report only verified findings, none of its reported findings failed holdout replication (demonstrating the gating mechanism under fixed transcripts and shared small-cell rules; see [Benchmark Design & Limitations](REPORT.md#benchmark-design--limitations)).
-> * **Phase 2 (Independent Agentic Evaluation, 240 live runs):** To provide an unconstrained, independent estimate of production behavior, Phase 2 eliminated scripted transcripts (agents freely write, execute, and iterate their own SQL) and decoupled holdout replication (zero shared small-cell rules). Under this open-ended evaluation across 5 model families, SignalGuard produced a robust **9.0%–11.1% empirical FDR** with up to **23 verified holdout signals** (on gpt-6.1-sol), while protecting models from the **18%–39% error spikes** seen in unassisted exploration. See [Phase 2 Master Benchmark](REPORT.md#act-vi-phase-2-master-benchmark--open-weights-evaluation-240-live-sql-sessions).
+> * **Phase 1 (Proof-of-Mechanism, 216 runs):** In our scripted baseline benchmark, when the LLM was given SignalGuard's verdicts and instructed to report only verified findings, none of its reported findings failed holdout replication (demonstrating the gating mechanism under fixed transcripts and shared small-cell rules; see [Phase 1 Foundation Archive](REPORT.md#6-supplementary-materials--phase-1-foundation-archive)).
+> * **Phase 2 (Independent Agentic Evaluation, 240 live runs):** To provide an unconstrained, independent estimate of production behavior, Phase 2 eliminated scripted transcripts (agents freely write, execute, and iterate their own SQL) and decoupled holdout replication (zero shared small-cell rules). Under this open-ended evaluation across 5 model families, SignalGuard produced a robust **9.0%–11.1% empirical FDR** with up to **23 verified holdout signals** (on gpt-6.1-sol), while protecting models from the **18%–39% error spikes** seen in unassisted exploration. See [Phase 2 Master Benchmark](REPORT.md#3-headline-benchmark-unconstrained-agentic-sql-exploration-phase-2-240-live-runs).
 
 👉 *Want the full executive context? Read [`EXECUTIVE_SUMMARY.md`](EXECUTIVE_SUMMARY.md).*
 
@@ -133,7 +133,7 @@ This maps any continuous SQL `GROUP BY` query directly onto SignalGuard's $\chi^
 
 ## 🏆 Key Empirical Benchmark Results (216 Frontier LLM Runs)
 
-See **[`REPORT.md`](REPORT.md)** for the complete 5-act visual narrative, mathematical derivations, and full tables across **Anthropic Claude Opus 5.5** (`claude-opus-5-5`), **Claude Sonnet 5.5** (`claude-sonnet-5-5`), **OpenAI GPT-6.1 Sol** (`gpt-6.1-sol`), and **Google Gemini 3.5 Flash Lite** (`gemini-3.5-flash-lite`) on **Lending Club ($N=54.6\text{k}$)**, **King County Housing ($N=21.6\text{k}$)**, and **UCI Bank Marketing ($N=41.2\text{k}$)**.
+See **[`REPORT.md`](REPORT.md)** for the complete technical report, mathematical derivations, and full tables across **Anthropic Claude Opus 5.5** (`claude-opus-5-5`), **Claude Sonnet 5.5** (`claude-sonnet-5-5`), **OpenAI GPT-6.1 Sol** (`gpt-6.1-sol`), and **Google Gemini 3.5 Flash Lite** (`gemini-3.5-flash-lite`) on **Lending Club ($N=54.6\text{k}$)**, **King County Housing ($N=21.6\text{k}$)**, and **UCI Bank Marketing ($N=41.2\text{k}$)**.
 
 ![Real-World Frontier LLM Replication & False Discovery Audit](notebooks/figures/fig4_real_world_frontier_replication.png)
 
@@ -297,7 +297,7 @@ print(stable_features[['feature', 'train_rig', 'corrected_rig', 'stability_class
 
 ```
 signal-guard/
-├── REPORT.md                     # Standalone 5-act executive & technical empirical report
+├── REPORT.md                     # Standalone executive & technical empirical report
 ├── signalguard/                   # Core library
 │   ├── __init__.py               # Public API exports
 │   ├── metrics.py                # Fast entropy, mutual info, RIG calculations
