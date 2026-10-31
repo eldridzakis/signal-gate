@@ -57,14 +57,6 @@ ax1.text(5.5, 96, "SIGNALGUARD OPTIMAL ZONE\n(FDR ≤ 10%, Recall ≥ 70%)\nCali
          color='#166534', fontsize=8.5, fontweight='bold', ha='center', va='top', zorder=2)
 
 # 2. Points configuration:
-# To prevent vertical stacking at FDR = 0.0%, we apply a minor visual offset (jitter) for distinct visibility:
-# Sonnet Bonf: (0.2, 5.6)
-# Haiku BH: (1.2, 11.1)
-# Sonnet Unassisted: (0.4, 16.7)
-# Sonnet SignalGuard: (1.8, 16.7)
-
-# Scatter points:
-# (FDR, Recall, Label, Arm, Color, Marker, Size)
 pts = [
     # Paralysis Trap Points (Multiple models collapse here!)
     (0.2, 5.6, "Sonnet (Bonf: 5.6%)", "bonf", "#d97706", "s", 70),
@@ -118,10 +110,10 @@ ax1.annotate("", xy=(8.0, 77.8), xytext=(23.8, 77.8),
              arrowprops=dict(arrowstyle="->", color="#1e40af", lw=2.2, mutation_scale=15), zorder=6)
 ax1.text(16.0, 81.5, "Sol: -16% FDR Spike\n(16 -> 23 Replicated)", color="#1e40af", fontsize=8, fontweight='bold', ha='center')
 
-# Flash-Lite rescue
+# Flash-Lite rescue: moved label to the right of the arrow (ha='left' at x=10.5, y=62.0)
 ax1.annotate("", xy=(9.0, 72.2), xytext=(0.0, 50.0),
              arrowprops=dict(arrowstyle="->", color="#16a34a", lw=2.2, mutation_scale=15), zorder=6)
-ax1.text(7.2, 59.0, "Flash-Lite: +22% Recall\n(13 -> 19 Replicated)", color="#16a34a", fontsize=8, fontweight='bold', ha='center')
+ax1.text(10.5, 62.0, "Flash-Lite: +22% Recall\n(13 -> 19 Replicated)", color="#16a34a", fontsize=8, fontweight='bold', ha='left', va='center')
 
 # Axis formatting
 ax1.set_xlim(-1.5, 43.5)
@@ -166,14 +158,25 @@ color_sg_bar = "#2563eb"        # Royal blue
 color_unassist_f1 = "#64748b"   # Dark slate
 color_sg_f1 = "#16a34a"         # Emerald green
 
-# Plot Counts (Left Axis)
-b1 = ax2.bar(x_b - width_b*1.5, unassisted_reps, width_b, label="Unassisted Replications (Count)", color=color_unassist_bar, edgecolor="black", linewidth=0.6)
-b2 = ax2.bar(x_b - width_b*0.5, signalguard_reps, width_b, label="SignalGuard Replications (Count)", color=color_sg_bar, edgecolor="black", linewidth=0.6)
+# Ensure grid is drawn BEHIND bars and twin axis has NO grid
+ax2.set_axisbelow(True)
+ax2.grid(True, linestyle="--", alpha=0.35, zorder=0)
+
+# Plot Counts (Left Axis) with explicit zorder=3
+b1 = ax2.bar(x_b - width_b*1.5, unassisted_reps, width_b, label="Unassisted Replications (Count)", 
+             color=color_unassist_bar, edgecolor="black", linewidth=0.6, zorder=3)
+b2 = ax2.bar(x_b - width_b*0.5, signalguard_reps, width_b, label="SignalGuard Replications (Count)", 
+             color=color_sg_bar, edgecolor="black", linewidth=0.6, zorder=3)
 
 # Create twin axis for Discovery F1
 ax2_twin = ax2.twinx()
-b3 = ax2_twin.bar(x_b + width_b*0.5, unassisted_f1, width_b, label="Unassisted Discovery F1", color=color_unassist_f1, hatch="...", alpha=0.85, edgecolor="black", linewidth=0.6)
-b4 = ax2_twin.bar(x_b + width_b*1.5, signalguard_f1, width_b, label="SignalGuard Discovery F1", color=color_sg_f1, alpha=0.9, edgecolor="black", linewidth=0.6)
+ax2_twin.grid(False)  # CRITICAL: Disable twin axis grid so it does not draw over bars!
+ax2_twin.set_axisbelow(True)
+
+b3 = ax2_twin.bar(x_b + width_b*0.5, unassisted_f1, width_b, label="Unassisted Discovery F1", 
+                  color=color_unassist_f1, hatch="...", alpha=0.85, edgecolor="black", linewidth=0.6, zorder=3)
+b4 = ax2_twin.bar(x_b + width_b*1.5, signalguard_f1, width_b, label="SignalGuard Discovery F1", 
+                  color=color_sg_f1, alpha=0.9, edgecolor="black", linewidth=0.6, zorder=3)
 
 # Add exact value labels on bars
 def autolabel_counts(rects, ax_target):
@@ -182,7 +185,7 @@ def autolabel_counts(rects, ax_target):
         ax_target.annotate(f"{int(h)}",
                            xy=(rect.get_x() + rect.get_width() / 2, h),
                            xytext=(0, 3), textcoords="offset points",
-                           ha='center', va='bottom', fontsize=9.5, fontweight="bold")
+                           ha='center', va='bottom', fontsize=9.5, fontweight="bold", zorder=5)
 
 def autolabel_floats(rects, ax_target, color):
     for rect in rects:
@@ -190,7 +193,7 @@ def autolabel_floats(rects, ax_target, color):
         ax_target.annotate(f"{h:.3f}",
                            xy=(rect.get_x() + rect.get_width() / 2, h),
                            xytext=(0, 3), textcoords="offset points",
-                           ha='center', va='bottom', fontsize=9, fontweight="bold", color=color)
+                           ha='center', va='bottom', fontsize=9, fontweight="bold", color=color, zorder=5)
 
 autolabel_counts(b1, ax2)
 autolabel_counts(b2, ax2)
@@ -209,7 +212,7 @@ ax2.set_title("(B) The Resolution: Stateful Governance in Live Agentic SQL (Phas
 # Combine legends for Panel B
 lines_b, labels_b = ax2.get_legend_handles_labels()
 lines_b2, labels_b2 = ax2_twin.get_legend_handles_labels()
-ax2.legend(lines_b + lines_b2, labels_b + labels_b2, loc="upper left", framealpha=0.9, fontsize=8.5)
+ax2.legend(lines_b + lines_b2, labels_b + labels_b2, loc="upper left", framealpha=0.9, facecolor='white', edgecolor='#cbd5e1', fontsize=8.5)
 
 plt.tight_layout()
 
